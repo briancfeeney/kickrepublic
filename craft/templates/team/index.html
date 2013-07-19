@@ -1,0 +1,39 @@
+{#
+ # News index template
+ # -------------------
+ #
+ # This template is loaded whenever http://example.com/news is
+ # requested, because it is located at news/index.html in your
+ # craft/templates/ folder.
+ #}
+
+{% extends "_layout" %}
+{% set title = "Team" %}
+
+{% block content %}
+
+	<h2>United States Men's National Team</h2>
+	
+	<section>
+		<p>{{team.team_bio}}</p>
+	</section>
+
+	<section>
+		<h3>Players</h3>
+		<ul>
+			{% for entry in craft.entries.section('players').find() %}
+				<li><a href="{{ entry.url }}">{{ entry.title }}</a>: <small>{% for option in entry.player_position %}{{ option }}{% endfor %}</small> / <small>{% for row in entry.player_clubs %}{{ row.player_club }}{% endfor %}</small></li>
+			{% endfor %}
+		</ul>
+	</section>
+
+	<section>
+		<h3>Current Roster</h3>
+		<ul>
+		       {% for post in team.current_roster %}
+		           <li><a href="{{ post.url }}">{{ post.title }}</a></li>
+		       {% endfor %}
+		</ul>
+	</section>
+
+{% endblock %}

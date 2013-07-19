@@ -10,14 +10,31 @@
 {% extends "_layout" %}
 
 {% block content %}
-	<h1>{{ homepage.heading }}</h1>
 
-	{{ homepage.body }}
+	<section>
+		<h1>{{ homepage.heading }}</h1>
 
-	<h2>Recent News</h2>
-	<ul>
-		{% for entry in craft.entries.section('news').limit(5).find() %}
-			<li><a href="{{ entry.url }}">{{ entry.title }}</a></li>
-		{% endfor %}
-	</ul>
+		{{ homepage.body }}
+
+		<h2>News</h2>
+		<ul>
+			{% for entry in craft.entries.section('news').limit(5).find() %}
+				<li><a href="{{ entry.url }}">{{ entry.title }}</a></li>
+			{% endfor %}
+		</ul>
+	</section>
+
+	<section>
+		<h2>Social Stuff</h2>
+		<ul>
+			<li><a href="mailto:{{global.email}}">Email</a></li>
+			<li><a href="http://twitter.com/{{global.twitter}}">Twitter</a></li>
+			<li><a href="http://facebook.com/{{global.facebook}}">Facebook</a></li>
+		</ul>
+	</section>
+
+	<section>
+		<h2>About</h2>
+	</section>
+
 {% endblock %}
