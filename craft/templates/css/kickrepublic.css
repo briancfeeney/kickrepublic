@@ -5261,3 +5261,15 @@ a.badge:focus {
 .affix {
   position: fixed;
 }
+footer {
+  padding: 60px;
+}
+footer ul {
+  list-style-type: none;
+  margin: 0;
+  padding: 0;
+}
+footer ul li {
+  float: left;
+  margin-right: 20px;
+}

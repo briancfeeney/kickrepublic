@@ -15,24 +15,8 @@
 	<meta charset="utf-8" />
 	<title>{% if title is defined %}{{ title }} - {% endif %}{{ siteName }}</title>
 	<link rel="home" href="{{ siteUrl }}" />
-
-	<style type="text/css">
-		body { margin: 50px; font-family: sans-serif; background: #fff; }
-		#container { margin: 0 auto; width: 700px;
-			-webkit-box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-			        box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-		}
-
-
-		#content { display: block; padding: 25px; background: #fff; }
-		#content h1 { margin-top: 0; font-size: 35px; font-weight: bold; }
-		#content a { color: #da5a47; text-decoration: none; }
-		#content a:hover { text-decoration: underline; }
-
-		#footer { border-radius: 0 0 7px 7px; padding: 15px; font-size: 12px; text-align: center; }
-	</style>
 	
-	<link rel="stylesheet" type="text/css" href="/css/kickrepublic.css" />	
+	<link rel="stylesheet" type="text/css" href="{{ url('css') }}/kickrepublic.css" />	
 	
 </head>
 
@@ -43,7 +27,7 @@
 				<h1><a href="{{ siteUrl }}" class="brand">{{ siteName }}</a></h1>
 				<ul class="nav pull-right">
 					<li><a href="{{ url('news') }}" {% if craft.request.firstSegment == 'news' %}class="active"{% endif %}>News</a></li>
-					<li><a href="{{ url('team') }}" {% if craft.request.firstSegment == 'team' %}class="active"{% endif %}>Team</a></li>
+					<li><a href="{{ url('team') }}" {% if craft.request.firstSegment == 'team' %}class="active"{% endif %}>USMNT</a></li>
 					<li><a href="{{ url('about') }}" {% if craft.request.firstSegment == 'about' %}class="active"{% endif %}>About</a></li>
 				</ul>
 			</div>
@@ -60,7 +44,15 @@
 	</div>
 
 	<footer id="footer">
-		Copyright {{ now.year }} {{ craft.request.serverName | ucfirst }}.
+		<div class="container">
+			<ul>
+				<li><a href="{{ siteUrl }}/kickrepublic.rss">RSS</a></li>
+				<li><a href="mailto:{{global.email}}">Email</a></li>
+				<li><a href="http://twitter.com/{{global.twitter}}">Twitter</a></li>
+				<li><a href="http://facebook.com/{{global.facebook}}">Facebook</a></li>
+				<li>Copyright {{ now.year }} {{ craft.request.serverName | ucfirst }}.</li>
+			</ul>
+		</div>
 	</footer>
 </body>
 </html>

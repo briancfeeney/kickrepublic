@@ -19,21 +19,15 @@
 	</section>
 
 	<section>
-		<h3>Players</h3>
-		<ul>
-			{% for entry in craft.entries.section('players').find() %}
-				<li><a href="{{ entry.url }}">{{ entry.title }}</a>: <small>{% for option in entry.player_position %}{{ option }}{% endfor %}</small> / <small>{% for row in entry.player_clubs %}{{ row.player_club }}{% endfor %}</small></li>
-			{% endfor %}
-		</ul>
-	</section>
-
-	<section>
 		<h3>Current Roster</h3>
 		<ul>
 		       {% for post in team.current_roster %}
 		           <li><a href="{{ post.url }}">{{ post.title }}</a></li>
 		       {% endfor %}
 		</ul>
+		
+		<h4><a href="/players">View the full list of players.</a></h4>
+		
 	</section>
 
 {% endblock %}

@@ -1,0 +1,18 @@
+{#
+ # Players index template
+ # -------------------
+ #}
+
+{% extends "_layout" %}
+{% set title = "Players" %}
+
+{% block content %}
+	<h1>Players</h1>
+
+	{% for entry in craft.entries.section('players').find() %}
+		<article>
+			<h3><a href="{{ entry.url }}">{{ entry.title }}</a></h3>
+			{{ entry.body }}
+		</article>
+	{% endfor %}
+{% endblock %}

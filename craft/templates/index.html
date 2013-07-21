@@ -12,29 +12,16 @@
 {% block content %}
 
 	<section>
-		<h1>{{ homepage.heading }}</h1>
+		<h1>News</h1>
 
-		{{ homepage.body }}
-
-		<h2>News</h2>
-		<ul>
-			{% for entry in craft.entries.section('news').limit(5).find() %}
-				<li><a href="{{ entry.url }}">{{ entry.title }}</a></li>
-			{% endfor %}
-		</ul>
-	</section>
-
-	<section>
-		<h2>Social Stuff</h2>
-		<ul>
-			<li><a href="mailto:{{global.email}}">Email</a></li>
-			<li><a href="http://twitter.com/{{global.twitter}}">Twitter</a></li>
-			<li><a href="http://facebook.com/{{global.facebook}}">Facebook</a></li>
-		</ul>
-	</section>
-
-	<section>
-		<h2>About</h2>
+		{% for entry in craft.entries.section('news').find() %}
+			<article>
+				<h3><a href="{{ entry.url }}">{{ entry.title }}</a></h3>
+				<p>Posted on {{ entry.postDate.format('F d, Y') }}</p>
+				{{ entry.body.page(1) }}
+				<p><a href="{{ entry.url }}">Continue reading</a></p>
+			</article>
+		{% endfor %}
 	</section>
 
 {% endblock %}

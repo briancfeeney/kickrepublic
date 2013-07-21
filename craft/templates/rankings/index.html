@@ -1,0 +1,24 @@
+{#
+ # Rankings index template
+ # -------------------
+ #}
+
+{% extends "_layout" %}
+{% set title = "Rankings" %}
+
+{% block content %}
+	<h1>International Ranking</h1>
+
+	<section>
+		<p>{{ rankings.ranking_intro }}</p>
+		
+		{% for row in rankings.ranking %}
+		   {% if loop.first %}<ol>{% endif %}
+			<li>
+				<h4>{{ row.nation }}<h4>
+				<p>{{ row.nation_info }}</p>
+			</li>
+		   {% if loop.last %}</ol>{% endif %}
+		{% endfor %}
+	</section>
+{% endblock %}
