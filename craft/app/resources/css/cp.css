@@ -116,9 +116,13 @@ html, body, #nav li a.sel { background: whitesmoke; }
 
 #main.has-sidebar { padding-left: 230px; }
 
-#main.has-sidebar:after { content: '.'; display: block; height: 0; clear: both; visibility: hidden; }
+#main.has-help { padding-bottom: 60px; min-height: 470px; }
 
-.sidebar { position: absolute; margin-left: -200px; width: 170px; }
+#main.has-help #help { position: absolute; bottom: 17px; right: 17px; font-size: 26px; }
+
+#main:after { content: '.'; display: block; height: 0; clear: both; visibility: hidden; }
+
+.sidebar { position: absolute; margin: -30px 0 -30px -230px; padding: 30px 0 30px 30px; width: 170px; overflow: auto; }
 
 .sidebar nav { margin-left: -30px; padding-left: 30px; width: 170px; overflow: auto; }
 
@@ -142,7 +146,7 @@ html, body, #nav li a.sel { background: whitesmoke; }
 
 .sidebar nav li.expanded > ul { display: block; }
 
-#main #sidebar nav.fixed { position: fixed; top: 0; }
+#main #sidebar.fixed { margin-top: 0; margin-bottom: 0; position: fixed; top: 0; }
 
 #main #sidebar-alt { margin-bottom: 30px; }
 

@@ -11,17 +11,45 @@
 
 {% block content %}
 
-	<section>
-		<h1>News</h1>
-
-		{% for entry in craft.entries.section('news').find() %}
-			<article>
-				<h3><a href="{{ entry.url }}">{{ entry.title }}</a></h3>
-				<p>Posted on {{ entry.postDate.format('F d, Y') }}</p>
-				{{ entry.body.page(1) }}
-				<p><a href="{{ entry.url }}">Continue reading</a></p>
-			</article>
-		{% endfor %}
-	</section>
+<div class="row">
+	<div class="col-md-8">
+		<section id="news">
+			{% for entry in craft.entries.section('news').find() %}
+				<article>
+				    {% for image in entry.news_image %}
+					   <img src="{{ image.url }}" height="{{ image.height }}" width="{{ image.width }}" alt="{{ entry.title }}">
+					{% endfor %}
+				
+					<h2><a href="{{ entry.url }}">{{ entry.title }}</a></h2>
+					<h5>Posted on {{ entry.postDate.format('F d, Y') }}</h5>
+					{{ entry.body.page(1) }}
+					<p><a href="{{ entry.url }}">Continue reading</a></p>
+				</article>
+			{% endfor %}
+		</section>
+	</div>
+	<div class="col-md-4">
+		<section id="sidebar">
+			<section>
+				<h4>Featured Posts</h4>
+				<ul class="list-unstyled">
+					<li></li>
+				</ul>
+			</section>
+			<section>
+				<h4>Featured Players</h4>
+				<ul class="list-unstyled">
+					<li></li>
+				</ul>
+			</section>
+			<section>
+				<h4>KR INTL. Rankings</h4>
+				<ul class="list-unstyled">
+					<li></li>
+				</ul>
+				<a>See the Full Listing</a>
+			</section>
+	</div>
+</div>
 
 {% endblock %}

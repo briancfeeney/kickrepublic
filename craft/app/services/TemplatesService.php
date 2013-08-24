@@ -21,8 +21,11 @@ class TemplatesService extends BaseApplicationComponent
 	private $_templatePaths;
 	private $_objectTemplates;
 
-	private $_headNodes = array();
-	private $_footNodes = array();
+	private $_defaultTemplateExtensions;
+	private $_indexTemplateFilenames;
+
+	private $_headHtml = array();
+	private $_footHtml = array();
 	private $_cssFiles = array();
 	private $_jsFiles = array();
 	private $_css = array();
@@ -77,10 +80,23 @@ class TemplatesService extends BaseApplicationComponent
 			}
 
 			// Give plugins a chance to add their own Twig extensions
-			$pluginExtensions = craft()->plugins->call('addTwigExtension');
-			foreach ($pluginExtensions as $extension)
+
+			// All plugins may not have been loaded yet if an exception is being thrown
+			// or a plugin is loading a template as part of of its init() function.
+			if (craft()->plugins->arePluginsLoaded())
 			{
-				$twig->addExtension($extension);
+				$pluginExtensions = craft()->plugins->call('addTwigExtension');
+
+				foreach ($pluginExtensions as $extension)
+				{
+					$twig->addExtension($extension);
+				}
+			}
+			else
+			{
+				// Wait around for plugins to actually be loaded,
+				// then do it for all Twig environments that have been created.
+				craft()->on('plugins.loadPlugins', array($this, '_onPluginsLoaded'));
 			}
 
 			$this->_twigs[$loaderClass] = $twig;
@@ -172,14 +188,14 @@ class TemplatesService extends BaseApplicationComponent
 
 
 	/**
-	 * Prepares an HTML node for inclusion in the <head> of the template.
+	 * Prepares some HTML for inclusion in the <head> of the template.
 	 *
 	 * @param string    $node
 	 * @param bool|null $first
 	 */
-	public function includeHeadNode($node, $first = false)
+	public function includeHeadHtml($node, $first = false)
 	{
-		ArrayHelper::prependOrAppend($this->_headNodes, $node, $first);
+		ArrayHelper::prependOrAppend($this->_headHtml, $node, $first);
 	}
 
 	/**
@@ -188,9 +204,35 @@ class TemplatesService extends BaseApplicationComponent
 	 * @param string    $node
 	 * @param bool|null $first
 	 */
+	public function includeFootHtml($node, $first = false)
+	{
+		ArrayHelper::prependOrAppend($this->_footHtml, $node, $first);
+	}
+
+	/**
+	 * Prepares some HTML for inclusion in the <head> of the template.
+	 *
+	 * @param string    $node
+	 * @param bool|null $first
+	 * @deprecated Deprecated since 1.1
+	 */
+	public function includeHeadNode($node, $first = false)
+	{
+		Craft::log('The craft()->templates->includeHeadNode() method has been deprecated. Use craft()->templates->includeHeadHtml() instead.', LogLevel::Warning);
+		$this->includeHeadHtml($node, $first);
+	}
+
+	/**
+	 * Prepares an HTML node for inclusion right above the </body> in the template.
+	 *
+	 * @param string    $node
+	 * @param bool|null $first
+	 * @deprecated Deprecated since 1.1
+	 */
 	public function includeFootNode($node, $first = false)
 	{
-		ArrayHelper::prependOrAppend($this->_footNodes, $node, $first);
+		Craft::log('The craft()->templates->includeHeadNode() method has been deprecated. Use craft()->templates->includeHeadHtml() instead.', LogLevel::Warning);
+		$this->includeFootHtml($node, $first);
 	}
 
 	/**
@@ -295,7 +337,7 @@ class TemplatesService extends BaseApplicationComponent
 			foreach ($this->_cssFiles as $url)
 			{
 				$node = '<link rel="stylesheet" type="text/css" href="'.$url.'"/>';
-				$this->includeHeadNode($node);
+				$this->includeHeadHtml($node);
 			}
 
 			$this->_cssFiles = array();
@@ -320,15 +362,15 @@ class TemplatesService extends BaseApplicationComponent
 		{
 			$css = implode("\n\n", $this->_css);
 			$node = "<style type=\"text/css\">\n".$css."\n</style>";
-			$this->includeHeadNode($node);
+			$this->includeHeadHtml($node);
 
 			$this->_css = array();
 		}
 
-		if (!empty($this->_headNodes))
+		if (!empty($this->_headHtml))
 		{
-			$headNodes = implode("\n", $this->_headNodes);
-			$this->_headNodes = array();
+			$headNodes = implode("\n", $this->_headHtml);
+			$this->_headHtml = array();
 			return $headNodes;
 		}
 	}
@@ -347,7 +389,7 @@ class TemplatesService extends BaseApplicationComponent
 			foreach($this->_jsFiles as $url)
 			{
 				$node = '<script type="text/javascript" src="'.$url.'"></script>';
-				$this->includeFootNode($node);
+				$this->includeFootHtml($node);
 			}
 
 			$this->_jsFiles = array();
@@ -358,15 +400,15 @@ class TemplatesService extends BaseApplicationComponent
 		{
 			$js = implode("\n\n", $this->_js);
 			$node = "<script type=\"text/javascript\">\n/*<![CDATA[*/\n".$js."\n/*]]>*/\n</script>";
-			$this->includeFootNode($node);
+			$this->includeFootHtml($node);
 
 			$this->_js = array();
 		}
 
-		if (!empty($this->_footNodes))
+		if (!empty($this->_footHtml))
 		{
-			$footNodes = implode("\n", $this->_footNodes);
-			$this->_footNodes = array();
+			$footNodes = implode("\n", $this->_footHtml);
+			$this->_footHtml = array();
 			return $footNodes;
 		}
 	}
@@ -469,6 +511,11 @@ class TemplatesService extends BaseApplicationComponent
 			}
 		}
 
+		if (!isset($this->_twigs))
+		{
+			$this->registerTwigAutoloader();
+		}
+
 		throw new TemplateLoaderException($name);
 	}
 
@@ -561,7 +608,34 @@ class TemplatesService extends BaseApplicationComponent
 		}
 		else
 		{
-			$testPaths = array($path.'.html', $path.'/index.html');
+			if (!isset($this->_defaultTemplateExtensions))
+			{
+				if (craft()->request->isCpRequest())
+				{
+					$this->_defaultTemplateExtensions = array('html', 'twig');
+					$this->_indexTemplateFilenames = array('index');
+				}
+				else
+				{
+					$this->_defaultTemplateExtensions = craft()->config->get('defaultTemplateExtensions');
+					$this->_indexTemplateFilenames = craft()->config->get('indexTemplateFilenames');
+				}
+			}
+
+			$testPaths = array();
+
+			foreach ($this->_defaultTemplateExtensions as $extension)
+			{
+				$testPaths[] = $path.'.'.$extension;
+			}
+
+			foreach ($this->_indexTemplateFilenames as $filename)
+			{
+				foreach ($this->_defaultTemplateExtensions as $extension)
+				{
+					$testPaths[] = $path.'/'.$filename.'.'.$extension;
+				}
+			}
 		}
 
 		foreach ($testPaths as $path)
@@ -573,5 +647,24 @@ class TemplatesService extends BaseApplicationComponent
 		}
 
 		return null;
+	}
+
+	/**
+	 * Loads plugin-supplied Twig extensions now that all plugins have been loaded.
+	 *
+	 * @access private
+	 * @param Event $event
+	 */
+	public function _onPluginsLoaded(Event $event)
+	{
+		$pluginExtensions = craft()->plugins->call('addTwigExtension');
+
+		foreach ($this->_twigs as $twig)
+		{
+			foreach ($pluginExtensions as $extension)
+			{
+				$twig->addExtension($extension);
+			}
+		}
 	}
 }

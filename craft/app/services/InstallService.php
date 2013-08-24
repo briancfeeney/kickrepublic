@@ -74,7 +74,12 @@ class InstallService extends BaseApplicationComponent
 		$this->_populateMigrationTable();
 		$this->_addLocale($inputs['locale']);
 		$this->_addUser($inputs);
-		$this->_logUserIn($inputs);
+
+		if (!craft()->isConsole())
+		{
+			$this->_logUserIn($inputs);
+		}
+
 		$this->_saveDefaultMailSettings($inputs['email'], $inputs['siteName']);
 		$this->_createDefaultContent($inputs);
 
@@ -171,8 +176,10 @@ class InstallService extends BaseApplicationComponent
 		craft()->db->createCommand()->createTable('content', array(
 			'elementId' => array('column' => ColumnType::Int, 'null' => false),
 			'locale'    => array('column' => ColumnType::Locale, 'null' => false),
+			'title'     => array('column' => ColumnType::Varchar),
 		));
 		craft()->db->createCommand()->createIndex('content', 'elementId,locale', true);
+		craft()->db->createCommand()->createIndex('content', 'title');
 		craft()->db->createCommand()->addForeignKey('content', 'elementId', 'elements', 'id', 'CASCADE', null);
 		craft()->db->createCommand()->addForeignKey('content', 'locale', 'locales', 'locale', 'CASCADE', 'CASCADE');
 
@@ -270,16 +277,16 @@ class InstallService extends BaseApplicationComponent
 		Craft::log('Creating the info table.');
 
 		craft()->db->createCommand()->createTable('info', array(
-			'version'     => array('column' => ColumnType::Char, 'length' => 15, 'null' => false),
-			'build'       => array('column' => ColumnType::Int, 'length' => 11, 'unsigned' => true, 'null' => false),
-			'packages'    => array('column' => ColumnType::Varchar, 'length' => 200),
+			'version'     => array('column' => ColumnType::Char,     'length' => 15,    'null' => false),
+			'build'       => array('column' => ColumnType::Int,      'length' => 11,    'unsigned' => true, 'null' => false),
+			'packages'    => array('column' => ColumnType::Varchar,  'length' => 200),
 			'releaseDate' => array('column' => ColumnType::DateTime, 'null' => false),
-			'siteName'    => array('column' => ColumnType::Varchar, 'length' => 100, 'null' => false),
-			'siteUrl'     => array('column' => ColumnType::Varchar, 'length' => 255, 'null' => false),
-			'timezone'    => array('column' => ColumnType::Varchar, 'length' => 30),
-			'on'          => array('column' => ColumnType::TinyInt, 'length' => 1, 'unsigned' => true, 'default' => false, 'null' => false),
-			'maintenance' => array('column' => ColumnType::TinyInt, 'length' => 1, 'unsigned' => true, 'default' => false, 'null' => false),
-			'track'       => array('column' => ColumnType::Varchar, 'maxLength' => 40, 'required' => true),
+			'siteName'    => array('column' => ColumnType::Varchar,  'length' => 100,   'null' => false),
+			'siteUrl'     => array('column' => ColumnType::Varchar,  'length' => 255,   'null' => false),
+			'timezone'    => array('column' => ColumnType::Varchar,  'length' => 30),
+			'on'          => array('column' => ColumnType::TinyInt,  'length' => 1,     'unsigned' => true, 'default' => false, 'null' => false),
+			'maintenance' => array('column' => ColumnType::TinyInt,  'length' => 1,     'unsigned' => true, 'default' => false, 'null' => false),
+			'track'       => array('column' => ColumnType::Varchar,  'maxLength' => 40, 'required' => true),
 		));
 
 		Craft::log('Finished creating the info table.');
@@ -467,6 +474,26 @@ class InstallService extends BaseApplicationComponent
 	 */
 	private function _createDefaultContent($inputs)
 	{
+		// Default tag set
+
+		Craft::log('Creating the Default tag set.');
+
+		$tagSet = new TagSetModel();
+		$tagSet->name   = Craft::t('Default');
+		$tagSet->handle = 'default';
+
+		// Save it
+		if (craft()->tags->saveTagSet($tagSet))
+		{
+			Craft::log('Default tag set created successfully.');
+		}
+		else
+		{
+			Craft::log('Could not save the Default tag set.', LogLevel::Warning);
+		}
+
+		// Default field group
+
 		Craft::log('Creating the Default field group.');
 
 		$group = new FieldGroupModel();
@@ -524,6 +551,28 @@ class InstallService extends BaseApplicationComponent
 			Craft::log('Could not save the Body field.', LogLevel::Warning);
 		}
 
+		// Tags field
+
+		Craft::log('Creating the Tags field.');
+
+		$tagsField = new FieldModel();
+		$tagsField->groupId      = $group->id;
+		$tagsField->name         = Craft::t('Tags');
+		$tagsField->handle       = 'tags';
+		$tagsField->type         = 'Tags';
+		$tagsField->settings = array(
+			'source' => 'tagset:'.$tagSet->id
+		);
+
+		if (craft()->fields->saveField($tagsField))
+		{
+			Craft::log('Tags field created successfully.');
+		}
+		else
+		{
+			Craft::log('Could not save the Tags field.', LogLevel::Warning);
+		}
+
 		// Homepage global set
 
 		Craft::log('Creating the Homepage global set.');
@@ -566,7 +615,7 @@ class InstallService extends BaseApplicationComponent
 		Craft::log('Setting the Homepage content.');
 
 		$homepageGlobalSet->locale = $inputs['locale'];
-		$homepageGlobalSet->setContent(array(
+		$homepageGlobalSet->getContent()->setAttributes(array(
 			'heading' => Craft::t('Welcome to {siteName}!', $vars),
 			'body'    => '<p>'.Craft::t('It’s true, this site doesn’t have a whole lot of content yet, but don’t worry. Our web developers have just installed the CMS, and they’re setting things up for the content editors this very moment. Soon {siteName} will be an oasis of fresh perspectives, sharp analyses, and astute opinions that will keep you coming back again and again.', $vars).'</p>',
 		));
@@ -589,7 +638,11 @@ class InstallService extends BaseApplicationComponent
 				'fieldId'   => $bodyField->id,
 				'required'  => true,
 				'sortOrder' => 1
-			)
+			),
+			array(
+				'fieldId'   => $tagsField->id,
+				'sortOrder' => 2
+			),
 		);
 
 		$newsLayoutTabs = array(
@@ -637,9 +690,9 @@ class InstallService extends BaseApplicationComponent
 		$newsEntry->sectionId  = $newsSection->id;
 		$newsEntry->locale     = $inputs['locale'];
 		$newsEntry->authorId   = $this->_user->id;
-		$newsEntry->title      = Craft::t('We just installed Craft!');
 		$newsEntry->enabled    = true;
-		$newsEntry->setContent(array(
+		$newsEntry->getContent()->title = Craft::t('We just installed Craft!');
+		$newsEntry->getContent()->setAttributes(array(
 			'body' => '<p>'
 					. Craft::t('Craft is the CMS that’s powering {siteName}. It’s beautiful, powerful, flexible, and easy-to-use, and it’s made by Pixel &amp; Tonic. We can’t wait to dive in and see what it’s capable of!', $vars)
 					. '</p><!--pagebreak--><p>'

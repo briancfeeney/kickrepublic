@@ -84,7 +84,7 @@ $.extend(Craft, {
 		var anchor = '';
 
 		// Normalize the params
-		if (Garnish.isObject(params))
+		if ($.isPlainObject(params))
 		{
 			var aParams = [];
 
@@ -656,6 +656,11 @@ $.extend(Craft, {
 		return $ul;
 	},
 
+	/**
+	 * Initializes any common UI elements in a given container.
+	 *
+	 * @param jQuery $container
+	 */
 	initUiElements: function($container)
 	{
 		$('.checkbox-select', $container).checkboxselect();
@@ -665,6 +670,84 @@ $.extend(Craft, {
 		$('input.password', $container).passwordinput();
 		$('.pill', $container).pill();
 		$('.menubtn', $container).menubtn();
+	},
+
+	_elementIndexClasses: {},
+	_elementSelectorModalClasses: {},
+
+	/**
+	 * Registers an element index class for a given element type.
+	 *
+	 * @param string elementType
+	 * @param function func
+	 */
+	registerElementIndexClass: function(elementType, func)
+	{
+		if (typeof this._elementIndexClasses[elementType] != 'undefined')
+		{
+			throw 'An element index class has already been registered for the element type “'+elementType+'”.';
+		}
+
+		this._elementIndexClasses[elementType] = func;
+	},
+
+
+	/**
+	 * Registers an element selector modal class for a given element type.
+	 *
+	 * @param string elementType
+	 * @param function func
+	 */
+	registerElementSelectorModalClass: function(elementType, func)
+	{
+		if (typeof this._elementSelectorModalClasses[elementType] != 'undefined')
+		{
+			throw 'An element selector modal class has already been registered for the element type “'+elementType+'”.';
+		}
+
+		this._elementSelectorModalClasses[elementType] = func;
+	},
+
+	/**
+	 * Creates a new element index for a given element type.
+	 *
+	 * @param string elementType
+	 * @param mixed  $container
+	 * @param object settings
+	 * @return BaseElementIndex
+	 */
+	createElementIndex: function(elementType, $container, settings)
+	{
+		if (typeof this._elementIndexClasses[elementType] != 'undefined')
+		{
+			var func = this._elementIndexClasses[elementType];
+		}
+		else
+		{
+			var func = Craft.BaseElementIndex;
+		}
+
+		return new func(elementType, $container, settings);
+	},
+
+	/**
+	 * Creates a new element selector modal for a given element type.
+	 *
+	 * @param string elementType
+	 * @param object settings
+	 */
+	createElementSelectorModal: function(elementType, settings)
+	{
+		if (typeof this._elementSelectorModalClasses[elementType] != 'undefined')
+		{
+			var func = this._elementSelectorModalClasses[elementType];
+		}
+		else
+		{
+			var func = Craft.BaseElementSelectorModal;
+		}
+
+		return new func(elementType, settings);
 	}
 });
 
@@ -820,6 +903,888 @@ $.extend($.fn, {
 Garnish.$doc.ready(function()
 {
 	Craft.initUiElements();
+});
+
+
+/**
+ * Element index class
+ */
+Craft.BaseElementIndex = Garnish.Base.extend({
+
+	elementType: null,
+	state: null,
+	stateStorageId: null,
+	searchTimeout: null,
+	elementSelect: null,
+	sourceSelect: null,
+
+	$container: null,
+	$main: null,
+	$scroller: null,
+	$toolbar: null,
+	$search: null,
+	$viewBtns: null,
+	$viewBtn: null,
+	$mainSpinner: null,
+	$loadingMoreSpinner: null,
+	$sidebar: null,
+	$sources: null,
+	$source: null,
+	$sourceToggles: null,
+	$elements: null,
+	$table: null,
+	$elementContainer: null,
+
+	init: function(elementType, $container, settings)
+	{
+		this.elementType = elementType;
+		this.$container = $container;
+		this.setSettings(settings, Craft.BaseElementIndex.defaults);
+
+		// Set the state object
+		this.state = {};
+
+		if (typeof Storage !== 'undefined' && this.settings.id)
+		{
+			this.stateStorageId = 'Craft.BaseElementIndex.'+this.settings.id;
+
+			if (typeof localStorage[this.stateStorageId] != 'undefined')
+			{
+				$.extend(this.state, JSON.parse(localStorage[this.stateStorageId]));
+			}
+		}
+
+		// Find the DOM elements
+		this.$main = this.$container.find('.main');
+		this.$toolbar = this.$container.find('.toolbar:first');
+		this.$search = this.$toolbar.find('.search:first input:first');
+		this.$viewBtns = this.$toolbar.find('.btngroup .btn');
+		this.$mainSpinner = this.$toolbar.find('.spinner:first');
+		this.$loadingMoreSpinner = this.$container.find('.spinner.loadingmore')
+		this.$sidebar = this.$container.find('.sidebar:first');
+		this.$sources = this.$sidebar.find('nav a');
+		this.$sourceToggles = this.$sidebar.find('.toggle');
+		this.$elements = this.$container.find('.elements:first');
+
+		this.onAfterHtmlInit();
+
+		if (this.settings.mode == 'index')
+		{
+			this.$scroller = Garnish.$win;
+		}
+		else
+		{
+			this.$scroller = this.$main;
+		}
+
+		// Select the initial source
+		var source = this.getState('source');
+
+		if (source)
+		{
+			var $source = this.getSourceByKey(source);
+
+			if ($source)
+			{
+				// Expand any parent sources
+				var $parentSources = $source.parentsUntil('.sidebar', 'li');
+				$parentSources.not(':first').addClass('expanded');
+			}
+		}
+
+		if (!source || !$source)
+		{
+			// Select the first source by default
+			var $source = this.$sources.first();
+		}
+
+		this.selectSource($source);
+
+		// Select the initial view mode
+		var view = this.getState('view');
+
+		if (view)
+		{
+			var $viewBtn = this.$viewBtns.filter('[data-view='+view+']:first');
+		}
+
+		if (!view || !$viewBtn.length)
+		{
+			var $viewBtn = this.$viewBtns.filter('[data-view=table]:first');
+		}
+
+		if ($viewBtn.length)
+		{
+			this.selectView($viewBtn);
+		}
+		else
+		{
+			this.setState('view', 'table');
+		}
+
+		// Load up the elements!
+		this.updateElements();
+
+		// Add some listeners
+		this.addListener(this.$sourceToggles, 'click', function(ev)
+		{
+			$(ev.currentTarget).parent().toggleClass('expanded');
+			ev.stopPropagation();
+		});
+
+		// The source selector
+		this.sourceSelect = new Garnish.Select(this.$sidebar.find('nav'), this.$sources, {
+			selectedClass:     'sel',
+			multi:             false,
+			waitForDblClick:   false,
+			vertical:          true,
+			onSelectionChange: $.proxy(this, '_onSourceChange')
+		});
+
+		this.addListener(this.$viewBtns, 'click', function(ev)
+		{
+			this.selectView($(ev.currentTarget));
+			this.updateElements();
+		});
+
+		this.addListener(this.$search, 'textchange', $.proxy(function()
+		{
+			if (this.searchTimeout)
+			{
+				clearTimeout(this.searchTimeout);
+			}
+
+			this.searchTimeout = setTimeout($.proxy(this, 'updateElements'), 500);
+		}, this));
+
+		// Auto-focus the Search box
+		if (!Garnish.isMobileBrowser(true))
+		{
+			this.$search.focus();
+		}
+	},
+
+	_onSourceChange: function ()
+	{
+		var sourceElement = this.$sources.filter('.sel');
+		if (sourceElement.length == 0)
+		{
+			sourceElement = this.$sources.filter(':first');
+		}
+
+		this.selectSource(sourceElement);
+		this.updateElements();
+	},
+
+	getState: function(key)
+	{
+		if (typeof this.state[key] != 'undefined')
+		{
+			return this.state[key];
+		}
+		else
+		{
+			return null;
+		}
+	},
+
+	setState: function(key, value)
+	{
+		if (typeof key == 'object')
+		{
+			$.extend(this.state, key);
+		}
+		else
+		{
+			this.state[key] = value;
+		}
+
+		if (this.stateStorageId)
+		{
+			localStorage[this.stateStorageId] = JSON.stringify(this.state);
+		}
+	},
+
+	getControllerData: function()
+	{
+		return {
+			mode:               this.settings.mode,
+			elementType:        this.elementType,
+			criteria:           this.settings.criteria,
+			disabledElementIds: this.settings.disabledElementIds,
+			state:              this.state,
+			search:             (this.$search ? this.$search.val() : null)
+		};
+	},
+
+	updateElements: function()
+	{
+		this.$mainSpinner.removeClass('hidden');
+		this.removeListener(this.$scroller, 'scroll');
+
+		if (this.getState('view') == 'table' && this.$table)
+		{
+			Craft.cp.$collapsibleTables = Craft.cp.$collapsibleTables.not(this.$table);
+		}
+
+		var data = this.getControllerData();
+
+		Craft.postActionRequest('elements/getElements', data, $.proxy(function(response)
+		{
+			this.$mainSpinner.addClass('hidden');
+
+			this.$elements.html(response.elementContainerHtml);
+
+			if (this.getState('view') == 'table')
+			{
+				var $headers = this.$elements.find('thead:first th');
+				this.addListener($headers, 'click', 'onSortChange');
+
+				this.$table = this.$elements.find('table:first');
+				this.$elementContainer = this.$table.find('tbody:first');
+
+				Craft.cp.$collapsibleTables = Craft.cp.$collapsibleTables.add(this.$table);
+			}
+			else
+			{
+				this.$elementContainer = this.$elements.children('ul');
+			}
+
+			this.setNewElementDataHtml(response);
+		}, this));
+	},
+
+	setNewElementDataHtml: function(response, append)
+	{
+		if (append)
+		{
+			this.$elementContainer.append(response.elementDataHtml);
+		}
+		else
+		{
+			this.$elementContainer.html(response.elementDataHtml);
+		}
+
+		$('head').append(response.headHtml);
+
+		Craft.cp.setMaxSidebarHeight();
+
+		// More?
+		if (response.more)
+		{
+			this.totalVisible = response.totalVisible;
+
+			this.addListener(this.$scroller, 'scroll', function()
+			{
+				if (
+					(this.$scroller[0] == Garnish.$win[0] && ( Garnish.$win.innerHeight() + Garnish.$bod.scrollTop() >= Garnish.$bod.height() )) ||
+					(this.$scroller.prop('scrollHeight') - this.$scroller.scrollTop() == this.$scroller.outerHeight())
+				)
+				{
+					this.$loadingMoreSpinner.removeClass('hidden');
+					this.removeListener(this.$scroller, 'scroll');
+
+					var data = this.getControllerData();
+					data.offset = this.totalVisible;
+
+					Craft.postActionRequest('elements/getElements', data, $.proxy(function(response)
+					{
+						this.$loadingMoreSpinner.addClass('hidden');
+
+						this.setNewElementDataHtml(response, true);
+					}, this));
+				}
+			});
+		}
+
+		Craft.cp.updateResponsiveTables();
+
+		this.onUpdateElements(append);
+	},
+
+	onUpdateElements: function (append)
+	{
+		this.settings.onUpdateElements(append);
+	},
+
+	onSortChange: function(ev)
+	{
+		var $th = $(ev.currentTarget),
+			attribute = $th.attr('data-attribute');
+
+		if (this.getState('order') == attribute)
+		{
+			if (this.getState('sort') == 'asc')
+			{
+				this.setState('sort', 'desc');
+			}
+			else
+			{
+				this.setState('sort', 'asc');
+			}
+		}
+		else
+		{
+			this.setState({
+				order: attribute,
+				sort: 'asc'
+			});
+		}
+
+		this.updateElements();
+	},
+
+	getSourceByKey: function(key)
+	{
+		for (var i = 0; i < this.$sources.length; i++)
+		{
+			var $source = $(this.$sources[i]);
+
+			if ($source.data('key') == key)
+			{
+				return $source;
+			}
+		}
+	},
+
+	selectSource: function($source)
+	{
+		if (this.$source)
+		{
+			this.$source.removeClass('sel');
+		}
+
+		var sourceKey = $source.data('key');
+		this.$source = $source.addClass('sel');
+		this.setState('source', sourceKey);
+
+		this.onSelectSource(sourceKey);
+	},
+
+	onSelectSource: function(sourceKey)
+	{
+		this.settings.onSelectSource(sourceKey);
+	},
+
+	onAfterHtmlInit: function ()
+	{
+		this.settings.onAfterHtmlInit()
+	},
+
+	selectView: function($viewBtn)
+	{
+		if (this.$viewBtn)
+		{
+			this.$viewBtn.removeClass('active');
+		}
+
+		this.$viewBtn = $viewBtn.addClass('active');
+		this.setState('view', $viewBtn.data('view'));
+	},
+
+	rememberDisabledElementId: function(elementId)
+	{
+		var index = $.inArray(elementId, this.settings.disabledElementIds);
+
+		if (index == -1)
+		{
+			this.settings.disabledElementIds.push(elementId);
+		}
+	},
+
+	forgetDisabledElementId: function(elementId)
+	{
+		var index = $.inArray(elementId, this.settings.disabledElementIds);
+
+		if (index != -1)
+		{
+			this.settings.disabledElementIds.splice(index, 1);
+		}
+	},
+
+	enableElements: function($elements)
+	{
+		$elements.removeClass('disabled');
+
+		for (var i = 0; i < $elements.length; i++)
+		{
+			var elementId = $($elements[i]).data('id');
+			this.forgetDisabledElementId(elementId);
+		}
+
+		this.settings.onEnableElements($elements);
+	},
+
+	disableElements: function($elements)
+	{
+		$elements.removeClass('sel').addClass('disabled');
+
+		for (var i = 0; i < $elements.length; i++)
+		{
+			var elementId = $($elements[i]).data('id');
+			this.rememberDisabledElementId(elementId);
+		}
+
+		this.settings.onDisableElements($elements);
+	},
+
+	getElementById: function(elementId)
+	{
+		return this.$elementContainer.children('[data-id='+elementId+']:first');
+	},
+
+	enableElementsById: function(elementIds)
+	{
+		elementIds = $.makeArray(elementIds);
+
+		for (var i = 0; i < elementIds.length; i++)
+		{
+			var elementId = elementIds[i],
+				$element = this.getElementById(elementId);
+
+			if ($element.length)
+			{
+				this.enableElements($element);
+			}
+			else
+			{
+				this.forgetDisabledElementId(elementId);
+			}
+		}
+	},
+
+	disableElementsById: function(elementIds)
+	{
+		elementIds = $.makeArray(elementIds);
+
+		for (var i = 0; i < elementIds.length; i++)
+		{
+			var elementId = elementIds[i],
+				$element = this.getElementById(elementId);
+
+			if ($element.length)
+			{
+				this.disableElements($element);
+			}
+			else
+			{
+				this.rememberDisabledElementId(elementId);
+			}
+		}
+	},
+
+	setElementSelect: function (obj)
+	{
+		this.elementSelect = obj;
+	},
+
+	addCallback: function (currentCallback, newCallback)
+	{
+		return $.proxy(function () {
+			if (typeof currentCallback == 'function')
+			{
+				currentCallback.apply(this, arguments);
+			}
+			newCallback.apply(this, arguments);
+		}, this);
+	},
+
+	setIndexBusy: function () {
+		this.$mainSpinner.removeClass('hidden');
+		this.isIndexBusy = true;
+	},
+
+	setIndexAvailable: function () {
+		this.$mainSpinner.addClass('hidden');
+		this.isIndexBusy = false;
+	}
+},
+{
+	defaults: {
+		mode: 'index',
+		id: null,
+		criteria: null,
+		disabledElementIds: [],
+		onUpdateElements: $.noop,
+		onEnableElements: $.noop,
+		onDisableElements: $.noop,
+		onSelectSource: $.noop,
+		onAfterHtmlInit: $.noop
+	}
+});
+
+
+/**
+ * Element Select input
+ */
+Craft.BaseElementSelectInput = Garnish.Base.extend({
+
+	id: null,
+	name: null,
+	elementType: null,
+	sources: null,
+	criteria: null,
+	limit: null,
+	totalElements: 0,
+	elementSelect: null,
+	elementSort: null,
+	modal: null,
+
+	$container: null,
+	$elementsContainer: null,
+	$elements: null,
+	$addElementBtn: null,
+
+	init: function(id, name, elementType, sources, criteria, limit)
+	{
+		this.id = id;
+		this.name = name;
+		this.elementType = elementType;
+		this.sources = sources;
+		this.criteria = criteria;
+		this.limit = limit;
+
+		this.$container = $('#'+this.id);
+		this.$elementsContainer = this.$container.children('.elements');
+		this.$elements = this.$elementsContainer.children();
+		this.$addElementBtn = this.$container.children('.btn.add');
+
+		this.totalElements = this.$elements.length;
+
+		if (this.limit && this.totalElements >= this.limit)
+		{
+			this.$addElementBtn.addClass('disabled');
+		}
+
+		this.elementSelect = new Garnish.Select(this.$elements, {
+			multi: true,
+			filter: ':not(.delete)'
+		});
+
+		this.elementSort = new Garnish.DragSort({
+			container: this.$elementsContainer,
+			filter: $.proxy(function() {
+				return this.elementSelect.getSelectedItems();
+			}, this),
+			caboose: $('<div class="caboose"/>'),
+			onSortChange: $.proxy(function() {
+				this.elementSelect.resetItemOrder();
+			}, this)
+		});
+
+		this.initElements(this.$elements);
+
+		this.addListener(this.$addElementBtn, 'activate', 'showModal');
+	},
+
+	initElements: function($elements)
+	{
+		this.elementSelect.addItems($elements);
+		this.elementSort.addItems($elements);
+
+		$elements.find('.delete').on('click', $.proxy(function(ev)
+		{
+			var $element = $(ev.currentTarget).closest('.element');
+
+			this.$elements = this.$elements.not($element);
+			this.elementSelect.removeItems($element);
+
+			if (this.modal)
+			{
+				this.modal.elementIndex.enableElementsById($element.data('id'));
+			}
+
+			this.totalElements--;
+
+			if (this.$addElementBtn)
+			{
+				this.$addElementBtn.removeClass('disabled');
+			}
+
+			$element.css('z-index', 0);
+
+			$element.animate({
+				marginLeft: -($element.outerWidth() + parseInt($element.css('margin-right'))),
+				opacity: -1 // double speed!
+			}, 'fast', function() {
+				$element.remove();
+			});
+
+		}, this));
+	},
+
+	showModal: function()
+	{
+		// Make sure we haven't reached the limit
+		if (this.limit && this.totalElements == this.limit)
+		{
+			return;
+		}
+
+		if (!this.modal)
+		{
+			var selectedElementIds = [];
+
+			for (var i = 0; i < this.$elements.length; i++)
+			{
+				var $element = $(this.$elements[i]);
+				selectedElementIds.push($element.data('id'));
+			}
+
+			this.modal = Craft.createElementSelectorModal(this.elementType, {
+				id: this.id,
+				sources: this.sources,
+				criteria: this.criteria,
+				multiSelect: true,
+				disableOnSelect: true,
+				disabledElementIds: selectedElementIds,
+				onSelect: $.proxy(this, 'selectElements')
+			});
+		}
+		else
+		{
+			this.modal.show();
+		}
+	},
+
+	selectElements: function(elements)
+	{
+		this.elementSelect.deselectAll();
+
+		if (this.limit)
+		{
+			var slotsLeft = this.limit - this.totalElements,
+				max = Math.min(elements.length, slotsLeft);
+		}
+		else
+		{
+			var max = elements.length;
+		}
+
+		for (var i = 0; i < max; i++)
+		{
+			var element = elements[i],
+				$newElement = element.$element.clone();
+
+			// Make a couple tweaks
+			$newElement.addClass('removable');
+			$newElement.prepend('<input type="hidden" name="'+this.name+'[]" value="'+element.id+'">' +
+				'<a class="delete icon" title="'+Craft.t('Remove')+'"></a>');
+
+			$newElement.appendTo(this.$elementsContainer);
+
+			// Animate it into place
+			var origOffset = element.$element.offset(),
+				destOffset = $newElement.offset();
+
+			$newElement.css({
+				left:   origOffset.left - destOffset.left,
+				top:    origOffset.top - destOffset.top,
+				zIndex: 10000
+			});
+
+			$newElement.animate({
+				left: 0,
+				top: 0
+			}, function() {
+				$(this).css('z-index', 1);
+			});
+
+			this.$elements = this.$elements.add($newElement);
+			this.initElements($newElement);
+			this.elementSelect.selectItem($newElement);
+		}
+
+		this.totalElements += max;
+
+		if (this.limit && this.totalElements == this.limit)
+		{
+			this.$addElementBtn.addClass('disabled');
+		}
+	}
+});
+
+
+/**
+ * Element selector modal class
+ */
+Craft.BaseElementSelectorModal = Garnish.Modal.extend({
+
+	elementType: null,
+	elementIndex: null,
+	elementSelect: null,
+
+	$body: null,
+	$selectBtn: null,
+	$sidebar: null,
+	$sources: null,
+	$sourceToggles: null,
+	$main: null,
+	$search: null,
+	$elements: null,
+	$tbody: null,
+
+	init: function(elementType, settings)
+	{
+		this.elementType = elementType;
+		this.setSettings(settings, Craft.BaseElementSelectorModal.defaults);
+
+		// Build the modal
+		var $container = $('<div class="modal elementselectormodal"></div>').appendTo(Garnish.$bod),
+			$body = $('<div class="body"><div class="spinner big"></div></div>').appendTo($container),
+			$footer = $('<div class="footer"/>').appendTo($container),
+			$buttons = $('<div class="buttons rightalign"/>').appendTo($footer),
+			$cancelBtn = $('<div class="btn">'+Craft.t('Cancel')+'</div>').appendTo($buttons),
+			$selectBtn = $('<div class="btn disabled submit">'+Craft.t('Select')+'</div>').appendTo($buttons);
+
+		this.base($container, settings);
+
+		this.$body = $body;
+		this.$selectBtn = $selectBtn;
+
+		this.addListener($cancelBtn, 'activate', 'cancel');
+		this.addListener(this.$selectBtn, 'activate', 'selectElements');
+	},
+
+	onFadeIn: function()
+	{
+		if (!this.elementIndex)
+		{
+			// Get the modal body HTML based on the settings
+			var data = {
+				mode:        'modal',
+				elementType: this.elementType,
+				sources:     this.settings.sources
+			};
+
+			Craft.postActionRequest('elements/getModalBody', data, $.proxy(function(response)
+			{
+				this.$body.html(response);
+
+				// Initialize the element index
+				this.elementIndex = Craft.createElementIndex(this.elementType, this.$body, {
+					mode:               'modal',
+					id:                 this.settings.id,
+					criteria:           this.settings.criteria,
+					disabledElementIds: this.settings.disabledElementIds,
+					onUpdateElements:   $.proxy(this, 'onUpdateElements'),
+					onEnableElements:   $.proxy(this, 'onEnableElements'),
+					onDisableElements:  $.proxy(this, 'onDisableElements')
+				});
+
+			}, this));
+		}
+		else
+		{
+			// Auto-focus the Search box
+			if (!Garnish.isMobileBrowser(true))
+			{
+				this.elementIndex.$search.focus();
+			}
+		}
+
+		this.base();
+	},
+
+	onUpdateElements: function(appended)
+	{
+		if (!appended)
+		{
+			this.addListener(this.elementIndex.$elementContainer, 'dblclick', 'selectElements');
+		}
+
+		// Reset the element select
+		if (this.elementSelect)
+		{
+			this.elementSelect.destroy();
+			delete this.elementSelect;
+		}
+
+		var $trs = this.elementIndex.$elementContainer.children(':not(.disabled)');
+
+		this.elementSelect = new Garnish.Select(this.elementIndex.$elementContainer, $trs, {
+			multi: this.settings.multiSelect,
+			vertical: (this.elementIndex.getState('view') == 'table'),
+			waitForDblClick: true,
+			onSelectionChange: $.proxy(this, 'onSelectionChange')
+		});
+
+        this.elementIndex.setElementSelect(this.elementSelect);
+
+    },
+
+	onSelectionChange: function()
+	{
+		if (this.elementSelect.totalSelected)
+		{
+			this.$selectBtn.removeClass('disabled');
+		}
+		else
+		{
+			this.$selectBtn.addClass('disabled');
+		}
+	},
+
+	onEnableElements: function($elements)
+	{
+		this.elementSelect.addItems($elements);
+	},
+
+	onDisableElements: function($elements)
+	{
+		this.elementSelect.removeItems($elements);
+	},
+
+	cancel: function()
+	{
+		this.hide();
+		this.settings.onCancel();
+	},
+
+	selectElements: function()
+	{
+		if (this.elementIndex && this.elementSelect && this.elementSelect.totalSelected)
+		{
+			this.elementSelect.clearMouseUpTimeout();
+
+			var $selectedRows = this.elementSelect.getSelectedItems(),
+				elements = [];
+
+			for (var i = 0; i < $selectedRows.length; i++)
+			{
+				var $row = $($selectedRows[i]),
+					$element = $row.find('.element');
+
+				elements.push({
+					id: $row.data('id'),
+					label: $row.data('label'),
+					status: $row.data('status'),
+					hasThumb: $element.hasClass('hasthumb'),
+					$element: $element
+				});
+			}
+
+			this.hide();
+			this.settings.onSelect(elements);
+
+			if (this.settings.disableOnSelect)
+			{
+				this.elementIndex.disableElements($selectedRows);
+			}
+		}
+	}
+},
+{
+	defaults: {
+		id: null,
+		sources: null,
+		criteria: null,
+		multiSelect: false,
+		disabledElementIds: [],
+		disableOnSelect: false,
+		onCancel: $.noop,
+		onSelect: $.noop
+	}
 });
 
 
@@ -1063,6 +2028,1522 @@ Craft.AdminTable = Garnish.Base.extend({
 		onDeleteObject: $.noop
 	}
 });
+
+
+/**
+ * Asset index class
+ */
+Craft.AssetIndex = Craft.BaseElementIndex.extend({
+
+	$buttons: null,
+	$uploadButton: null,
+	$progressBar: null,
+	$folders: null,
+	$previouslySelectedFolder: null,
+
+	uploader: null,
+	promptHandler: null,
+	progressBar: null,
+	indexMode: false,
+
+	initialSourceKey: null,
+	isIndexBusy: false,
+	_uploadTotalFiles: 0,
+	_uploadFileProgress: {},
+	_uploadedFileIds: [],
+	_selectedFileIds: [],
+
+	_singleFileMenu: null,
+	_multiFileMenu: null,
+
+	_fileDrag: null,
+	_folderDrag: null,
+	_expandDropTargetFolderTimeout: null,
+	_tempExpandedFolders: [],
+
+	init: function(elementType, $container, settings)
+	{
+
+		this.base(elementType, $container, settings);
+
+
+		if (this.settings.mode == "index")
+		{
+			this.indexMode = true;
+			this.initIndexMode();
+		}
+	},
+
+	/**
+	 * Full blown Assets.
+	 */
+	initIndexMode: function ()
+	{
+		// Context menus for the folders
+		var assetIndex = this;
+
+		// ---------------------------------------
+		// File dragging
+		// ---------------------------------------
+		this._fileDrag = new Garnish.DragDrop({
+			activeDropTargetClass: 'sel assets-fm-dragtarget',
+			helperOpacity: 0.5,
+
+			filter: $.proxy(function()
+			{
+				return this.elementSelect.getSelectedItems();
+			}, this),
+
+			helper: $.proxy(function($file)
+			{
+				return this._getDragHelper($file);
+			}, this),
+
+			dropTargets: $.proxy(function()
+			{
+				var targets = [];
+
+				this.$sources.each(function ()
+				{
+					targets.push($(this));
+				});
+
+				return targets;
+			}, this),
+
+			onDragStart: $.proxy(function()
+			{
+				this._tempExpandedFolders = [];
+
+				this.$previouslySelectedFolder = this.$source.removeClass('sel');
+
+			}, this),
+
+			onDropTargetChange: $.proxy(this, '_onDropTargetChange'),
+
+			onDragStop: $.proxy(this, '_onFileDragStop')
+		});
+
+		// ---------------------------------------
+		// Folder dragging
+		// ---------------------------------------
+		this._folderDrag = new Garnish.DragDrop({
+			activeDropTargetClass: 'sel assets-fm-dragtarget',
+			helperOpacity: 0.5,
+
+			filter: $.proxy(function()
+			{
+				// return each of the selected <a>'s parent <li>s, except for top level drag attampts.
+				var $selected = this.sourceSelect.getSelectedItems(),
+					draggees = [];
+				for (var i = 0; i < $selected.length; i++)
+				{
+
+					var $source = $($selected[i]).parent();
+					if ($source.parents('ul').length > 1)
+					{
+						draggees.push($source[0]);
+					}
+				}
+
+				return $(draggees);
+			}, this),
+
+			helper: $.proxy(function($folder)
+			{
+				var $helper = $('<ul class="assets-fm-folderdrag" />').append($folder);
+
+				// collapse this folder
+				$folder.removeClass('expanded');
+
+				// set the helper width to the folders container width
+				$helper.width(this.$sidebar[0].scrollWidth);
+
+				return $helper;
+			}, this),
+
+			dropTargets: $.proxy(function()
+			{
+				var targets = [];
+
+				this.$sources.each(function ()
+				{
+				   if (!$(this).is(assetIndex._folderDrag.$draggee))
+				   {
+					   targets.push($(this));
+				   }
+				});
+
+				return targets;
+			}, this),
+
+			onDragStart: $.proxy(function()
+			{
+				this._tempExpandedFolders = [];
+
+				// hide the expanded draggees' subfolders
+				this._folderDrag.$draggee.filter('.expanded').removeClass('expanded').addClass('expanded-tmp')
+			}, this),
+
+			onDropTargetChange: $.proxy(this, '_onDropTargetChange'),
+
+			onDragStop: $.proxy(this, '_onFolderDragStop')
+		});
+
+		this.$sources.each(function () {
+			assetIndex._createFolderContextMenu.apply(assetIndex, $(this));
+			if ($(this).parents('ul').length > 1)
+			{
+				assetIndex._folderDrag.addItems($(this).parent());
+			}
+		});
+	},
+
+	_onFileDragStop: function ()
+	{
+		if (this._fileDrag.$activeDropTarget)
+		{
+			// keep it selected
+			this._fileDrag.$activeDropTarget.addClass('sel');
+
+			var targetFolderId = this._getFolderIdFromSourceKey(this._fileDrag.$activeDropTarget.data('key'));
+			var originalFileIds = [],
+				newFileNames = [];
+
+
+			// For each file, prepare array data.
+			for (var i = 0; i < this._fileDrag.$draggee.length; i++)
+			{
+				var originalFileId = this._fileDrag.$draggee[i].getAttribute('data-id'),
+					fileName = $(this._fileDrag.$draggee[i]).find('[data-url]').attr('data-url').split('/').pop();
+
+				originalFileIds.push(originalFileId);
+				newFileNames.push(fileName);
+			}
+
+			// are any files actually getting moved?
+			if (originalFileIds.length)
+			{
+				this.setIndexBusy();
+				this.progressBar.resetProgressBar();
+				this.progressBar.setItemCount(originalFileIds.length);
+				this.progressBar.showProgressBar();
+
+
+				// for each file to move a separate request
+				var parameterArray = [];
+				for (i = 0; i < originalFileIds.length; i++)
+				{
+					parameterArray.push({
+						fileId: originalFileIds[i],
+						folderId: targetFolderId,
+						fileName: newFileNames[i]
+					});
+				}
+
+				// define the callback for when all file moves are complete
+				var onMoveFinish = $.proxy(function(responseArray)
+				{
+					this.promptHandler.resetPrompts();
+
+					// loop trough all the responses
+					for (var i = 0; i < responseArray.length; i++)
+					{
+						var data = responseArray[i];
+
+						// push prompt into prompt array
+						if (data.prompt)
+						{
+							this.promptHandler.addPrompt(data);
+						}
+
+						if (data.error)
+						{
+							alert(data.error);
+						}
+					}
+
+					this.setIndexAvailable();
+					this.progressBar.hideProgressBar();
+
+					if (this.promptHandler.getPromptCount())
+					{
+						// define callback for completing all prompts
+						var promptCallback = $.proxy(function(returnData)
+						{
+							var newParameterArray = [];
+
+							// loop trough all returned data and prepare a new request array
+							for (var i = 0; i < returnData.length; i++)
+							{
+								if (returnData[i].choice == 'cancel')
+								{
+									continue;
+								}
+
+								// find the matching request parameters for this file and modify them slightly
+								for (var ii = 0; ii < parameterArray.length; ii++)
+								{
+									if (parameterArray[ii].fileName == returnData[i].fileName)
+									{
+										parameterArray[ii].action = returnData[i].choice;
+										newParameterArray.push(parameterArray[ii]);
+									}
+								}
+							}
+
+							// nothing to do, carry on
+							if (newParameterArray.length == 0)
+							{
+								this._selectSourceByFolderId(targetFolderId);
+							}
+							else
+							{
+								// start working
+								this.setIndexBusy();
+								this.progressBar.resetProgressBar();
+								this.progressBar.setItemCount(this.promptHandler.getPromptCount());
+								this.progressBar.showProgressBar();
+
+								// move conflicting files again with resolutions now
+								this._moveFile(newParameterArray, 0, onMoveFinish);
+							}
+						}, this);
+
+						this._fileDrag.fadeOutHelpers();
+						this.promptHandler.showBatchPrompts(promptCallback);
+					}
+					else
+					{
+						this._fileDrag.fadeOutHelpers();
+						this._selectSourceByFolderId(targetFolderId);
+					}
+				}, this);
+
+				// initiate the file move with the built array, index of 0 and callback to use when done
+				this._moveFile(parameterArray, 0, onMoveFinish);
+
+				// skip returning dragees
+				return;
+			}
+		}
+		else
+		{
+			this._collapseExtraExpandedFolders();
+		}
+
+		// re-select the previously selected folders
+		this.$previouslySelectedFolder.addClass('sel');
+
+		this._fileDrag.returnHelpersToDraggees();
+	},
+
+	_onFolderDragStop: function ()
+	{
+		// show the expanded draggees' subfolders
+		this._folderDrag.$draggee.filter('.expanded-tmp').removeClass('expanded-tmp').addClass('expanded');
+
+		// Only move if we have a valid target and we're not trying to move into our direct parent
+		if (
+			this._folderDrag.$activeDropTarget
+				&& this._folderDrag.$activeDropTarget.siblings('ul').find('>li').filter(this._folderDrag.$draggee).length == 0)
+		{
+
+			var targetFolderId = this._getFolderIdFromSourceKey(this._folderDrag.$activeDropTarget.data('key'));
+
+			this._collapseExtraExpandedFolders(targetFolderId);
+
+			// get the old folder IDs, and sort them so that we're moving the most-nested folders first
+			var folderIds = [];
+
+			for (var i = 0; i < this._folderDrag.$draggee.length; i++)
+			{
+				var $a = $('> a', this._folderDrag.$draggee[i]),
+					folderId = this._getFolderIdFromSourceKey($a.data('key')),
+					$source = this._getSourceByFolderId(folderId);
+
+				// make sure it's not already in the target folder
+				if (this._getFolderIdFromSourceKey(this._getParentSource($source).data('key')) != targetFolderId)
+				{
+					folderIds.push(folderId);
+				}
+			}
+
+			if (folderIds.length)
+			{
+				folderIds.sort();
+				folderIds.reverse();
+
+				this.setIndexBusy();
+				this.progressBar.resetProgressBar();
+				this.progressBar.setItemCount(folderIds.length);
+				this.progressBar.showProgressBar();
+
+				var responseArray = [];
+				var parameterArray = [];
+
+				for (var i = 0; i < folderIds.length; i++)
+				{
+					parameterArray.push({
+						folderId: folderIds[i],
+						parentId: targetFolderId
+					});
+				}
+
+				// increment, so to avoid displaying folder files that are being moved
+				this.requestId++;
+
+				/*
+				 Here's the rundown:
+				 1) Send all the folders being moved
+				 2) Get results:
+				   a) For all conflicting, receive prompts and resolve them to get:
+				   b) For all valid move operations: by now server has created the needed folders
+					  in target destination. Server returns an array of file move operations
+				   c) server also returns a list of all the folder id changes
+				   d) and the data-id of node to be removed, in case of conflict
+				   e) and a list of folders to delete after the move
+				 3) From data in 2) build a large file move operation array
+				 4) Create a request loop based on this, so we can display progress bar
+				 5) when done, delete all the folders and perform other maintenance
+				 6) Champagne
+				 */
+
+				// this will hold the final list of files to move
+				var fileMoveList = [];
+
+				// these folders have to be deleted at the end
+				var folderDeleteList = [];
+
+				// this one tracks the changed folder ids
+				var changedFolderIds = {};
+
+				var removeFromTree = [];
+
+				var onMoveFinish = $.proxy(function(responseArray)
+				{
+					this.promptHandler.resetPrompts();
+
+					// loop trough all the responses
+					for (var i = 0; i < responseArray.length; i++)
+					{
+						var data = responseArray[i];
+
+						// if succesful and have data, then update
+						if (data.success)
+						{
+							if (data.transferList && data.deleteList && data.changedFolderIds)
+							{
+								for (var ii = 0; ii < data.transferList.length; ii++)
+								{
+									fileMoveList.push(data.transferList[ii]);
+								}
+								for (var ii = 0; ii < data.deleteList.length; ii++)
+								{
+									folderDeleteList.push(data.deleteList[ii]);
+								}
+								for (var oldFolderId in data.changedFolderIds)
+								{
+									changedFolderIds[oldFolderId] = data.changedFolderIds[oldFolderId];
+								}
+								removeFromTree.push(data.removeFromTree);
+							}
+						}
+
+						// push prompt into prompt array
+						if (data.prompt)
+						{
+							this.promptHandler.addPrompt(data);
+						}
+
+						if (data.error)
+						{
+							alert(data.error);
+						}
+					}
+
+					if (this.promptHandler.getPromptCount())
+					{
+						// define callback for completing all prompts
+						var promptCallback = $.proxy(function(returnData)
+						{
+							this.promptHandler.resetPrompts();
+							this.setNewElementDataHtml('');
+
+							var newParameterArray = [];
+
+							// loop trough all returned data and prepare a new request array
+							for (var i = 0; i < returnData.length; i++)
+							{
+								if (returnData[i].choice == 'cancel')
+								{
+									continue;
+								}
+
+								parameterArray[0].action = returnData[i].choice;
+								newParameterArray.push(parameterArray[0]);
+
+							}
+
+							// start working on them lists, baby
+							if (newParameterArray.length == 0)
+							{
+								$.proxy(this, '_performActualFolderMove', fileMoveList, folderDeleteList, changedFolderIds, removeFromTree)();
+							}
+							else
+							{
+								// start working
+								this.setIndexBusy();
+								this.progressBar.resetProgressBar();
+								this.progressBar.setItemCount(this.promptHandler.getPromptCount());
+								this.progressBar.showProgressBar();
+
+								// move conflicting files again with resolutions now
+								moveFolder(newParameterArray, 0, onMoveFinish);
+							}
+						}, this);
+
+						this.promptHandler.showBatchPrompts(promptCallback);
+
+						this.setIndexAvailable();
+						this.progressBar.hideProgressBar();
+					}
+					else
+					{
+						$.proxy(this, '_performActualFolderMove', fileMoveList, folderDeleteList, changedFolderIds, removeFromTree, targetFolderId)();
+					}
+
+				}, this);
+
+				var moveFolder = $.proxy(function(parameterArray, parameterIndex, callback)
+				{
+					if (parameterIndex == 0)
+					{
+						responseArray = [];
+					}
+
+					Craft.postActionRequest('assets/moveFolder', parameterArray[parameterIndex], $.proxy(function(data)
+					{
+						parameterIndex++;
+						this.progressBar.incrementProcessedItemCount(1);
+						this.progressBar.updateProgressBar();
+
+						responseArray.push(data);
+
+						if (parameterIndex >= parameterArray.length)
+						{
+							callback(responseArray);
+						}
+						else
+						{
+							moveFolder(parameterArray, parameterIndex, callback);
+						}
+					}, this));
+				}, this);
+
+				// initiate the folder move with the built array, index of 0 and callback to use when done
+				moveFolder(parameterArray, 0, onMoveFinish);
+
+				// skip returning dragees until we get the Ajax response
+				return;
+			}
+		}
+		else
+		{
+			this._collapseExtraExpandedFolders();
+		}
+
+		this._folderDrag.returnHelpersToDraggees();
+	},
+
+	/**
+	 * Really move the folder. Like really. For real.
+	 */
+	_performActualFolderMove: function (fileMoveList, folderDeleteList, changedFolderIds, removeFromTree, targetFolderId)
+	{
+		this.setIndexBusy();
+		this.progressBar.resetProgressBar();
+		this.progressBar.setItemCount(1);
+		this.progressBar.showProgressBar();
+
+
+		var moveCallback = $.proxy(function(folderDeleteList, changedFolderIds, removeFromTree)
+		{
+			//Move the folders around in the tree
+			var topFolderLi = $();
+			var folderToMove = $();
+			var topMovedFolderId = 0;
+
+			// Change the folder ids
+			for (var previousFolderId in changedFolderIds)
+			{
+				folderToMove = this._getSourceByFolderId(previousFolderId);
+
+				// Change the id and select the containing element as the folder element.
+				folderToMove = folderToMove
+									.attr('data-key', 'folder:' + changedFolderIds[previousFolderId].newId)
+									.data('key', 'folder:' + changedFolderIds[previousFolderId].newId).parent();
+
+				if (topFolderLi.length == 0 || topFolderLi.parents().filter(folderToMove).length > 0)
+				{
+					topFolderLi = folderToMove;
+					topFolderMovedId = changedFolderIds[previousFolderId].newId;
+				}
+			}
+
+			if (topFolderLi.length == 0)
+			{
+				this.setIndexAvailable();
+				this.progressBar.hideProgressBar();
+				this._folderDrag.returnHelpersToDraggees();
+
+				return;
+			}
+
+			var topFolder = topFolderLi.find('>a');
+
+			// Now move the uppermost node.
+			var siblings = topFolderLi.siblings('ul, .toggle');
+			var parentSource = this._getParentSource(topFolder);
+
+			var newParent = this._getSourceByFolderId(targetFolderId);
+			this._prepareParentForChildren(newParent);
+			this._addSubfolder(newParent, topFolderLi);
+
+			topFolder.after(siblings);
+
+			this._cleanUpTree(parentSource);
+			this.$sidebar.find('ul>ul, ul>.toggle').remove();
+
+			// delete the old folders
+			for (var i = 0; i < folderDeleteList.length; i++)
+			{
+				Craft.postActionRequest('assets/deleteFolder', {folderId: folderDeleteList[i]});
+			}
+
+			this.setIndexAvailable();
+			this.progressBar.hideProgressBar();
+			this._folderDrag.returnHelpersToDraggees();
+			this._selectSourceByFolderId(topFolderMovedId);
+
+		}, this);
+
+		if (fileMoveList.length > 0)
+		{
+			this._moveFile(fileMoveList, 0, $.proxy(function()
+			{
+				moveCallback(folderDeleteList, changedFolderIds, removeFromTree);
+			}, this));
+		}
+		else
+		{
+			moveCallback(folderDeleteList, changedFolderIds, removeFromTree);
+		}
+	},
+
+	/**
+	 * Get parent source for a source.
+	 * @param $source
+	 * @returns {*}
+	 * @private
+	 */
+	_getParentSource: function ($source)
+	{
+		if ($source.parents('ul').length == 1)
+		{
+			return null;
+		}
+		return $source.parent().parent().siblings('a');
+	},
+
+	/**
+	 * Move a file using data from a parameter array.
+	 *
+	 * @param parameterArray
+	 * @param parameterIndex
+	 * @param callback
+	 * @private
+	 */
+	_moveFile: function (parameterArray, parameterIndex, callback)
+	{
+		if (parameterIndex == 0)
+		{
+			this.responseArray = [];
+		}
+
+		Craft.postActionRequest('assets/moveFile', parameterArray[parameterIndex], $.proxy(function(data)
+		{
+			this.progressBar.incrementProcessedItemCount(1);
+			this.progressBar.updateProgressBar();
+
+			this.responseArray.push(data);
+
+			parameterIndex++;
+
+			if (parameterIndex >= parameterArray.length)
+			{
+				callback(this.responseArray);
+			}
+			else
+			{
+				this._moveFile(parameterArray, parameterIndex, callback);
+			}
+		}, this));
+	},
+
+	_selectSourceByFolderId: function (targetFolderId)
+	{
+		var targetSource = this._getSourceByFolderId(targetFolderId);
+
+		// Make sure that all the parent sources are expanded and this source is visible.
+		var parentSources = targetSource.parent().parents('li');
+		parentSources.each(function () {
+			if (!$(this).hasClass('expanded'))
+			{
+				$(this).find('> .toggle').click();
+			}
+		});
+
+		this.selectSource(targetSource);
+		this.updateElements();
+	},
+
+	/**
+	 * Initialize the uploader.
+	 *
+	 * @private
+	 */
+	onAfterHtmlInit: function ()
+	{
+		if (!this.$buttons)
+		{
+			this.$buttons = $('<div class="buttons"></div>').prependTo(this.$sidebar);
+		}
+
+		if (!this.$uploadButton)
+		{
+			this.$uploadButton = $('<div class="assets-upload"></div>').prependTo(this.$buttons);
+		}
+
+		if (!this.$progressBar)
+		{
+			this.$progressBar = $('<div class="assets-uploadprogress hidden"><div class="assets-progressbar"><div class="assets-pb-bar"></div></div></div>').appendTo(this.$main);
+		}
+
+		this.promptHandler = new Craft.PromptHandler();
+		this.progressBar = new Craft.ProgressBar(this.$progressBar);
+
+		var uploaderCallbacks = {
+			onSubmit:     $.proxy(this, '_onUploadSubmit'),
+			onProgress:   $.proxy(this, '_onUploadProgress'),
+			onComplete:   $.proxy(this, '_onUploadComplete')
+		};
+
+		this.uploader = new Craft.Uploader (this.$uploadButton, uploaderCallbacks);
+
+		this.base();
+	},
+
+	/**
+	 * Select a different source.
+	 *
+	 * @param sourceKey
+	 * @private
+	 */
+	onSelectSource: function(sourceKey)
+	{
+		this.uploader.setParams({folderId: this._getFolderIdFromSourceKey(sourceKey)});
+
+		this.base(sourceKey);
+	},
+
+	_getFolderIdFromSourceKey: function (sourceKey)
+	{
+		return sourceKey.split(':')[1];
+	},
+
+	/**
+	 * React on upload submit.
+	 *
+	 * @param id
+	 * @private
+	 */
+	_onUploadSubmit: function(id) {
+		// prepare an upload batch
+		if (! this.uploader.getInProgress()) {
+
+			this.setIndexBusy();
+
+			// Initial values
+			this.progressBar.resetProgressBar();
+			this.progressBar.showProgressBar();
+			this._uploadFileProgress = {};
+			this._uploadedFileIds = [];
+			this._uploadTotalFiles = 1;
+		}
+		else
+		{
+			this._uploadTotalFiles++;
+		}
+
+		// Prepare tracking
+		this._uploadFileProgress[id] = 0;
+
+	},
+
+	/**
+	 * Update uploaded byte count.
+	 */
+	_onUploadProgress: function(id, fileName, loaded, total) {
+		this._uploadFileProgress[id] = loaded / total;
+		this._updateUploadProgress();
+	},
+
+	/**
+	 * Update Progress Bar.
+	 */
+	_updateUploadProgress: function() {
+		var totalPercent = 0;
+
+		for (var id in this._uploadFileProgress) {
+			totalPercent += this._uploadFileProgress[id];
+		}
+
+		var width = Math.round(100 * totalPercent / this._uploadTotalFiles) + '%';
+		this.progressBar.setProgressPercentage(width);
+	},
+
+	/**
+	 * On Upload Complete.
+	 */
+	_onUploadComplete: function(id, fileName, response) {
+		this._uploadFileProgress[id] = 1;
+		this._updateUploadProgress();
+
+		if (response.success || response.prompt) {
+
+			// TODO respect the select settings regarding limits
+			// Add the uploaded file to the selected ones, if appropriate
+			this._uploadedFileIds.push(response.fileId);
+
+			// If there is a prompt, add it to the queue
+			if (response.prompt)
+			{
+				this.promptHandler.addPrompt(response);
+			}
+		}
+
+		// for the last file, display prompts, if any. If not - just update the element view.
+		if (! this.uploader.getInProgress()) {
+
+			this.setIndexAvailable();
+			this.progressBar.hideProgressBar();
+
+			if (this.promptHandler.getPromptCount())
+			{
+				this.promptHandler.showBatchPrompts($.proxy(this, '_uploadFollowup'));
+			}
+			else
+			{
+				this.updateElements();
+			}
+		}
+	},
+
+	/**
+	 * Follow up to an upload that triggered at least one conflict resolution prompt.
+	 *
+	 * @param returnData
+	 * @private
+	 */
+	_uploadFollowup: function(returnData)
+	{
+		this.setIndexBusy();
+		this.progressBar.resetProgressBar();
+
+		this.promptHandler.resetPrompts();
+
+		var finalCallback = $.proxy(function()
+		{
+			this.setIndexBusy();
+			this.progressBar.hideProgressBar();
+			this.updateElements();
+		}, this);
+
+		this.progressBar.setItemCount(returnData.length);
+
+		var doFollowup = $.proxy(function(parameterArray, parameterIndex, callback)
+		{
+			var postData = {
+				additionalInfo: parameterArray[parameterIndex].additionalInfo,
+				fileName:       parameterArray[parameterIndex].fileName,
+				userResponse:   parameterArray[parameterIndex].choice
+			};
+
+			Craft.postActionRequest('assets/uploadFile', postData, $.proxy(function(data)
+			{
+				if (typeof data.fileId != "undefined")
+				{
+					this._uploadedFileIds.push(data.fileId);
+				}
+				parameterIndex++;
+				this.progressBar.incrementProcessedItemCount(1);
+				this.progressBar.updateProgressBar();
+
+				if (parameterIndex == parameterArray.length)
+				{
+					callback();
+				}
+				else
+				{
+					doFollowup(parameterArray, parameterIndex, callback);
+				}
+			}, this));
+		}, this);
+
+		doFollowup(returnData, 0, finalCallback);
+	},
+
+	/**
+	 * Perform actions after updating elements
+	 * @private
+	 */
+	onUpdateElements: function (append)
+	{
+		this.base(append)
+
+		if (this.indexMode)
+		{
+			$elements = this.$elementContainer.children(':not(.disabled)');
+			this._initElementSelect($elements);
+			this._attachElementEvents($elements);
+			this._initElementDragger($elements);
+		}
+
+		// See if we have freshly uploaded files to add to selection
+		if (this._uploadedFileIds.length)
+		{
+			var item = null;
+			for (var i = 0; i < this._uploadedFileIds.length; i++)
+			{
+				item = this.$main.find('[data-id=' + this._uploadedFileIds[i] + ']:first');
+				this.elementSelect.selectItem(item);
+			}
+
+			// Reset the list.
+			this._uploadedFileIds = [];
+		}
+	},
+
+	_initElementSelect: function ($children)
+	{
+
+		if (typeof this.elementSelect == "object" && this.elementSelect != null)
+		{
+			this.elementSelect.destroy();
+			delete this.elementSelect;
+		}
+
+		var elementSelect = new Garnish.Select(this.$elementContainer, $children, {
+			multi: true,
+			vertical: (this.getState('view') == 'table'),
+			waitForDblClick: true,
+			onSelectionChange: $.proxy(this, '_onElementSelectionChange')
+		});
+
+		this.setElementSelect(elementSelect);
+	},
+
+	_onElementSelectionChange: function ()
+	{
+		this._enableElementContextMenu();
+		var selected = this.elementSelect.getSelectedItems();
+		this._selectedFileIds = [];
+		for (var i = 0; i < selected.length; i++)
+		{
+			this._selectedFileIds[i] = $(selected[i]).attr('data-id');
+		}
+	},
+
+	_attachElementEvents: function ($elements)
+	{
+		// Doubleclick opens the HUD for editing
+		this.removeListener($elements, 'dlbclick');
+		this.addListener($elements, 'dblclick', $.proxy(this, '_editProperties'));
+
+		// Context menus
+		this._destroyElementContextMenus();
+		this._createElementContextMenus($elements);
+	},
+
+	_initElementDragger: function ($elements)
+	{
+		this._fileDrag.removeAllItems();
+		this._fileDrag.addItems($elements);
+	},
+
+	_editProperties: function (event)
+	{
+		var $target = $(event.currentTarget);
+        if (this.getState('view') == "table")
+        {
+            $target = $target.find('.element');
+        }
+
+		if (!$target.data('ElementEditor'))
+		{
+			var settings = {
+				elementId: $target.attr('data-id'),
+				$trigger: $target,
+				loadContentAction: 'assets/editFileContent',
+				saveContentAction: 'assets/saveFileContent'
+			};
+			$target.data('ElementEditor', new Craft.ElementEditor(settings));
+		}
+
+		$target.data('ElementEditor').show();
+	},
+
+	_createElementContextMenus: function ($elements)
+	{
+		var settings = {menuClass: 'menu assets-contextmenu'};
+
+		var menuOptions = [{ label: Craft.t('View file'), onClick: $.proxy(this, '_viewFile') }];
+		menuOptions.push({ label: Craft.t('Edit properties'), onClick: $.proxy(this, '_showProperties') });
+		menuOptions.push({ label: Craft.t('Rename file'), onClick: $.proxy(this, '_renameFile') });
+		menuOptions.push('-');
+		menuOptions.push({ label: Craft.t('Delete file'), onClick: $.proxy(this, '_deleteFile') });
+		this._singleFileMenu = new Garnish.ContextMenu($elements, menuOptions, settings);
+
+		menuOptions = [{ label: Craft.t('Delete'), onClick: $.proxy(this, '_deleteFiles') }];
+		this._multiFileMenu = new Garnish.ContextMenu($elements, menuOptions, settings);
+
+		this._enableElementContextMenu();
+	},
+
+	_destroyElementContextMenus: function ()
+	{
+		if (this._singleFileMenu !== null)
+		{
+			this._singleFileMenu.destroy();
+		}
+		if (this._multiFileMenu !== null)
+		{
+			this._singleFileMenu.destroy();
+		}
+	},
+
+	_enableElementContextMenu: function ()
+	{
+		this._multiFileMenu.disable();
+		this._singleFileMenu.disable();
+
+		if (this.elementSelect.getTotalSelected() == 1)
+		{
+			this._singleFileMenu.enable();
+		}
+		else if (this.elementSelect.getTotalSelected() > 1)
+		{
+			this._multiFileMenu.enable();
+		}
+	},
+
+	_showProperties: function (event)
+	{
+		$(event.currentTarget).dblclick();
+	},
+
+	_viewFile: function (event)
+	{
+		window.open($(event.currentTarget).find('[data-url]').attr('data-url'));
+	},
+
+	/**
+	 * Rename File
+	 */
+	_renameFile: function(event)
+	{
+		var $target = $(event.currentTarget);
+		var fileId = $target.attr('data-id'),
+			oldName = $target.find('[data-url]').attr('data-url').split('/').pop(),
+			newName = prompt(Craft.t("Rename file"), oldName);
+
+		if (newName && newName != oldName)
+		{
+			this.setIndexBusy();
+
+			var postData = {
+				fileId:   fileId,
+				folderId: this._getFolderIdFromSourceKey(this.$source.data('key')),
+				fileName: newName
+			};
+
+			var handleRename = function(data, textStatus)
+			{
+				this.setIndexAvailable();
+
+				this.promptHandler.resetPrompts();
+				if (textStatus == 'success')
+				{
+					if (data.prompt)
+					{
+						this.promptHandler.addPrompt(data);
+
+						var callback = $.proxy(function (choice) {
+							choice = choice[0].choice;
+							if (choice != 'cancel')
+							{
+								postData.action = choice;
+								Craft.postActionRequest('assets/moveFile', postData, $.proxy(handleRename, this));
+							}
+						}, this);
+
+						this.promptHandler.showBatchPrompts(callback);
+					}
+
+					if (data.success)
+					{
+						this.updateElements();
+					}
+
+					if (data.error)
+					{
+						alert(data.error);
+					}
+				}
+			};
+
+			Craft.postActionRequest('assets/moveFile', postData, $.proxy(handleRename, this));
+		}
+	},
+
+	/**
+	 * Delete a file
+	 */
+	_deleteFile: function (event) {
+
+		var $target = $(event.currentTarget);
+		var fileId = $target.attr('data-id');
+
+		var fileName = $target.attr('data-label');
+
+		if (confirm(Craft.t('Are you sure you want to delete “{file}”?', {file: fileName})))
+		{
+			if ($target.data('AssetEditor'))
+			{
+				$target.data('AssetEditor').removeHud();
+			}
+
+			this.setIndexBusy();
+
+			Craft.postActionRequest('assets/deleteFile', {fileId: fileId}, $.proxy(function(data, textStatus) {
+				this.setIndexAvailable();
+
+				if (textStatus == 'success')
+				{
+					if (data.error)
+					{
+						alert(data.error);
+					}
+
+					this.updateElements();
+
+				}
+			}, this));
+		}
+	},
+
+	/**
+	 * Delete multiple files.
+	 */
+	_deleteFiles: function () {
+
+		if (confirm(Craft.t("Are you sure you want to delete these {number} files?", {number: this.elementSelect.getTotalSelected()})))
+		{
+			this.setIndexBusy();
+
+			var postData = {};
+
+			for (var i = 0; i < this._selectedFileIds.length; i++)
+			{
+				postData['fileId['+i+']'] = this._selectedFileIds[i];
+			}
+
+			Craft.postActionRequest('assets/deleteFile', postData, $.proxy(function(data, textStatus) {
+				this.setIndexAvailable();
+
+				if (textStatus == 'success')
+				{
+
+					if (data.error)
+					{
+						alert(data.error);
+					}
+
+					this.updateElements();
+				}
+			}, this));
+		}
+	},
+
+	_getDragHelper: function ($element)
+	{
+		var currentView = this.getState('view');
+		switch (currentView)
+		{
+			case 'table':
+			{
+				var $container = $('<div class="assets-listview assets-lv-drag" />'),
+					$table = $('<table cellpadding="0" cellspacing="0" border="0" />').appendTo($container),
+					$tbody = $('<tbody />').appendTo($table);
+
+				$table.width(this.$table.width());
+				$tbody.append($element);
+
+				return $container;
+			}
+			case 'thumbs':
+			{
+				return $('<ul class="thumbsview assets-tv-drag" />').append($element.removeClass('sel'));
+			}
+		}
+
+		return $();
+	},
+
+	/**
+	 * On Drop Target Change
+	 */
+	_onDropTargetChange: function($dropTarget)
+	{
+		clearTimeout(this._expandDropTargetFolderTimeout);
+
+		if ($dropTarget)
+		{
+			var folderId = this._getFolderIdFromSourceKey($dropTarget.data('key'));
+
+			if (folderId)
+			{
+				this.dropTargetFolder = this._getSourceByFolderId(folderId);
+
+				if (this._hasSubfolders(this.dropTargetFolder) && ! this._isExpanded(this.dropTargetFolder))
+				{
+					this._expandDropTargetFolderTimeout = setTimeout($.proxy(this, '_expandFolder'), 500);
+				}
+			}
+			else
+			{
+				this.dropTargetFolder = null;
+			}
+		}
+	},
+
+	/**
+	 * Collapse Extra Expanded Folders
+	 */
+	_collapseExtraExpandedFolders: function(dropTargetFolderId)
+	{
+
+		clearTimeout(this._expandDropTargetFolderTimeout);
+
+		// If a source id is passed in, exclude it's parents
+		if (dropTargetFolderId)
+		{
+			var excluded = this._getSourceByFolderId(dropTargetFolderId).parents('li').find('>a');
+		}
+
+		for (var i = this._tempExpandedFolders.length-1; i >= 0; i--)
+		{
+			var source = this._tempExpandedFolders[i];
+
+			// check the parent list, if a source id is passed in
+			if (! dropTargetFolderId || excluded.filter('[data-key="' + source.data('key') + '"]').length == 0)
+			{
+				this._collapseFolder(source);
+				this._tempExpandedFolders.splice(i, 1);
+			}
+		}
+	},
+
+	_getSourceByFolderId: function (folderId)
+	{
+		return this.$sources.filter('[data-key="folder:' + folderId + '"]');
+	},
+
+	_hasSubfolders: function (source)
+	{
+		return source.siblings('ul').find('li').length;
+	},
+
+	_isExpanded: function (source)
+	{
+		return source.parent('li').hasClass('expanded');
+	},
+
+	_expandFolder: function ()
+	{
+		// collapse any temp-expanded drop targets that aren't parents of this one
+		this._collapseExtraExpandedFolders(this._getFolderIdFromSourceKey(this.dropTargetFolder.data('key')));
+
+		this.dropTargetFolder.parent().find('> .toggle').click();
+
+		// keep a record of that
+		this._tempExpandedFolders.push(this.dropTargetFolder);
+
+	},
+
+	_collapseFolder: function (source)
+	{
+		var li = source.parent();
+		if (li.hasClass('expanded'))
+		{
+			li.find('> .toggle').click();
+		}
+	},
+
+	_createFolderContextMenu: function (element)
+	{
+		element = $(element);
+		var menuOptions = [{ label: Craft.t('New subfolder'), onClick: $.proxy(this, '_createSubfolder', element) }];
+
+		// For all folders that are not top folders
+		if (element.parents('ul').length > 1)
+		{
+			menuOptions.push({ label: Craft.t('Rename folder'), onClick: $.proxy(this, '_renameFolder', element) });
+			menuOptions.push({ label: Craft.t('Delete folder'), onClick: $.proxy(this, '_deleteFolder', element) });
+		}
+		new Garnish.ContextMenu(element, menuOptions, {menuClass: 'menu assets-contextmenu'});
+
+	},
+
+	_createSubfolder: function (parentFolder)
+	{
+		var subfolderName = prompt(Craft.t('Enter the name of the folder'));
+
+		if (subfolderName)
+		{
+			var params = {
+				parentId:  this._getFolderIdFromSourceKey(parentFolder.data('key')),
+				folderName: subfolderName
+			};
+
+			this.setIndexBusy();
+
+			Craft.postActionRequest('assets/createFolder', params, $.proxy(function(data)
+			{
+				this.setIndexAvailable();
+
+				if (data.success)
+				{
+					this._prepareParentForChildren(parentFolder);
+
+					var subFolder = $('<li><a data-key="folder:' + data.folderId + '">' + data.folderName + '</a></li>');
+
+					var $a = subFolder.find('a');
+					this._addSubfolder(parentFolder, subFolder);
+					this._createFolderContextMenu($a);
+					this.sourceSelect.addItems($a);
+					this._folderDrag.addItems($a.parent());
+					this.$sources = this.$sources.add($a);
+				}
+
+				if (data.error)
+				{
+					alert(data.error);
+				}
+			}, this));
+		}
+	},
+
+	_deleteFolder: function (targetFolder)
+	{
+		if (confirm(Craft.t('Really delete folder “{folder}”?', {folder: $.trim(targetFolder.text())})))
+		{
+
+			var params = {
+				folderId: this._getFolderIdFromSourceKey(targetFolder.data('key'))
+			}
+
+			this.setIndexBusy();
+
+			Craft.postActionRequest('assets/deleteFolder', params, $.proxy(function(data)
+			{
+				this.setIndexAvailable();
+
+				if (data.success)
+				{
+					var parentFolder = this._getParentSource(targetFolder);
+
+					// remove folder and any trace from it's parent, if needed.
+					this.$sources = this.$sources.not(targetFolder);
+					this.sourceSelect.removeItems(targetFolder);
+
+					targetFolder.parent().remove();
+					this._cleanUpTree(parentFolder);
+
+				}
+
+				if (data.error)
+				{
+					alert(data.error);
+				}
+
+			}, this));
+		}
+	},
+
+	/**
+	 * Rename
+	 */
+	_renameFolder: function(targetFolder)
+	{
+		var oldName = $.trim(targetFolder.text()),
+			newName = prompt(Craft.t('Rename folder'), oldName);
+
+		if (newName && newName != oldName)
+		{
+			var params = {
+				folderId: this._getFolderIdFromSourceKey(targetFolder.data('key')),
+				newName: newName
+			};
+
+			this.setIndexBusy();
+
+			Craft.postActionRequest('assets/renameFolder', params, $.proxy(function(data)
+			{
+				this.setIndexAvailable();
+
+				if (data.success)
+				{
+					targetFolder.text(data.newName);
+				}
+
+				if (data.error)
+				{
+					alert(data.error);
+				}
+			}, this), 'json');
+		}
+	},
+
+	/**
+	 * Prepare a source folder for children folder.
+	 *
+	 * @param parentFolder
+	 * @private
+	 */
+	_prepareParentForChildren: function (parentFolder)
+	{
+		if (!this._hasSubfolders(parentFolder))
+		{
+			parentFolder.parent().addClass('expanded').append('<div class="toggle"></div><ul></ul>');
+			this.addListener(parentFolder.siblings('.toggle'), 'click', function(ev)
+			{
+				$(ev.currentTarget).parent().toggleClass('expanded');
+			});
+
+		}
+	},
+
+	/**
+	 * Add a subfolder to the parent folder at the correct spot.
+	 *
+	 * @param parentFolder
+	 * @param subFolder
+	 * @private
+	 */
+
+	_addSubfolder: function (parentFolder, subFolder)
+	{
+		var existingChildren = parentFolder.siblings('ul').find('li');
+		var folderInserted = false;
+		existingChildren.each(function () {
+			if (!folderInserted && $.trim($(this).text()) > $.trim(subFolder.text()))
+			{
+				$(this).before(subFolder);
+				folderInserted = true;
+			}
+		});
+		if (!folderInserted)
+		{
+			parentFolder.siblings('ul').append(subFolder);
+		}
+	},
+
+	_cleanUpTree: function (parentFolder)
+	{
+		if (parentFolder !== null && parentFolder.siblings('ul').find('li').length == 0)
+		{
+			parentFolder.siblings('ul').remove();
+			parentFolder.siblings('.toggle').remove();
+			parentFolder.parent().removeClass('expanded');
+		}
+	}
+});
+
+// Register it!
+Craft.registerElementIndexClass('Asset', Craft.AssetIndex);
+
+
+/**
+ * Element Select input
+ */
+Craft.AssetSelectInput = Craft.BaseElementSelectInput.extend({
+
+    requestId: 0,
+    hud: null,
+
+	init: function(id, name, elementType, sources, criteria, limit)
+	{
+		this.base(id, name, elementType, sources, criteria, limit);
+        this._attachHUDEvents();
+	},
+
+    selectElements: function (elements)
+    {
+        this.base(elements);
+        this._attachHUDEvents();
+    },
+
+    _attachHUDEvents: function ()
+    {
+        this.removeListener(this.$elements, 'dlbclick');
+        this.addListener(this.$elements, 'dblclick', $.proxy(this, '_editProperties'));
+    },
+
+    _editProperties: function (event)
+    {
+        var $target = $(event.currentTarget);
+        if (!$target.data('ElementEditor'))
+        {
+            var settings = {
+                elementId: $target.attr('data-id'),
+                $trigger: $target,
+                loadContentAction: 'assets/editFileContent',
+                saveContentAction: 'assets/saveFileContent'
+            };
+            $target.data('ElementEditor', new Craft.ElementEditor(settings));
+        }
+
+        $target.data('ElementEditor').show();
+    }
+});
+
+
+/**
+ * Asset selector modal class
+ */
+Craft.AssetSelectorModal = Craft.BaseElementSelectorModal.extend({
+
+	init: function(elementType, settings)
+	{
+		this.base(elementType, settings);
+	}
+
+});
+
+// Register it!
+Craft.registerElementSelectorModalClass('Asset', Craft.AssetSelectorModal);
 
 
 /**
@@ -1405,753 +3886,137 @@ Craft.EditableTable.Row = Garnish.Base.extend({
 
 
 /**
- * Element index class
+ * Element editor
  */
-Craft.ElementIndex = Garnish.Base.extend({
+var x;
+Craft.ElementEditor = Garnish.Base.extend({
 
-	elementType: null,
-	state: null,
-	stateStorageId: null,
-	searchTimeout: null,
+		hud: null,
+		elementId: 0,
+		requestId: 0,
+		$trigger: null,
+		$spinner: null,
 
-	$container: null,
-	$scroller: null,
-	$mainSpinner: null,
-	$loadingMoreSpinner: null,
-	$sidebar: null,
-	$sources: null,
-	$sourceToggles: null,
-	$search: null,
-	$elements: null,
-	$table: null,
-	$tbody: null,
-
-	init: function(elementType, $container, settings)
-	{
-		this.elementType = elementType;
-		this.$container = $container;
-		this.setSettings(settings, Craft.ElementIndex.defaults);
-
-        // Set the state object
-        this.state = {};
-
-        if (typeof Storage !== 'undefined' && this.settings.id)
-        {
-        	this.stateStorageId = 'Craft.ElementIndex.'+this.settings.id;
-
-        	if (typeof localStorage[this.stateStorageId] != 'undefined')
-        	{
-        		$.extend(this.state, JSON.parse(localStorage[this.stateStorageId]));
-        	}
-        }
-
-    	// Find the DOM elements
-    	this.$mainSpinner = this.$container.find('.toolbar:first .spinner:first');
-    	this.$loadingMoreSpinner = this.$container.find('.spinner.loadingmore')
-    	this.$sidebar = this.$container.find('.sidebar:first');
-    	this.$sources = this.$sidebar.find('nav a');
-    	this.$sourceToggles = this.$sidebar.find('.toggle');
-    	this.$search = this.$container.find('.search:first input:first');
-    	this.$elements = this.$container.find('.elements:first');
-
-    	if (this.settings.mode == 'index')
-    	{
-    		this.$scroller = Garnish.$win;
-    	}
-    	else
-    	{
-    		this.$scroller = this.$container.find('.main');
-    	}
-
-    	// Select the initial source
-    	var source = this.getState('source');
-
-    	if (source)
-    	{
-    		var $source = this.getSourceByKey(source);
-
-    		if ($source)
-    		{
-    			// Expand any parent sources
-    			var $parentSources = $source.parentsUntil('.sidebar', 'li');
-    			$parentSources.not(':first').addClass('expanded');
-    		}
-    	}
-
-    	if (!source || !$source)
-    	{
-    		// Select the first source by default
-    		var $source = this.$sources.first();
-    	}
-
-    	// Select it and load up the elements!
-    	this.selectSource($source);
-
-    	// Add some listeners
-    	this.addListener(this.$sourceToggles, 'click', function(ev)
+		init: function(settings)
 		{
-			$(ev.currentTarget).parent().toggleClass('expanded');
-		});
+			this.setSettings(settings, Craft.ElementEditor.defaults);
 
-    	this.addListener(this.$sources, 'click', function(ev)
+			this.elementId = this.settings.elementId;
+			this.$trigger = this.settings.$trigger;
+		},
+
+		show: function ()
 		{
-			this.selectSource($(ev.currentTarget));
-		});
-
-    	this.addListener(this.$search, 'textchange', $.proxy(function()
-    	{
-    		if (this.searchTimeout)
-    		{
-    			clearTimeout(this.searchTimeout);
-    		}
-
-    		this.searchTimeout = setTimeout($.proxy(this, 'updateElements'), 500);
-    	}, this));
-
-    	// Auto-focus the Search box
-    	if (!Garnish.isMobileBrowser(true))
-    	{
-    		this.$search.focus();
-    	}
-	},
-
-	getState: function(key)
-	{
-		if (typeof this.state[key] != 'undefined')
-		{
-			return this.state[key];
-		}
-		else
-		{
-			return null;
-		}
-	},
-
-	setState: function(key, value)
-	{
-		if (typeof key == 'object')
-		{
-			$.extend(this.state, key);
-		}
-		else
-		{
-			this.state[key] = value;
-		}
-
-		if (this.stateStorageId)
-		{
-		    localStorage[this.stateStorageId] = JSON.stringify(this.state);
-		}
-	},
-
-	getControllerData: function()
-	{
-		return {
-			mode:               this.settings.mode,
-			elementType:        this.elementType,
-			criteria:           this.settings.criteria,
-			disabledElementIds: this.settings.disabledElementIds,
-			state:              this.state,
-			search:             (this.$search ? this.$search.val() : null)
-		};
-	},
-
-	updateElements: function()
-	{
-		this.$mainSpinner.removeClass('hidden');
-		this.removeListener(this.$scroller, 'scroll');
-
-		if (this.$table)
-		{
-			Craft.cp.$collapsibleTables = Craft.cp.$collapsibleTables.not(this.$table);
-		}
-
-		var data = this.getControllerData();
-
-		Craft.postActionRequest('elements/getElements', data, $.proxy(function(response)
-		{
-			this.$mainSpinner.addClass('hidden');
-
-			this.$elements.html(response.elementContainerHtml);
-
-			var $headers = this.$elements.find('thead:first th');
-			this.addListener($headers, 'click', 'onSortChange');
-
-			this.$table = this.$elements.find('table:first');
-			this.$tbody = this.$table.find('tbody:first');
-
-			Craft.cp.$collapsibleTables = Craft.cp.$collapsibleTables.add(this.$table);
-
-			this.setNewElementDataHtml(response);
-		}, this));
-	},
-
-	setNewElementDataHtml: function(response, append)
-	{
-		if (append)
-		{
-			this.$tbody.append(response.elementDataHtml);
-		}
-		else
-		{
-			this.$tbody.html(response.elementDataHtml);
-		}
-
-		$('head').append(response.headHtml);
-
-		// More?
-		if (response.more)
-		{
-			this.totalVisible = response.totalVisible;
-
-			this.addListener(this.$scroller, 'scroll', function()
-			{
-				if (
-					(this.$scroller[0] == Garnish.$win[0] && ( Garnish.$win.innerHeight() + Garnish.$bod.scrollTop() >= Garnish.$bod.height() )) ||
-					(this.$scroller.prop('scrollHeight') - this.$scroller.scrollTop() == this.$scroller.outerHeight())
-				)
-				{
-					this.$loadingMoreSpinner.removeClass('hidden');
-					this.removeListener(this.$scroller, 'scroll');
-
-					var data = this.getControllerData();
-					data.offset = this.totalVisible;
-
-					Craft.postActionRequest('elements/getElements', data, $.proxy(function(response)
-					{
-						this.$loadingMoreSpinner.addClass('hidden');
-
-						this.setNewElementDataHtml(response, true);
-					}, this));
-				}
-			});
-		}
-
-		Craft.cp.updateResponsiveTables();
-
-		this.settings.onUpdateElements(append);
-	},
-
-	onSortChange: function(ev)
-	{
-		var $th = $(ev.currentTarget),
-			attribute = $th.attr('data-attribute');
-
-		if (this.getState('order') == attribute)
-		{
-			if (this.getState('sort') == 'asc')
-			{
-				this.setState('sort', 'desc');
-			}
-			else
-			{
-				this.setState('sort', 'asc');
-			}
-		}
-		else
-		{
-			this.setState({
-				order: attribute,
-				sort: 'asc'
-			});
-		}
-
-		this.updateElements();
-	},
-
-	getSourceByKey: function(key)
-	{
-		for (var i = 0; i < this.$sources.length; i++)
-		{
-			var $source = $(this.$sources[i]);
-
-			if ($source.data('key') == key)
-			{
-				return $source;
-			}
-		}
-	},
-
-	selectSource: function($source)
-	{
-		if (this.$source)
-		{
-			this.$source.removeClass('sel');
-		}
-
-		this.$source = $source.addClass('sel');
-
-		this.setState('source', this.$source.data('key'));
-		this.updateElements();
-	},
-
-	rememberDisabledElementId: function(elementId)
-	{
-		var index = $.inArray(elementId, this.settings.disabledElementIds);
-
-		if (index == -1)
-		{
-			this.settings.disabledElementIds.push(elementId);
-		}
-	},
-
-	forgetDisabledElementId: function(elementId)
-	{
-		var index = $.inArray(elementId, this.settings.disabledElementIds);
-
-		if (index != -1)
-		{
-			this.settings.disabledElementIds.splice(index, 1);
-		}
-	},
-
-	enableElements: function($elements)
-	{
-		$elements.removeClass('disabled');
-
-		for (var i = 0; i < $elements.length; i++)
-		{
-			var elementId = $($elements[i]).data('id');
-			this.forgetDisabledElementId(elementId);
-		}
-
-		this.settings.onEnableElements($elements);
-	},
-
-	disableElements: function($elements)
-	{
-		$elements.removeClass('sel').addClass('disabled');
-
-		for (var i = 0; i < $elements.length; i++)
-		{
-			var elementId = $($elements[i]).data('id');
-			this.rememberDisabledElementId(elementId);
-		}
-
-		this.settings.onDisableElements($elements);
-	},
-
-	getElementById: function(elementId)
-	{
-		return this.$tbody.children('[data-id='+elementId+']:first');
-	},
-
-	enableElementsById: function(elementIds)
-	{
-		elementIds = $.makeArray(elementIds);
-
-		for (var i = 0; i < elementIds.length; i++)
-		{
-			var elementId = elementIds[i],
-				$element = this.getElementById(elementId);
-
-			if ($element.length)
-			{
-				this.enableElements($element);
-			}
-			else
-			{
-				this.forgetDisabledElementId(elementId);
-			}
-		}
-	},
-
-	disableElementsById: function(elementIds)
-	{
-		elementIds = $.makeArray(elementIds);
-
-		for (var i = 0; i < elementIds.length; i++)
-		{
-			var elementId = elementIds[i],
-				$element = this.getElementById(elementId);
-
-			if ($element.length)
-			{
-				this.disableElements($element);
-			}
-			else
-			{
-				this.rememberDisabledElementId(elementId);
-			}
-		}
-	}
-},
-{
-	defaults: {
-		mode: 'index',
-		id: null,
-		criteria: null,
-		disabledElementIds: [],
-		onUpdateElements: $.noop,
-		onEnableElements: $.noop,
-		onDisableElements: $.noop
-	}
-});
-
-
-/**
- * Element Select input
- */
-Craft.ElementSelectInput = Garnish.Base.extend({
-
-	id: null,
-	name: null,
-	elementType: null,
-	sources: null,
-	limit: null,
-	totalElements: 0,
-	elementSelect: null,
-	elementSort: null,
-	modal: null,
-
-	$container: null,
-	$elementsContainer: null,
-	$elements: null,
-	$addElementBtn: null,
-
-	init: function(id, name, elementType, sources, limit)
-	{
-		this.id = id;
-		this.name = name;
-		this.elementType = elementType;
-		this.sources = sources;
-		this.limit = limit;
-
-		this.$container = $('#'+this.id);
-		this.$elementsContainer = this.$container.children('.elements');
-		this.$elements = this.$elementsContainer.children();
-		this.$addElementBtn = this.$container.children('.btn.add');
-
-		this.totalElements = this.$elements.length;
-
-		if (this.limit && this.totalElements == this.limit)
-		{
-			this.$addElementBtn.addClass('disabled');
-		}
-
-		this.elementSelect = new Garnish.Select(this.$elements, {
-			multi: true,
-			filter: ':not(.delete)'
-		});
-
-		this.elementSort = new Garnish.DragSort({
-			container: this.$elementsContainer,
-			filter: $.proxy(function() {
-				return this.elementSelect.getSelectedItems();
-			}, this),
-			caboose: $('<div class="caboose"/>'),
-			onSortChange: $.proxy(function() {
-				this.elementSelect.resetItemOrder();
-			}, this)
-		});
-
-		this.initElements(this.$elements);
-
-		this.addListener(this.$addElementBtn, 'activate', 'showModal');
-	},
-
-	initElements: function($elements)
-	{
-		this.elementSelect.addItems($elements);
-		this.elementSort.addItems($elements);
-
-		$elements.find('.delete').on('click', $.proxy(function(ev)
-		{
-			var $element = $(ev.currentTarget).closest('.element');
-
-			this.$elements = this.$elements.not($element);
-			this.elementSelect.removeItems($element);
-
-			if (this.modal)
-			{
-				this.modal.elementIndex.enableElementsById($element.data('id'));
-			}
-
-			this.totalElements--;
-			this.$addElementBtn.removeClass('disabled');
-
-			$element.css('z-index', 0);
-
-			$element.animate({
-				marginLeft: -($element.outerWidth() + parseInt($element.css('margin-right'))),
-				opacity: -1 // double speed!
-			}, 'fast', function() {
-				$element.remove();
-			});
-
-		}, this));
-	},
-
-	showModal: function()
-	{
-		// Make sure we haven't reached the limit
-		if (this.limit && this.totalElements == this.limit)
-		{
-			return;
-		}
-
-		if (!this.modal)
-		{
-			var selectedElementIds = [];
-
-			for (var i = 0; i < this.$elements.length; i++)
-			{
-				var $element = $(this.$elements[i]);
-				selectedElementIds.push($element.data('id'));
-			}
-
-			this.modal = new Craft.ElementSelectorModal(this.elementType, {
-				id: this.id,
-				sources: this.sources,
-				criteria: { status: null },
-				multiSelect: true,
-				disableOnSelect: true,
-				disabledElementIds: selectedElementIds,
-				onSelect: $.proxy(this, 'selectElements')
-			});
-		}
-		else
-		{
-			this.modal.show();
-		}
-	},
-
-	selectElements: function(elements)
-	{
-		this.elementSelect.deselectAll();
-
-		if (this.limit)
-		{
-			var slotsLeft = this.limit - this.totalElements,
-				max = Math.min(elements.length, slotsLeft);
-		}
-		else
-		{
-			var max = elements.length;
-		}
-
-		for (var i = 0; i < max; i++)
-		{
-			var element = elements[i],
-				$newElement = element.$element.clone();
-
-			// Make a couple tweaks
-			$newElement.addClass('removable');
-			$newElement.prepend('<input type="hidden" name="'+this.name+'[]" value="'+element.id+'">' +
-				'<a class="delete icon" title="'+Craft.t('Remove')+'"></a>');
-
-			$newElement.appendTo(this.$elementsContainer);
-
-			// Animate it into place
-			var origOffset = element.$element.offset(),
-				destOffset = $newElement.offset();
-
-			$newElement.css({
-				left:   origOffset.left - destOffset.left,
-				top:    origOffset.top - destOffset.top,
-				zIndex: 10000
-			});
-
-			$newElement.animate({
-				left: 0,
-				top: 0
-			}, function() {
-				$(this).css('z-index', 1);
-			});
-
-			this.$elements = this.$elements.add($newElement);
-			this.initElements($newElement);
-			this.elementSelect.selectItem($newElement);
-		}
-
-		this.totalElements += max;
-
-		if (this.limit && this.totalElements == this.limit)
-		{
-			this.$addElementBtn.addClass('disabled');
-		}
-	}
-});
-
-
-/**
- * Element selector modal class
- */
-Craft.ElementSelectorModal = Garnish.Modal.extend({
-
-	elementType: null,
-	elementIndex: null,
-	elementSelect: null,
-
-	$body: null,
-	$selectBtn: null,
-	$sidebar: null,
-	$sources: null,
-	$sourceToggles: null,
-	$main: null,
-	$search: null,
-	$elements: null,
-	$tbody: null,
-
-	init: function(elementType, settings)
-	{
-		this.elementType = elementType;
-		this.setSettings(settings, Craft.ElementSelectorModal.defaults);
-
-		// Build the modal
-		var $container = $('<div class="modal elementselectormodal"></div>').appendTo(Garnish.$bod),
-			$body = $('<div class="body"><div class="spinner big"></div></div>').appendTo($container),
-			$footer = $('<div class="footer"/>').appendTo($container),
-			$buttons = $('<div class="buttons rightalign"/>').appendTo($footer),
-			$cancelBtn = $('<div class="btn">'+Craft.t('Cancel')+'</div>').appendTo($buttons),
-			$selectBtn = $('<div class="btn disabled submit">'+Craft.t('Select')+'</div>').appendTo($buttons);
-
-		this.base($container, settings);
-
-		this.$body = $body;
-		this.$selectBtn = $selectBtn;
-
-		this.addListener($cancelBtn, 'activate', 'cancel');
-		this.addListener(this.$selectBtn, 'activate', 'selectElements');
-	},
-
-	onFadeIn: function()
-	{
-		if (!this.elementIndex)
-		{
-			// Get the modal body HTML based on the settings
-			var data = {
-				mode:        'modal',
-				elementType: this.elementType,
-				sources:     this.settings.sources
+			var params = {
+				requestId: ++this.requestId,
+				elementId: this.elementId
 			};
 
-			Craft.postActionRequest('elements/getModalBody', data, $.proxy(function(response)
-			{
-				this.$body.html(response);
+			this._showSpinner();
 
-				// Initialize the element index
-				this.elementIndex = new Craft.ElementIndex(this.elementType, this.$body, {
-					mode:               'modal',
-					id:                 this.settings.id,
-					criteria:           this.settings.criteria,
-					disabledElementIds: this.settings.disabledElementIds,
-					onUpdateElements:   $.proxy(this, 'onUpdateElements'),
-					onEnableElements:   $.proxy(this, 'onEnableElements'),
-					onDisableElements:  $.proxy(this, 'onDisableElements')
+			// Create a new HUD
+			Craft.postActionRequest(this.settings.loadContentAction, params, $.proxy(function(data, textStatus) {
+
+				this._hideSpinner();
+
+				if (data.requestId != this.requestId) {
+					return;
+				}
+
+				$hudHtml = $('<div/>').html((data.headHtml ? data.headHtml : '') + (data.bodyHtml ? data.bodyHtml : '') + (data.footHtml ? data.footHtml : ''));
+
+				this.hud = new Garnish.HUD(this.$trigger, $hudHtml, {
+					hudClass: 'hud contenthud',
+					triggerSpacing: 10,
+					tipWidth: 30,
+					closeOtherHUDs: false
 				});
+
+				Craft.initUiElements($hudHtml);
+				this.addListener($hudHtml.find('form'), 'submit', $.proxy(this, '_saveElementDetails'));
+				this.addListener($hudHtml.find('.btn.submit'), 'click', function (ev) {$(ev.currentTarget).parents('form').submit();});
+				this.addListener($hudHtml.find('.btn.cancel'), 'click', $.proxy(this, 'removeHud'));
+
 
 			}, this));
-		}
-		else
+		},
+
+		_saveElementDetails: function (event)
 		{
-			// Auto-focus the Search box
-			if (!Garnish.isMobileBrowser(true))
+			event.preventDefault();
+
+			this.hud.$body.find('.spinner').removeClass('hidden');
+
+			$form = $(event.currentTarget);
+			var params = $form.serialize();
+
+			Craft.postActionRequest(this.settings.saveContentAction, params, $.proxy(function(response, textStatus)
 			{
-				this.elementIndex.$search.focus();
+				if (response.success)
+				{
+					// Update the title
+					this.$trigger.find('.label').text(response.title);
+					this.hud.$body.find('.spinner').hide();
+					this.removeHud();
+				}
+				else
+				{
+					this.hud.$body.find('.spinner').addClass('hidden');
+					Garnish.shake(this.hud.$hud);
+				}
+			}, this));
+		},
+
+		_showSpinner: function ()
+		{
+			this.removeHud();
+
+            this.$trigger.find('.delete').addClass('hidden');
+
+            // If the removable class is present, then treat this as an Input Field.
+            if (this.$trigger.hasClass('removable'))
+            {
+                this.$trigger.removeClass('removable').data('elementInputField', true);
+            }
+
+			this.$trigger.find('.label').css('padding-right', '20px');
+			this.$trigger.find('.label').after('<div class="spinner element-spinner" style="position: absolute; right: 2px; bottom: -1px;"></div>');
+		},
+
+		_hideSpinner: function ()
+		{
+            this.$trigger.find('.delete').removeClass('hidden');
+			this.$trigger.find('.label').removeClass('spinner element-spinner inline').html(this.$trigger.find('.label nobr').html());
+
+            if (this.$trigger.data('elementInputField'))
+            {
+                this.$trigger.addClass('removable');
+            }
+
+			this.$trigger.find('.label').css('padding-right', '0');
+			this.$trigger.find('.label').siblings('.spinner').remove();
+
+		},
+
+		removeHud: function ()
+		{
+			if (this.hud !== null)
+			{
+				this.hud.hide();
+				delete this.hud;
 			}
 		}
 
-		this.base();
 	},
-
-	onUpdateElements: function(appended)
 	{
-		if (!appended)
-		{
-			this.addListener(this.elementIndex.$tbody, 'dblclick', 'selectElements');
-		}
-
-		// Reset the element select
-		if (this.elementSelect)
-		{
-			this.elementSelect.destroy();
-			delete this.elementSelect;
-		}
-
-		var $trs = this.elementIndex.$tbody.children(':not(.disabled)');
-
-		this.elementSelect = new Garnish.Select(this.elementIndex.$tbody, $trs, {
-			multi: this.settings.multiSelect,
-			vertical: true,
-			waitForDblClick: true,
-			onSelectionChange: $.proxy(this, 'onSelectionChange')
-		});
-	},
-
-	onSelectionChange: function()
-	{
-		if (this.elementSelect.totalSelected)
-		{
-			this.$selectBtn.removeClass('disabled');
-		}
-		else
-		{
-			this.$selectBtn.addClass('disabled');
-		}
-	},
-
-	onEnableElements: function($elements)
-	{
-		this.elementSelect.addItems($elements);
-	},
-
-	onDisableElements: function($elements)
-	{
-		this.elementSelect.removeItems($elements);
-	},
-
-	cancel: function()
-	{
-		this.hide();
-		this.settings.onCancel();
-	},
-
-	selectElements: function()
-	{
-		if (this.elementIndex && this.elementSelect && this.elementSelect.totalSelected)
-		{
-			this.elementSelect.clearMouseUpTimeout();
-
-			var $selectedRows = this.elementSelect.getSelectedItems(),
-				elements = [];
-
-			for (var i = 0; i < $selectedRows.length; i++)
-			{
-				var $row = $($selectedRows[i]),
-					$element = $row.find('.element');
-
-				elements.push({
-					id: $row.data('id'),
-					label: $row.data('label'),
-					status: $row.data('status'),
-					hasThumb: $element.hasClass('hasthumb'),
-					$element: $element
-				});
-			}
-
-			this.hide();
-			this.settings.onSelect(elements);
-
-			if (this.settings.disableOnSelect)
-			{
-				this.elementIndex.disableElements($selectedRows);
-			}
+		defaults: {
+			elementId: null,
+			$trigger: null,
+			loadContentAction: null,
+			saveContentAction: null
 		}
 	}
-},
-{
-	defaults: {
-		id: null,
-		sources: null,
-		criteria: null,
-		multiSelect: false,
-		disabledElementIds: [],
-		disableOnSelect: false,
-		onCancel: $.noop,
-		onSelect: $.noop
-	}
-});
+);
 
 
 /**
@@ -2284,7 +4149,7 @@ Craft.FieldLayoutDesigner = Garnish.Base.extend({
 		}
 
 		var $option = $(option),
-			$tab = $option.data('menu').$btn.parent().parent().parent(),
+			$tab = $option.data('menu').$trigger.parent().parent().parent(),
 			action = $option.data('action');
 
 		switch (action)
@@ -2305,7 +4170,7 @@ Craft.FieldLayoutDesigner = Garnish.Base.extend({
 	onFieldOptionSelect: function(option)
 	{
 		var $option = $(option),
-			$field = $option.data('menu').$btn.parent(),
+			$field = $option.data('menu').$trigger.parent(),
 			action = $option.data('action');
 
 		switch (action)
@@ -3953,6 +5818,277 @@ Craft.LightSwitch = Garnish.Base.extend({
 });
 
 
+/**
+ * File Manager.
+ */
+Craft.ProgressBar = Garnish.Base.extend({
+
+    $uploadProgress: null,
+    $uploadProgressBar: null,
+
+    _itemCount: 0,
+    _processedItemCount: 0,
+
+
+    init: function($element)
+    {
+        this.$uploadProgress = $element;
+        this.$uploadProgressBar = $('.assets-pb-bar', this.$uploadProgress);
+
+        this.resetProgressBar();
+    },
+
+    /**
+     * Reset the progress bar
+     */
+    resetProgressBar: function ()
+    {
+        // Set it to 1 so that 0 is not 100%
+        this.setItemCount(1);
+        this.setProcessedItemCount(0);
+        this.updateProgressBar();
+
+    },
+
+    /**
+     * Fade to invisible, hide it using a class and reset opacity to visible
+     */
+    hideProgressBar: function ()
+    {
+        this.$uploadProgress.fadeTo('fast', 0.01, $.proxy(function() {
+            this.$uploadProgress.addClass('hidden').fadeTo(1, 1, function () {});
+        }, this));
+    },
+
+    showProgressBar: function ()
+    {
+        this.$uploadProgress.removeClass('hidden');
+    },
+
+    setItemCount: function (count)
+    {
+        this._itemCount = count;
+    },
+
+    incrementItemCount: function (count)
+    {
+        this._itemCount += count;
+    },
+
+    setProcessedItemCount: function (count)
+    {
+        this._processedItemCount = count;
+    },
+
+    incrementProcessedItemCount: function (count)
+    {
+        this._processedItemCount += count;
+    },
+
+    updateProgressBar: function ()
+    {
+        // Only fools would allow accidental division by zero.
+        this._itemCount = Math.max(this._itemCount, 1);
+
+        var width = Math.min(100, Math.round(100 * this._processedItemCount / this._itemCount));
+
+        this.setProgressPercentage(width);
+    },
+
+    setProgressPercentage: function (percentage)
+    {
+        this.$uploadProgressBar.width(percentage + '%');
+    }
+});
+
+/**
+ * File Manager.
+ */
+Craft.PromptHandler = Garnish.Base.extend({
+
+    $modalContainerDiv: null,
+    $prompt: null,
+    $promptApplyToRemainingContainer: null,
+    $promptApplyToRemainingCheckbox: null,
+    $promptApplyToRemainingLabel: null,
+    $promptButtons: null,
+
+
+    _prompts: [],
+    _promptBatchCallback: $.noop,
+    _promptBatchReturnData: [],
+    _promptBatchNum: 0,
+
+    init: function()
+    {
+
+    },
+
+    resetPrompts: function ()
+    {
+        this._prompts = [];
+        this._promptBatchCallback = $.noop;
+        this._promptBatchReturnData = [];
+        this._promptBatchNum = 0;
+    },
+
+    addPrompt: function (prompt)
+    {
+        this._prompts.push(prompt);
+    },
+
+    getPromptCount: function ()
+    {
+        return this._prompts.length;
+    },
+
+    showBatchPrompts: function (callback)
+    {
+        this._promptBatchCallback = callback;
+        this._promptBatchReturnData = [];
+        this._promptBatchNum = 0;
+
+        this._showNextPromptInBatch();
+    },
+
+    _showNextPromptInBatch: function()
+    {
+        var prompt = this._prompts[this._promptBatchNum].prompt,
+            remainingInBatch = this._prompts.length - (this._promptBatchNum + 1);
+
+        this._showPrompt(prompt.message, prompt.choices, $.proxy(this, '_handleBatchPromptSelection'), remainingInBatch);
+    },
+
+    /**
+     * Handles a prompt choice selection.
+     *
+     * @param choice
+     * @param applyToRemaining
+     * @private
+     */
+    _handleBatchPromptSelection: function(choice, applyToRemaining)
+    {
+        var prompt = this._prompts[this._promptBatchNum],
+            remainingInBatch = this._prompts.length - (this._promptBatchNum + 1);
+
+        // Record this choice
+        var choiceData = $.extend(prompt, {choice: choice});
+        this._promptBatchReturnData.push(choiceData);
+
+        // Are there any remaining items in the batch?
+        if (remainingInBatch)
+        {
+            // Get ready to deal with the next prompt
+            this._promptBatchNum++;
+
+            // Apply the same choice to the remaining items?
+            if (applyToRemaining)
+            {
+                this._handleBatchPromptSelection(choice, true);
+            }
+            else
+            {
+                // Show the next prompt
+                this._showNextPromptInBatch();
+            }
+        }
+        else
+        {
+            // All done! Call the callback
+            if (typeof this._promptBatchCallback == 'function')
+            {
+                this._promptBatchCallback(this._promptBatchReturnData);
+            }
+        }
+    },
+
+    /**
+     * Show the user prompt with a given message and choices, plus an optional "Apply to remaining" checkbox.
+     *
+     * @param string message
+     * @param array choices
+     * @param function callback
+     * @param int itemsToGo
+     */
+    _showPrompt: function(message, choices, callback, itemsToGo)
+    {
+        this._promptCallback = callback;
+
+        if (this.modal == null) {
+            this.modal = new Garnish.Modal({closeOtherModals: false});
+        }
+
+        if (this.$modalContainerDiv == null) {
+            this.$modalContainerDiv = $('<div class="modal prompt-modal"></div>').addClass().appendTo(Garnish.$bod);
+        }
+
+        this.$prompt = $('<div class="body"></div>').appendTo(this.$modalContainerDiv.empty());
+
+        this.$promptMessage = $('<p class="prompt-msg"/>').appendTo(this.$prompt);
+
+        $('<p>').html(Craft.t('What do you want to do?')).appendTo(this.$prompt);
+
+        this.$promptApplyToRemainingContainer = $('<label class="assets-applytoremaining"/>').appendTo(this.$prompt).hide();
+        this.$promptApplyToRemainingCheckbox = $('<input type="checkbox"/>').appendTo(this.$promptApplyToRemainingContainer);
+        this.$promptApplyToRemainingLabel = $('<span/>').appendTo(this.$promptApplyToRemainingContainer);
+        this.$promptButtons = $('<div class="buttons"/>').appendTo(this.$prompt);
+
+
+        this.modal.setContainer(this.$modalContainerDiv);
+
+        this.$promptMessage.html(message);
+
+        for (var i = 0; i < choices.length; i++)
+        {
+            var $btn = $('<div class="btn" data-choice="'+choices[i].value+'">' + choices[i].title + '</div>');
+
+            this.addListener($btn, 'activate', function(ev)
+            {
+                var choice = ev.currentTarget.getAttribute('data-choice'),
+                    applyToRemaining = this.$promptApplyToRemainingCheckbox.prop('checked');
+
+                this._selectPromptChoice(choice, applyToRemaining);
+            });
+
+            this.$promptButtons.append($btn).append('<br />');
+        }
+
+        if (itemsToGo)
+        {
+            this.$promptApplyToRemainingContainer.show();
+            this.$promptApplyToRemainingLabel.html(' ' + Craft.t('Apply this to the {number} remaining conflicts?', {number: itemsToGo}));
+        }
+
+        this.modal.show();
+        this.modal.removeListener(Garnish.Modal.$shade, 'click');
+        this.addListener(Garnish.Modal.$shade, 'click', '_cancelPrompt');
+
+    },
+
+    /**
+     * Handles when a user selects one of the prompt choices.
+     *
+     * @param choice
+     * @param applyToRemaining
+     * @private
+     */
+    _selectPromptChoice: function(choice, applyToRemaining)
+    {
+        this.$prompt.fadeOut('fast', $.proxy(function() {
+            this.modal.hide();
+            this._promptCallback(choice, applyToRemaining);
+        }, this));
+    },
+
+    /**
+     * Cancels the prompt.
+     */
+    _cancelPrompt: function()
+    {
+        this._selectPromptChoice('cancel', true);
+    },
+});
+
 /*
 
  http://github.com/valums/file-uploader
@@ -5428,5 +7564,318 @@ Craft.SlugGenerator = Craft.BaseInputGenerator.extend({
 	}
 });
 
+
+/**
+ * Tag select input
+ */
+Craft.TagSelectInput = Craft.BaseElementSelectInput.extend({
+
+	id: null,
+	name: null,
+	source: null,
+	elementId: null,
+	elementSort: null,
+	searchTimeout: null,
+	menu: null,
+
+	$container: null,
+	$elementsContainer: null,
+	$elements: null,
+	$addTagInput: null,
+	$spinner: null,
+
+	init: function(id, name, source, elementId, hasFields)
+	{
+		this.id = id;
+		this.name = name;
+		this.source = source;
+		this.elementId = elementId;
+
+		this.$container = $('#'+this.id);
+		this.$elementsContainer = this.$container.children('.elements');
+		this.$elements = this.$elementsContainer.children();
+		this.$addTagInput = this.$container.children('.add').children('.text');
+		this.$spinner = this.$addTagInput.next();
+
+		this.totalElements = this.$elements.length;
+
+		this.elementSelect = new Garnish.Select(this.$elements, {
+			multi: true,
+			filter: ':not(.delete)'
+		});
+
+		this.elementSort = new Garnish.DragSort({
+			container: this.$elementsContainer,
+			filter: $.proxy(function() {
+				return this.elementSelect.getSelectedItems();
+			}, this),
+			caboose: $('<div class="caboose"/>'),
+			onSortChange: $.proxy(function() {
+				this.elementSelect.resetItemOrder();
+			}, this)
+		});
+
+		this.initElements(this.$elements);
+
+		this.addListener(this.$addTagInput, 'textchange', $.proxy(function()
+		{
+			if (this.searchTimeout)
+			{
+				clearTimeout(this.searchTimeout);
+			}
+
+			this.searchTimeout = setTimeout($.proxy(this, 'searchForTags'), 500);
+		}, this));
+
+		this.addListener(this.$addTagInput, 'keypress', function(ev)
+		{
+			if (ev.keyCode == Garnish.RETURN_KEY)
+			{
+				ev.preventDefault();
+
+				if (this.searchMenu)
+				{
+					this.selectTag(this.searchMenu.$options[0]);
+				}
+			}
+		});
+
+		this.addListener(this.$addTagInput, 'focus', function()
+		{
+			if (this.searchMenu)
+			{
+				this.searchMenu.show();
+			}
+		});
+
+		this.addListener(this.$addTagInput, 'blur', function()
+		{
+			setTimeout($.proxy(function()
+			{
+				if (this.searchMenu)
+				{
+					this.searchMenu.hide();
+				}
+			}, this), 1);
+		});
+
+        if (hasFields)
+        {
+            this._attachHUDEvents();
+        }
+	},
+
+	searchForTags: function()
+	{
+		if (this.searchMenu)
+		{
+			this.killSearchMenu();
+		}
+
+		var val = this.$addTagInput.val();
+
+		if (val)
+		{
+			this.$spinner.removeClass('hidden');
+
+			var excludeIds = [];
+
+			for (var i = 0; i < this.$elements.length; i++)
+			{
+				var id = $(this.$elements[i]).data('id');
+
+				if (id)
+				{
+					excludeIds.push(id);
+				}
+			}
+
+			if (this.elementId)
+			{
+				excludeIds.push(this.elementId);
+			}
+
+			var data = {
+				search:     this.$addTagInput.val(),
+				source:     this.source,
+				excludeIds: excludeIds,
+			};
+
+			Craft.postActionRequest('tags/searchForTags', data, $.proxy(function(response)
+			{
+				var $menu = $('<div class="menu tagmenu"/>').appendTo(Garnish.$bod),
+					$ul = $('<ul/>').appendTo($menu);
+
+				if (!response.exactMatch)
+				{
+					var $li = $('<li/>').appendTo($ul);
+					$('<a class="hover"/>').appendTo($li).text(data.search);
+				}
+
+				for (var i = 0; i < response.tags.length; i++)
+				{
+					var $li = $('<li/>').appendTo($ul),
+						$a = $('<a/>').appendTo($li).text(response.tags[i].name).data('id', response.tags[i].id);
+
+					if (response.exactMatch && i == 0)
+					{
+						$a.addClass('hover');
+					}
+				}
+
+				this.searchMenu = new Garnish.Menu($menu, {
+					attachToElement: this.$addTagInput,
+					onOptionSelect: $.proxy(this, 'selectTag')
+				});
+
+				this.searchMenu.show();
+
+				this.$spinner.addClass('hidden');
+			}, this));
+		}
+		else
+		{
+			this.$spinner.addClass('hidden');
+		}
+	},
+
+	selectTag: function(option)
+	{
+		var $option = $(option);
+
+		var $element = $('<div class="element removable"/>').appendTo(this.$elementsContainer),
+			$input = $('<input type="hidden" name="'+this.name+'[]"/>').appendTo($element)
+
+		if ($option.data('id'))
+		{
+			$element.data('id', $option.data('id'));
+			$input.val($option.data('id'));
+		}
+		else
+		{
+			$input.val('new:'+$option.text());
+		}
+
+		$('<a class="delete icon" title="'+Craft.t('Remove')+'"></a>').appendTo($element);
+		$('<span class="label">'+$option.text()+'</span>').appendTo($element);
+
+		var margin = -($element.outerWidth()+10);
+		this.$addTagInput.css('margin-left', margin+'px');
+		this.$addTagInput.animate({
+			marginLeft: 0
+		}, 'fast');
+
+		this.$elements = this.$elements.add($element);
+		this.totalElements++;
+
+		this.initElements($element);
+
+		this.killSearchMenu();
+		this.$addTagInput.val('');
+		this.$addTagInput.focus();
+	},
+
+	killSearchMenu: function()
+	{
+		this.searchMenu.hide();
+		this.searchMenu.destroy();
+		this.searchMenu = null;
+	},
+
+    _attachHUDEvents: function ()
+    {
+        this.removeListener(this.$elements, 'dlbclick');
+        this.addListener(this.$elements, 'dblclick', $.proxy(this, '_editProperties'));
+    },
+
+    _editProperties: function (event)
+    {
+        var $target = $(event.currentTarget);
+        if (!$target.data('ElementEditor'))
+        {
+            var settings = {
+                elementId: $target.attr('data-id'),
+                $trigger: $target,
+                loadContentAction: 'tags/editTagContent',
+                saveContentAction: 'tags/saveTagContent'
+            };
+            $target.data('ElementEditor', new Craft.ElementEditor(settings));
+        }
+
+        $target.data('ElementEditor').show();
+    }
+
+});
+
+
+/**
+ * File Manager.
+ */
+Craft.Uploader = Garnish.Base.extend({
+
+    uploader: null,
+
+    init: function($element, settings)
+    {
+
+        settings = $.extend(this.defaultSettings, settings);
+        settings.element = $element[0];
+        this.uploader = new qqUploader.FileUploader(settings);
+    },
+
+    /**
+     * Set uploader parameters
+     * @param paramObject
+     */
+    setParams: function (paramObject)
+    {
+        this.uploader.setParams(paramObject);
+    },
+
+    /**
+     * Get the number of uploads in progress
+     * @returns {*}
+     */
+    getInProgress: function ()
+    {
+        return this.uploader.getInProgress();
+    },
+
+    defaultSettings: {
+        action:       Craft.actionUrl + '/assets/uploadFile',
+        template:     '<div class="assets-qq-uploader">'
+            +   '<div class="assets-qq-upload-drop-area"></div>'
+            +   '<a href="javascript:;" class="btn submit assets-qq-upload-button" data-icon="↑" style="position: relative; overflow: hidden; direction: ltr; " role="button">' + Craft.t('Upload files') + '</a>'
+            +   '<ul class="assets-qq-upload-list hidden"></ul>'
+            + '</div>',
+
+        fileTemplate: '<li>'
+            +   '<span class="assets-qq-upload-file"></span>'
+            +   '<span class="assets-qq-upload-spinner"></span>'
+            +   '<span class="assets-qq-upload-size"></span>'
+            +   '<a class="assets-qq-upload-cancel" href="#">Cancel</a>'
+            +   '<span class="assets-qq-upload-failed-text">Failed</span>'
+            + '</li>',
+
+        classes:      {
+            button:     'assets-qq-upload-button',
+            drop:       'assets-qq-upload-drop-area',
+            dropActive: 'assets-qq-upload-drop-area-active',
+            list:       'assets-qq-upload-list',
+
+            file:       'assets-qq-upload-file',
+            spinner:    'assets-qq-upload-spinner',
+            size:       'assets-qq-upload-size',
+            cancel:     'assets-qq-upload-cancel',
+
+            success:    'assets-qq-upload-success',
+            fail:       'assets-qq-upload-fail'
+        },
+
+        onSubmit:     $.noop,
+        onProgress:   $.noop,
+        onComplete:   $.noop
+    }
+});
 
 })(jQuery);

@@ -102,15 +102,6 @@
 				errors: entry.getErrors('expiryDate')
 			}) }}
 
-			{{ forms.textField({
-				label: "Tags"|t,
-				instructions: "List multiple tags separated by commas."|t,
-				id: 'tags',
-				name: 'tags',
-				value: entry.tags|join(', '),
-				errors: entry.getErrors('tags'),
-			}) }}
-
 			{% if user.can('publishEntries'~permissionSuffix) %}
 				{% set statusLabel -%}
 					{{ "Status:"|t }} <i>{{ entry.id ? entry.status|ucfirst|t : "Never saved"|t  }}</i>
@@ -169,7 +160,7 @@
 						<div class="btn submit menubtn"></div>
 						<div class="menu">
 							<ul>
-								<li><a class="formsubmit" data-redirect="entries/{{ section.handle }}/{id}">{{ "Save and continue editing"|t }}</a></li>
+								<li><a class="formsubmit" data-redirect="entries/{{ section.handle }}/{id}{% if craft.hasPackage('Localize') and craft.locale != localeId %}/{{ localeId }}{% endif %}">{{ "Save and continue editing"|t }}</a></li>
 								<li><a class="formsubmit" data-redirect="entries/{{ section.handle }}/new">{{ "Save and add another"|t }}</a></li>
 							</ul>
 						</div>

@@ -23,7 +23,7 @@ class ContentService extends BaseApplicationComponent
 	 * @param string|null $localeId
 	 * @return ContentModel|null
 	 */
-	public function getContent($elementId, $localeId = null)
+	public function getElementContent($elementId, $localeId = null)
 	{
 		$conditions = array('elementId' => $elementId);
 
@@ -46,21 +46,22 @@ class ContentService extends BaseApplicationComponent
 	/**
 	 * Saves an element's content.
 	 *
-	 * This is just a wrapper for populateContentFromPost(), saveContent(), and postSaveOperations().
+	 * This is just a wrapper for prepElementContentForSave(), saveContent(), and postSaveOperations().
 	 * It should only be used when an element's content is saved separately from its other attributes.
 	 *
 	 * @param BaseElementModel $element
 	 * @param FieldLayoutModel $fieldLayout
-	 * @param string|null $localeId
+	 * @param bool             $validate
+	 * @return bool
 	 */
-	public function saveElementContent(BaseElementModel $element, FieldLayoutModel $fieldLayout, $localeId = null)
+	public function saveElementContent(BaseElementModel $element, FieldLayoutModel $fieldLayout, $validate = true)
 	{
 		if (!$element->id)
 		{
 			throw new Exception(Craft::t('Cannot save the content of an unsaved element.'));
 		}
 
-		$content = $this->populateContentFromPost($element, $fieldLayout, $localeId);
+		$content = $this->prepElementContentForSave($element, $fieldLayout, $validate);
 
 		if ($this->saveContent($content))
 		{
@@ -75,53 +76,45 @@ class ContentService extends BaseApplicationComponent
 	}
 
 	/**
-	 * Populates a ContentModel with post data.
+	 * Prepares an element's content for being saved to the database.
 	 *
 	 * @param BaseElementModel $element
 	 * @param FieldLayoutModel $fieldLayout
-	 * @param string|null $localeId
+	 * @param bool             $validate
 	 * @return ContentModel
 	 */
-	public function populateContentFromPost(BaseElementModel $element, FieldLayoutModel $fieldLayout, $localeId = null)
+	public function prepElementContentForSave(BaseElementModel $element, FieldLayoutModel $fieldLayout, $validate = true)
 	{
-		// Does this element already have a row in content?
-		if ($element->id)
-		{
-			$content = $this->getContent($element->id, $localeId);
-		}
+		$elementTypeClass = $element->getElementType();
+		$elementType = craft()->elements->getElementType($elementTypeClass);
 
-		if (empty($content))
-		{
-			$content = new ContentModel();
-			$content->elementId = $element->id;
+		$content = $element->getContent();
 
-			if ($localeId)
+		if ($validate)
+		{
+			// Set the required fields from the layout
+			$requiredFields = array();
+
+			if ($elementType->hasTitles())
 			{
-				$content->locale = $localeId;
+				$requiredFields[] = 'title';
 			}
-			else
+
+			foreach ($fieldLayout->getFields() as $field)
 			{
-				$content->locale = craft()->i18n->getPrimarySiteLocaleId();
+				if ($field->required)
+				{
+					$requiredFields[] = $field->fieldId;
+				}
 			}
-		}
 
-		// Set the required fields from the layout
-		$requiredFields = array();
-
-		foreach ($fieldLayout->getFields() as $field)
-		{
-			if ($field->required)
+			if ($requiredFields)
 			{
-				$requiredFields[] = $field->fieldId;
+				$content->setRequiredFields($requiredFields);
 			}
 		}
 
-		if ($requiredFields)
-		{
-			$content->setRequiredFields($requiredFields);
-		}
-
-		// Populate the fields' content
+		// Give the fieldtypes a chance to clean up the post data
 		foreach (craft()->fields->getAllFields() as $field)
 		{
 			$fieldType = craft()->fields->populateFieldType($field);
@@ -131,7 +124,7 @@ class ContentService extends BaseApplicationComponent
 				$fieldType->element = $element;
 
 				$handle = $field->handle;
-				$content->$handle = $fieldType->getPostData();
+				$content->$handle = $fieldType->prepValueFromPost($content->$handle);
 			}
 		}
 
@@ -153,6 +146,7 @@ class ContentService extends BaseApplicationComponent
 				'id'        => $content->id,
 				'elementId' => $content->elementId,
 				'locale'    => $content->locale,
+				'title'     => $content->title,
 			);
 
 			$allFields = craft()->fields->getAllFields();
@@ -222,6 +216,28 @@ class ContentService extends BaseApplicationComponent
 	 */
 	public function postSaveOperations(BaseElementModel $element, ContentModel $content)
 	{
+		// Get all of the fieldtypes
+		$fields = craft()->fields->getAllFields();
+		$fieldTypes = array();
+		$fieldTypesWithDuplicateContent = array();
+
+		foreach ($fields as $field)
+		{
+			$fieldType = craft()->fields->populateFieldType($field);
+
+			if ($fieldType)
+			{
+				$fieldType->element = $element;
+				$fieldTypes[] = $fieldType;
+
+				if (!$field->translatable && $fieldType->defineContentAttribute())
+				{
+					$fieldTypesWithDuplicateContent[] = $fieldType;
+				}
+			}
+		}
+
+		// Are we dealing with other locales as well?
 		if (Craft::hasPackage(CraftPackage::Localize))
 		{
 			// Get the other locales' content
@@ -233,65 +249,63 @@ class ContentService extends BaseApplicationComponent
 				->queryAll();
 
 			$otherContentModels = ContentModel::populateModels($rows);
-		}
 
-		$updateOtherContentModels = (Craft::hasPackage(CraftPackage::Localize) && $otherContentModels);
-
-		$fields = craft()->fields->getAllFields();
-		$fieldTypes = array();
-		$searchKeywordsByLocale = array();
-
-		foreach ($fields as $field)
-		{
-			$fieldType = craft()->fields->populateFieldType($field);
-
-			if ($fieldType)
+			if ($otherContentModels)
 			{
-				$fieldType->element = $element;
-
-				// Get the field's search keywords
-				$handle = $field->handle;
-				$fieldSearchKeywords = $fieldType->getSearchKeywords($element->$handle);
-				$searchKeywordsByLocale[$content->locale][$field->id] = $fieldSearchKeywords;
-
-				// Should we update this field on the other locales as well?
-				if (!$field->translatable && $updateOtherContentModels && $fieldType->defineContentAttribute())
+				foreach ($fieldTypesWithDuplicateContent as $fieldType)
 				{
-					$handle = $field->handle;
+					$handle = $fieldType->model->handle;
 
+					// Copy the content over!
 					foreach ($otherContentModels as $otherContentModel)
 					{
-						// Copy the new field value over to the other locale's content record
 						$otherContentModel->$handle = $content->$handle;
-
-						// Queue up the other locale's new keywords too
-						$searchKeywordsByLocale[$otherContentModel->locale][$field->id] = $fieldSearchKeywords;
 					}
 				}
 
-				$fieldTypes[] = $fieldType;
+				foreach ($otherContentModels as $otherContentModel)
+				{
+					$this->saveContent($otherContentModel, false);
+				}
 			}
 		}
-
-		// Update each of the other content records
-		if ($updateOtherContentModels)
+		else
 		{
-			foreach ($otherContentModels as $otherContentModel)
-			{
-				$this->saveContent($otherContentModel, false);
-			}
+			$otherContentModels = null;
 		}
 
-		// Update the search indexes
-		foreach ($searchKeywordsByLocale as $localeId => $keywords)
-		{
-			craft()->search->indexElementFields($element->id, $localeId, $keywords);
-		}
-
-		// Now that everything is finally saved, call fieldtypes' onAfterElementSave();
+		// Now that all of the content saved for all locales,
+		// call all fieldtypes' onAfterElementSave() functions
 		foreach ($fieldTypes as $fieldType)
 		{
 			$fieldType->onAfterElementSave();
+		}
+
+		// Update the search keyword indexes
+		$searchKeywordsByLocale = array();
+
+		foreach ($fieldTypes as $fieldType)
+		{
+			$field = $fieldType->model;
+			$handle = $field->handle;
+
+			// Set the keywords for the content's locale
+			$fieldSearchKeywords = $fieldType->getSearchKeywords($element->$handle);
+			$searchKeywordsByLocale[$content->locale][$field->id] = $fieldSearchKeywords;
+
+			// Should we queue up the other locales' new keywords too?
+			if ($otherContentModels && in_array($fieldType, $fieldTypesWithDuplicateContent))
+			{
+				foreach ($otherContentModels as $otherContentModel)
+				{
+					$searchKeywordsByLocale[$otherContentModel->locale][$field->id] = $fieldSearchKeywords;
+				}
+			}
+		}
+
+		foreach ($searchKeywordsByLocale as $localeId => $keywords)
+		{
+			craft()->search->indexElementFields($element->id, $localeId, $keywords);
 		}
 	}
 }

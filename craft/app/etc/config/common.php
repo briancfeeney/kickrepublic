@@ -12,23 +12,52 @@
 
 Yii::setPathOfAlias('app', CRAFT_APP_PATH);
 Yii::setPathOfAlias('plugins', CRAFT_PLUGINS_PATH);
+Yii::setPathOfAlias('Imagine', CRAFT_APP_PATH.'/lib/Imagine');
 
-// Load the configs
+// Load the deafult configs
 $generalConfig = require_once(CRAFT_APP_PATH.'etc/config/defaults/general.php');
 $dbConfig = require_once(CRAFT_APP_PATH.'etc/config/defaults/db.php');
 
+/**
+ * Merges a base config array with a custom config array,
+ * taking environment-specific configs into account.
+ *
+ * @param array &$baseConfig
+ * @param array $customConfig
+ */
+function mergeConfigs(&$baseConfig, $customConfig)
+{
+	// Is this a multi-environment config?
+	if (array_key_exists('*', $customConfig))
+	{
+		foreach ($customConfig as $env => $envConfig)
+		{
+			if ($env == '*' || strpos(CRAFT_ENVIRONMENT, $env) !== false)
+			{
+				$baseConfig = array_merge($baseConfig, $envConfig);
+			}
+		}
+	}
+	else
+	{
+		$baseConfig = array_merge($baseConfig, $customConfig);
+	}
+}
+
+// Does craft/config/general.php exist? (It used to be called blocks.php so maybe not.)
 if (file_exists(CRAFT_CONFIG_PATH.'general.php'))
 {
-	if (is_array($_generalConfig = @include(CRAFT_CONFIG_PATH.'general.php')))
+	if (is_array($customGeneralConfig = @include(CRAFT_CONFIG_PATH.'general.php')))
 	{
-		$generalConfig = array_merge($generalConfig, $_generalConfig);
+		mergeConfigs($generalConfig, $customGeneralConfig);
 	}
 }
 else if (file_exists(CRAFT_CONFIG_PATH.'blocks.php'))
 {
-	if (is_array($_generalConfig = require_once(CRAFT_CONFIG_PATH.'blocks.php')))
+	// Originally blocks.php defined a $blocksConfig variable, and then later returned an array directly.
+	if (is_array($customGeneralConfig = require_once(CRAFT_CONFIG_PATH.'blocks.php')))
 	{
-		$generalConfig = array_merge($generalConfig, $_generalConfig);
+		mergeConfigs($generalConfig, $customGeneralConfig);
 	}
 	else if (isset($blocksConfig))
 	{
@@ -37,9 +66,10 @@ else if (file_exists(CRAFT_CONFIG_PATH.'blocks.php'))
 	}
 }
 
-if (is_array($_dbConfig = require_once(CRAFT_CONFIG_PATH.'db.php')))
+// Originally db.php defined a $dbConfig variable.
+if (is_array($customDbConfig = require_once(CRAFT_CONFIG_PATH.'db.php')))
 {
-	$dbConfig = array_merge($dbConfig, $_dbConfig);
+	mergeConfigs($dbConfig, $customDbConfig);
 }
 
 if ($generalConfig['devMode'] == true)
@@ -101,6 +131,7 @@ $configArray = array(
 		'app.controllers.RoutesController',
 		'app.controllers.SectionsController',
 		'app.controllers.SystemSettingsController',
+		'app.controllers.TagsController',
 		'app.controllers.TemplatesController',
 		'app.controllers.ToolsController',
 		'app.controllers.UpdateController',
@@ -111,6 +142,7 @@ $configArray = array(
 		'app.elementtypes.EntryElementType',
 		'app.elementtypes.GlobalSetElementType',
 		'app.elementtypes.IElementType',
+		'app.elementtypes.TagElementType',
 		'app.elementtypes.UserElementType',
 		'app.enums.AttributeType',
 		'app.enums.ColumnType',
@@ -220,6 +252,7 @@ $configArray = array(
 		'app.fieldtypes.RichTextFieldType',
 		'app.fieldtypes.SingleOptionFieldData',
 		'app.fieldtypes.TableFieldType',
+		'app.fieldtypes.TagsFieldType',
 		'app.fieldtypes.UsersFieldType',
 		'app.helpers.AppHelper',
 		'app.helpers.ArrayHelper',
@@ -230,9 +263,11 @@ $configArray = array(
 		'app.helpers.ErrorHelper',
 		'app.helpers.HtmlHelper',
 		'app.helpers.IOHelper',
+		'app.helpers.ImageHelper',
 		'app.helpers.JsonHelper',
 		'app.helpers.LocalizationHelper',
 		'app.helpers.LoggingHelper',
+		'app.helpers.MigrationHelper',
 		'app.helpers.ModelHelper',
 		'app.helpers.NumberHelper',
 		'app.helpers.PathHelper',
@@ -260,7 +295,6 @@ $configArray = array(
 		'app.models.EmailSettingsModel',
 		'app.models.EntryDraftModel',
 		'app.models.EntryModel',
-		'app.models.EntryTagModel',
 		'app.models.EntryVersionModel',
 		'app.models.EtModel',
 		'app.models.FieldGroupModel',
@@ -282,6 +316,8 @@ $configArray = array(
 		'app.models.SectionLocaleModel',
 		'app.models.SectionModel',
 		'app.models.SiteSettingsModel',
+		'app.models.TagModel',
+		'app.models.TagSetModel',
 		'app.models.TryPackageModel',
 		'app.models.UpdateModel',
 		'app.models.UserGroupModel',
@@ -300,8 +336,6 @@ $configArray = array(
 		'app.records.EntryDraftRecord',
 		'app.records.EntryLocaleRecord',
 		'app.records.EntryRecord',
-		'app.records.EntryTagEntryRecord',
-		'app.records.EntryTagRecord',
 		'app.records.EntryVersionRecord',
 		'app.records.FieldGroupRecord',
 		'app.records.FieldLayoutFieldRecord',
@@ -317,6 +351,8 @@ $configArray = array(
 		'app.records.SectionRecord',
 		'app.records.SessionRecord',
 		'app.records.SystemSettingsRecord',
+		'app.records.TagRecord',
+		'app.records.TagSetRecord',
 		'app.records.UserGroupRecord',
 		'app.records.UserGroup_UserRecord',
 		'app.records.UserPermissionRecord',
@@ -356,6 +392,7 @@ $configArray = array(
 		'app.services.SectionsService',
 		'app.services.SecurityService',
 		'app.services.SystemSettingsService',
+		'app.services.TagsService',
 		'app.services.TemplatesService',
 		'app.services.UpdatesService',
 		'app.services.UserGroupsService',
@@ -377,7 +414,6 @@ $configArray = array(
 		'app.validators.UrlValidator',
 		'app.variables.AppVariable',
 		'app.variables.AssetSourceTypeVariable',
-		'app.variables.AssetsVariable',
 		'app.variables.BaseComponentTypeVariable',
 		'app.variables.ConfigVariable',
 		'app.variables.CpVariable',
@@ -465,20 +501,24 @@ $cpRoutes['globals/(?P<globalSetHandle>{handle})'] = 'globals';
 $cpRoutes['updates/go/(?P<handle>[^/]*)'] = 'updates/_go';
 
 $cpRoutes['settings']                                             = array('action' => 'systemSettings/settingsIndex');
-$cpRoutes['settings/assets']                                      = 'settings/assets/sources';
-$cpRoutes['settings/assets/sources/new']                          = 'settings/assets/sources/_settings';
-$cpRoutes['settings/assets/sources/(?P<sourceId>\d+)']            = 'settings/assets/sources/_settings';
-$cpRoutes['settings/assets/transforms/new']                       = 'settings/assets/transforms/_settings';
-$cpRoutes['settings/assets/transforms/(?P<handle>{handle})']      = 'settings/assets/transforms/_settings';
+$cpRoutes['settings/assets']                                      = array('action' => 'assetSources/sourceIndex');
+$cpRoutes['settings/assets/sources/new']                          = array('action' => 'assetSources/editSource');
+$cpRoutes['settings/assets/sources/(?P<sourceId>\d+)']            = array('action' => 'assetSources/editSource');
+$cpRoutes['settings/assets/transforms']                           = array('action' => 'assetTransforms/transformIndex');
+$cpRoutes['settings/assets/transforms/new']                       = array('action' => 'assetTransforms/editTransform');
+$cpRoutes['settings/assets/transforms/(?P<handle>{handle})']      = array('action' => 'assetTransforms/editTransform');
 $cpRoutes['settings/fields/(?P<groupId>\d+)']                     = 'settings/fields';
 $cpRoutes['settings/fields/new']                                  = 'settings/fields/_edit';
 $cpRoutes['settings/fields/edit/(?P<fieldId>\d+)']                = 'settings/fields/_edit';
 $cpRoutes['settings/general']                                     = array('action' => 'systemSettings/generalSettings');
+$cpRoutes['settings/globals/new']                                 = array('action' => 'systemSettings/editGlobalSet');
+$cpRoutes['settings/globals/(?P<globalSetId>\d+)']                = array('action' => 'systemSettings/editGlobalSet');
 $cpRoutes['settings/plugins/(?P<pluginClass>{handle})']           = 'settings/plugins/_settings';
 $cpRoutes['settings/sections/new']                                = 'settings/sections/_edit';
 $cpRoutes['settings/sections/(?P<sectionId>\d+)']                 = 'settings/sections/_edit';
-$cpRoutes['settings/globals/new']                                 = array('action' => 'systemSettings/editGlobalSet');
-$cpRoutes['settings/globals/(?P<globalSetId>\d+)']                = array('action' => 'systemSettings/editGlobalSet');
+$cpRoutes['settings/tags']                                        = array('action' => 'tags/index');
+$cpRoutes['settings/tags/new']                                    = array('action' => 'tags/editTagSet');
+$cpRoutes['settings/tags/(?P<tagSetId>\d+)']                      = array('action' => 'tags/editTagSet');
 
 $cpRoutes['settings/packages'] = array(
 	'params' => array(
@@ -493,10 +533,11 @@ $cpRoutes['settings/routes'] = array(
 		'variables' => array(
 			'tokens' => array(
 				'year'   => '\d{4}',
-				'month'  => '1?\d',
-				'day'    => '[1-3]?\d',
+				'month'  => '(?:0[1-9]|1[012])',
+				'day'    => '(?:0[1-9]|[12][0-9]|3[01])',
 				'number' => '\d+',
 				'page'   => '\d+',
+				'tag'    => '[^\/]+',
 				'*'      => '[^\/]+',
 			)
 		)
@@ -562,6 +603,7 @@ $components['routes']['class']               = 'Craft\RoutesService';
 $components['search']['class']               = 'Craft\SearchService';
 $components['security']['class']             = 'Craft\SecurityService';
 $components['systemSettings']['class']       = 'Craft\SystemSettingsService';
+$components['tags']['class']                 = 'Craft\TagsService';
 $components['templates']['class']            = 'Craft\TemplatesService';
 $components['updates']['class']              = 'Craft\UpdatesService';
 
@@ -590,6 +632,13 @@ $components['plugins'] = array(
 		'widget'      => array('subfolder' => 'widgets',          'suffix' => 'Widget',          'instanceof' => 'IWidget'),
 	)
 );
+
+// Plugins: This is for experimental use only.
+// The Element Type API is likely to change before this config setting is removed.
+if (!empty($generalConfig['enablePluginElementTypes']))
+{
+	$components['plugins']['componentTypes']['element'] = array('subfolder' => 'elementtypes', 'suffix' => 'ElementType', 'instanceof' => 'IElementType');
+}
 
 // Publish Pro package components
 $components['pkgComponents']['PublishPro']['entryRevisions']['class'] = 'Craft\EntryRevisionsService';
@@ -640,7 +689,6 @@ $components['httpSession']['sessionName'] = 'CraftSessionId';
 
 $components['userSession']['class'] = 'Craft\UserSessionService';
 $components['userSession']['allowAutoLogin']  = true;
-$components['userSession']['loginUrl']        = $generalConfig['loginPath'];
 $components['userSession']['autoRenewCookie'] = true;
 
 $configArray['components'] = array_merge($configArray['components'], $components);

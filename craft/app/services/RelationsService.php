@@ -109,6 +109,9 @@ class RelationsService extends BaseApplicationComponent
 	 */
 	public function saveRelations($fieldId, $parentId, $childIds)
 	{
+		// Prevent duplicate child IDs.
+		$childIds = array_unique($childIds);
+
 		$transaction = craft()->db->beginTransaction();
 		try
 		{
@@ -270,6 +273,13 @@ class RelationsService extends BaseApplicationComponent
 
 		foreach ($result as $row)
 		{
+			// The locale column might be null since the element_i18n table was left-joined into the query,
+			// In that case it should be removed from the $row array so that the default value can be used.
+			if (!$row['locale'])
+			{
+				unset($row['locale']);
+			}
+
 			$elements[] = $elementType->populateElementModel($row);
 		}
 

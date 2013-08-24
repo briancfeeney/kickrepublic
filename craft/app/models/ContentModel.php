@@ -25,10 +25,13 @@ class ContentModel extends BaseModel
 	 */
 	protected function defineAttributes()
 	{
+		$requiredTitle = (isset($this->_requiredFields) && in_array('title', $this->_requiredFields));
+
 		$attributes = array(
 			'id'        => AttributeType::Number,
 			'elementId' => AttributeType::Number,
 			'locale'    => AttributeType::Locale,
+			'title'     => array(AttributeType::String, 'required' => $requiredTitle),
 		);
 
 		if (Craft::isInstalled() && !craft()->isConsole())
@@ -89,6 +92,7 @@ class ContentModel extends BaseModel
 	{
 		$this->_requiredFields = $requiredFields;
 
+		// Have the attributes already been defined?
 		if (isset($this->_attributeConfigs))
 		{
 			foreach (craft()->fields->getAllFields() as $field)
@@ -97,6 +101,30 @@ class ContentModel extends BaseModel
 				{
 					$this->_attributeConfigs[$field->handle]['required'] = true;
 				}
+			}
+
+			if (in_array('title', $this->_requiredFields))
+			{
+				$this->_attributeConfigs['title']['required'] = true;
+			}
+		}
+	}
+
+	/**
+	 * Sets content values indexed by the field ID.
+	 *
+	 * @param array $values
+	 */
+	public function setValuesByFieldId($values)
+	{
+		foreach ($values as $fieldId => $value)
+		{
+			$field = craft()->fields->getFieldById($fieldId);
+
+			if ($field)
+			{
+				$fieldHandle = $field->handle;
+				$this->$fieldHandle = $value;
 			}
 		}
 	}

@@ -27,6 +27,16 @@ class AssetElementType extends BaseElementType
 	}
 
 	/**
+	 * Returns whether this element type has titles.
+	 *
+	 * @return bool
+	 */
+	public function hasTitles()
+	{
+		return true;
+	}
+
+	/**
 	 * Returns whether this element type can have thumbnails.
 	 *
 	 * @return bool
@@ -68,7 +78,7 @@ class AssetElementType extends BaseElementType
 	public function defineTableAttributes($source = null)
 	{
 		return array(
-			array('label' => Craft::t('Filename'),      'attribute' => 'filename'),
+			array('label' => Craft::t('Title'),         'attribute' => 'title'),
 			array('label' => Craft::t('Size'),          'attribute' => 'size',         'display' => '{size|filesize}'),
 			array('label' => Craft::t('Date Modified'), 'attribute' => 'dateModified', 'display' => '{dateModified.localeDate}'),
 		);
@@ -89,7 +99,7 @@ class AssetElementType extends BaseElementType
 			'width'    => AttributeType::Number,
 			'height'   => AttributeType::Number,
 			'size'     => AttributeType::Number,
-			'order'    => array(AttributeType::String, 'default' => 'filename asc'),
+			'order'    => array(AttributeType::String, 'default' => 'title asc'),
 		);
 	}
 

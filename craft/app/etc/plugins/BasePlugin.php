@@ -36,6 +36,7 @@ abstract class BasePlugin extends BaseSavableComponentType
 	/**
 	 * Returns the plugin developer's name.
 	 *
+	 * @abstract
 	 * @return string
 	 */
 	abstract public function getDeveloper();
@@ -43,6 +44,7 @@ abstract class BasePlugin extends BaseSavableComponentType
 	/**
 	 * Returns the plugin developer's URL.
 	 *
+	 * @abstract
 	 * @return string
 	 */
 	abstract public function getDeveloperUrl();

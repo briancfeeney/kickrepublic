@@ -254,17 +254,6 @@ Garnish = {
 	},
 
 	/**
-	 * Returns whether a variable is a plain object (not an array, element, or jQuery collection).
-	 *
-	 * @param mixed val
-	 * @return bool
-	 */
-	isObject: function(val)
-	{
-		return (typeof val == 'object' && !Garnish.isArray(val) && !Garnish.isJquery(val) && typeof val.nodeType == 'undefined');
-	},
-
-	/**
 	 * Returns whether a variable is a string.
 	 *
 	 * @param mixed val
@@ -833,7 +822,7 @@ Garnish.BaseDrag = Garnish.Base.extend({
 	init: function(items, settings)
 	{
 		// Param mapping
-		if (!settings && Garnish.isObject(items))
+		if (!settings && $.isPlainObject(items))
 		{
 			// (settings)
 			settings = items;
@@ -1312,7 +1301,7 @@ Garnish.Drag = Garnish.BaseDrag.extend({
 	init: function(items, settings)
 	{
 		// Param mapping
-		if (!settings && Garnish.isObject(items))
+		if (!settings && $.isPlainObject(items))
 		{
 			// (settings)
 			settings = items;
@@ -1719,7 +1708,7 @@ Garnish.DragSort = Garnish.Drag.extend({
 	init: function(items, settings)
 	{
 		// Param mapping
-		if (!settings && Garnish.isObject(items))
+		if (!settings && $.isPlainObject(items))
 		{
 			// (settings)
 			settings = items;
@@ -1934,6 +1923,69 @@ Garnish.DragSort = Garnish.Drag.extend({
 
 
 /**
+ * ESC key manager class
+ */
+Garnish.EscManager = Garnish.Base.extend({
+
+	handlers: null,
+
+	init: function()
+	{
+		this.handlers = [];
+
+		this.addListener(Garnish.$bod, 'keyup', function(ev)
+		{
+			if (ev.keyCode == Garnish.ESC_KEY)
+			{
+				this.escapeLatest(ev);
+			}
+		});
+	},
+
+	register: function(obj, func)
+	{
+		this.handlers.push({
+			obj: obj,
+			func: func
+		});
+	},
+
+	unregister: function(obj)
+	{
+		for (var i = this.handlers.length - 1; i >= 0; i--)
+		{
+			if (this.handlers[i].obj == obj)
+			{
+				this.handlers.splice(i, 1);
+			}
+		}
+	},
+
+	escapeLatest: function(ev)
+	{
+		if (this.handlers.length)
+		{
+			var handler = this.handlers.pop();
+
+			if (typeof handler.func == 'function')
+			{
+				var func = handler.func;
+			}
+			else
+			{
+				var func = handler.obj[handler.func];
+			}
+
+			func.call(handler.obj, ev);
+		}
+	}
+
+});
+
+Garnish.escManager = new Garnish.EscManager();
+
+
+/**
  * HUD
  */
 Garnish.HUD = Garnish.Base.extend({
@@ -1945,6 +1997,11 @@ Garnish.HUD = Garnish.Base.extend({
 
 		this.$trigger = $(trigger);
 		this.setSettings(settings, Garnish.HUD.defaults);
+
+		if (typeof Garnish.HUD.activeHUDs == "undefined")
+		{
+			Garnish.HUD.activeHUDs = {};
+		}
 
 		this.showing = false;
 
@@ -1959,6 +2016,7 @@ Garnish.HUD = Garnish.Base.extend({
 		{
 			ev.stopPropagation();
 		});
+
 	},
 
 	/**
@@ -1971,9 +2029,11 @@ Garnish.HUD = Garnish.Base.extend({
 			return;
 		}
 
-		if (Garnish.HUD.active)
+		if (this.settings.closeOtherHUDs)
 		{
-			Garnish.HUD.active.hide();
+			for (var hudID in Garnish.HUD.activeHUDs) {
+				Garnish.HUD.activeHUDs[hudID].hide();
+			}
 		}
 
 		this.$hud.show();
@@ -2090,7 +2150,9 @@ Garnish.HUD = Garnish.Base.extend({
 		}
 
 		this.showing = true;
-		Garnish.HUD.active = this;
+		Garnish.HUD.activeHUDs[this._namespace] = this;
+
+		Garnish.escManager.register(this, 'hide');
 
 		// onShow callback
 		this.settings.onShow();
@@ -2162,7 +2224,9 @@ Garnish.HUD = Garnish.Base.extend({
 		this.$hud.hide();
 		this.showing = false;
 
-		Garnish.HUD.active = null;
+		delete Garnish.HUD.activeHUDs[this._namespace];
+
+		Garnish.escManager.unregister(this);
 
 		// onHide callback
 		this.settings.onHide();
@@ -2178,7 +2242,8 @@ Garnish.HUD = Garnish.Base.extend({
 		tipWidth: 8,
 		onShow: $.noop,
 		onHide: $.noop,
-		closeBtn: null
+		closeBtn: null,
+		closeOtherHUDs: true
 	}
 });
 
@@ -2374,7 +2439,7 @@ Garnish.Menu = Garnish.Base.extend({
 
 	$container: null,
 	$options: null,
-	$btn: null,
+	$trigger: null,
 
 	/**
 	 * Constructor
@@ -2387,9 +2452,9 @@ Garnish.Menu = Garnish.Base.extend({
 		this.$options = this.$container.find('a');
 		this.$options.data('menu', this);
 
-		if (this.settings.attachToButton)
+		if (this.settings.attachToElement)
 		{
-			this.$btn = $(this.settings.attachToButton);
+			this.$trigger = $(this.settings.attachToElement);
 		}
 
 		// Prevent clicking on the container from hiding the menu
@@ -2404,12 +2469,33 @@ Garnish.Menu = Garnish.Base.extend({
 
 	setPositionRelativeToButton: function()
 	{
-		var btnOffset = this.$btn.offset(),
-			btnWidth = this.$btn.outerWidth(),
-			css = {
-				top: btnOffset.top + this.$btn.outerHeight(),
-				minWidth: (btnWidth - 32)
-			};
+		var css = {
+			minWidth: (btnWidth - 32)
+		};
+
+		var windowHeight = Garnish.$win.height(),
+			windowScrollTop = Garnish.$win.scrollTop(),
+
+			btnOffset = this.$trigger.offset(),
+			btnWidth = this.$trigger.outerWidth(),
+			btnHeight = this.$trigger.outerHeight(),
+			btnOffsetBottom = btnOffset.top + btnHeight,
+			btnOffsetTop = btnOffset.top,
+
+			menuHeight = this.$container.outerHeight(),
+
+			bottomClearance = windowHeight + windowScrollTop - btnOffsetBottom,
+			topClearance = btnOffsetTop - windowScrollTop;
+
+		// Is there room for the menu below the button?
+		if (bottomClearance >= btnHeight || bottomClearance >= topClearance)
+		{
+			css.top = btnOffsetBottom;
+		}
+		else
+		{
+			css.top = btnOffsetTop - menuHeight;
+		}
 
 		switch (this.$container.data('align'))
 		{
@@ -2434,17 +2520,21 @@ Garnish.Menu = Garnish.Base.extend({
 
 	show: function()
 	{
-		if (this.$btn)
+		if (this.$trigger)
 		{
 			this.setPositionRelativeToButton();
 		}
 
 		this.$container.fadeIn(50);
+
+		Garnish.escManager.register(this, 'hide');
 	},
 
 	hide: function()
 	{
 		this.$container.fadeOut('fast');
+
+		Garnish.escManager.unregister(this);
 	},
 
 	selectOption: function(ev)
@@ -2456,7 +2546,7 @@ Garnish.Menu = Garnish.Base.extend({
 },
 {
 	defaults: {
-		attachToButton: null,
+		attachToElement: null,
 		onOptionSelect: $.noop
 	}
 });
@@ -2491,7 +2581,7 @@ Garnish.MenuBtn = Garnish.Base.extend({
 
 		var $menu = this.$btn.next('.menu');
 		this.menu = new Garnish.Menu($menu, {
-			attachToButton: this.$btn,
+			attachToElement: this.$btn,
 			onOptionSelect: $.proxy(this, 'onOptionSelect')
 		});
 
@@ -3011,7 +3101,7 @@ Garnish.Modal = Garnish.Base.extend({
 	init: function(container, settings)
 	{
 		// Param mapping
-		if (!settings && Garnish.isObject(container))
+		if (!settings && $.isPlainObject(container))
 		{
 			// (settings)
 			settings = container;
@@ -3082,7 +3172,6 @@ Garnish.Modal = Garnish.Base.extend({
 
 	show: function()
 	{
-
         // Close other modals as needed
 		if (Garnish.Modal.visibleModal && this.settings.closeOtherModals)
 		{
@@ -3116,13 +3205,7 @@ Garnish.Modal = Garnish.Base.extend({
 
 		this.addListener(this.$shade, 'click', 'hide');
 
-		this.addListener(Garnish.$bod, 'keyup', function(ev)
-		{
-			if (ev.keyCode == Garnish.ESC_KEY)
-			{
-				this.hide();
-			}
-		});
+		Garnish.escManager.register(this, 'hide');
 
 		this.settings.onShow();
 	},
@@ -3146,6 +3229,7 @@ Garnish.Modal = Garnish.Base.extend({
 		this.removeListener(this.$shade, 'click');
 		this.removeListener(Garnish.$bod, 'keyup');
 
+		Garnish.escManager.unregister(this);
 		this.settings.onHide();
 	},
 
@@ -3527,9 +3611,15 @@ Garnish.NiceText = Garnish.Base.extend({
 	destroy: function()
 	{
 		this.base();
-		this.$hint.remove();
-		this.$stage.remove();
-	}
+        if (this.$hint !== null)
+        {
+            this.$hint.remove();
+        }
+        if (this.$stage !== null)
+        {
+            this.$stage.remove();
+        }
+    }
 
 },
 {
@@ -3831,7 +3921,7 @@ Garnish.Select = Garnish.Base.extend({
 		this.$container = $(container);
 
 		// Param mapping
-		if (!settings && Garnish.isObject(items))
+		if (!settings && $.isPlainObject(items))
 		{
 			// (container, settings)
 			settings = items;

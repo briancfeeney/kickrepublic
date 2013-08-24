@@ -11,8 +11,8 @@ namespace Craft;
  * @link      http://buildwithcraft.com
  */
 
-define('CRAFT_VERSION', '1.0');
-define('CRAFT_BUILD', '2280');
-define('CRAFT_RELEASE_DATE', '1373649630');
+define('CRAFT_VERSION', '1.1');
+define('CRAFT_BUILD', '2304');
+define('CRAFT_RELEASE_DATE', '1376956100');
 define('CRAFT_MIN_BUILD_REQUIRED', '2262');
 define('CRAFT_TRACK', 'stable');

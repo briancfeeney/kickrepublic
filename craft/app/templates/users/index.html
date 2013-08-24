@@ -1,6 +1,12 @@
+{% if not craft.hasPackage('Users') %}
+	{% exit 404 %}
+{% endif %}
+
 {% extends "_layouts/elementindex" %}
 {% set title = "Users"|t %}
 {% set elementType = 'User' %}
+
+{% set docsUrl = 'http://docs.buildwithcraft.com/cp/settings/users.html' %}
 
 
 {% block sidebar %}

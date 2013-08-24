@@ -37,6 +37,7 @@ class ElementCriteriaModel extends BaseModel
 	protected function defineAttributes()
 	{
 		$attributes = array(
+			'source'        => AttributeType::String,
 			'id'            => AttributeType::Number,
 			'locale'        => AttributeType::Locale,
 			'uri'           => AttributeType::String,
@@ -51,8 +52,8 @@ class ElementCriteriaModel extends BaseModel
 			'dateUpdated'   => AttributeType::Mixed,
 			'parentOf'      => AttributeType::Mixed,
 			'childOf'       => AttributeType::Mixed,
-			'parentField'     => AttributeType::String,
-			'childField'      => AttributeType::String,
+			'parentField'   => AttributeType::String,
+			'childField'    => AttributeType::String,
 		);
 
 		// Mix in any custom attributes defined by the element type
@@ -117,6 +118,18 @@ class ElementCriteriaModel extends BaseModel
 	{
 		$this->setAttributes($attributes);
 		return craft()->elements->findElements($this);
+	}
+
+	/**
+	 * Returns all element IDs that match the criteria.
+	 *
+	 * @param array|null $attributes
+	 * @return array
+	 */
+	public function ids($attributes = null)
+	{
+		$this->setAttributes($attributes);
+		return craft()->elements->findElements($this, true);
 	}
 
 	/**

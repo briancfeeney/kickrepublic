@@ -101,7 +101,14 @@ class AssetSourcesService extends BaseApplicationComponent
 	 */
 	public function getAllSourceTypes()
 	{
-		return craft()->components->getComponentsByType(ComponentType::AssetSource);
+		if (Craft::hasPackage(CraftPackage::Cloud))
+		{
+			return craft()->components->getComponentsByType(ComponentType::AssetSource);
+		}
+		else
+		{
+			return array(craft()->components->getComponentByTypeAndClass(ComponentType::AssetSource, 'Local'));
+		}
 	}
 
 	/**
@@ -314,8 +321,35 @@ class AssetSourcesService extends BaseApplicationComponent
 	 */
 	public function deleteSourceById($sourceId)
 	{
-		craft()->db->createCommand()->delete('assetsources', array('id' => $sourceId));
-		return true;
+		if (!$sourceId)
+		{
+			return false;
+		}
+
+		$transaction = craft()->db->beginTransaction();
+		try
+		{
+			// Grab the asset file ids so we can clean the elements table.
+			$assetFileIds = craft()->db->createCommand()
+				->select('id')
+				->from('assetfiles')
+				->where(array('sourceId' => $sourceId))
+				->queryColumn();
+
+			craft()->elements->deleteElementById($assetFileIds);
+
+			// Nuke the asset source.
+			$affectedRows = craft()->db->createCommand()->delete('assetsources', array('id' => $sourceId));
+
+			$transaction->commit();
+
+			return (bool) $affectedRows;
+		}
+		catch (\Exception $e)
+		{
+			$transaction->rollBack();
+			throw $e;
+		}
 	}
 
 	/**

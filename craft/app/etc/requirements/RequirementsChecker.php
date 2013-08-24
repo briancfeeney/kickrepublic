@@ -114,6 +114,14 @@ class RequirementsChecker extends \CComponent
 				'<a href="http://buildwithcraft.com">Craft</a>',
 				Craft::t('Craft requires <a href="http://php.net/manual/en/book.openssl.php">OpenSSL</a> in order to run.')
 			),
+			new Requirement(
+				Craft::t('cURL support'),
+				extension_loaded('curl'),
+				true,
+				'<a href="http://buildwithcraft.com">Craft</a>',
+				Craft::t('Craft requires <a href="http://php.net/manual/en/book.curl.php">cURL</a> in order to run.')
+			),
+
 		);
 	}
 

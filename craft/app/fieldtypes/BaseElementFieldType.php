@@ -23,13 +23,31 @@ abstract class BaseElementFieldType extends BaseFieldType
 	protected $elementType;
 
 	/**
+	 * @access protected
+	 * @var string|null $inputJsClass The JS class that should be initialized for the input.
+	 */
+	protected $inputJsClass;
+
+	/**
+	 * @access protected
+	 * @var bool $allowMultipleSources Whether to allow multiple source selection in the settings.
+	 */
+	protected $allowMultipleSources = true;
+
+	/**
+	 * @access protected
+	 * @var bool $allowLimit Whether to allow the Limit setting.
+	 */
+	protected $allowLimit = true;
+
+	/**
 	 * Returns the type of field this is.
 	 *
 	 * @return string
 	 */
 	public function getName()
 	{
-		return $this->_getElementType()->getName();
+		return $this->getElementType()->getName();
 	}
 
 	/**
@@ -50,10 +68,21 @@ abstract class BaseElementFieldType extends BaseFieldType
 	 */
 	protected function defineSettings()
 	{
-		return array(
-			'sources' => AttributeType::Mixed,
-			'limit'   => array(AttributeType::Number, 'min' => 0),
-		);
+		if ($this->allowMultipleSources)
+		{
+			$settings['sources'] = AttributeType::Mixed;
+		}
+		else
+		{
+			$settings['source'] = AttributeType::String;
+		}
+
+		if ($this->allowLimit)
+		{
+			$settings['limit'] = array(AttributeType::Number, 'min' => 0);
+		}
+
+		return $settings;
 	}
 
 	/**
@@ -64,9 +93,11 @@ abstract class BaseElementFieldType extends BaseFieldType
 	public function getSettingsHtml()
 	{
 		return craft()->templates->render('_components/fieldtypes/elementfieldsettings', array(
-			'sources'  => $this->_getElementType()->getSources(),
-			'settings' => $this->getSettings(),
-			'type'     => $this->getName()
+			'allowMultipleSources' => $this->allowMultipleSources,
+			'allowLimit'           => $this->allowLimit,
+			'sources'              => $this->getElementType()->getSources(),
+			'settings'             => $this->getSettings(),
+			'type'                 => $this->getName()
 		));
 	}
 
@@ -93,7 +124,7 @@ abstract class BaseElementFieldType extends BaseFieldType
 			$elements = array();
 		}
 
-		if ($this->getSettings()->limit)
+		if ($this->allowLimit && $this->getSettings()->limit)
 		{
 			$elements = array_slice($elements, 0, $this->getSettings()->limit);
 		}
@@ -110,21 +141,60 @@ abstract class BaseElementFieldType extends BaseFieldType
 	 */
 	public function getInputHtml($name, $elements)
 	{
-		$id = rtrim(preg_replace('/[\[\]]+/', '-', $name), '-');
+		$id = rtrim(preg_replace('/[\[\]]+/', '-', $name), '-').'-'.StringHelper::UUID();
 
 		if (!($elements instanceof RelationFieldData))
 		{
 			$elements = new RelationFieldData();
 		}
 
+		$criteria = array('status' => null);
+
+		if (!empty($this->element->id))
+		{
+			$criteria['id'] = 'not '.$this->element->id;
+		}
+
+		if ($this->allowMultipleSources)
+		{
+			$sources = $this->getSettings()->sources;
+		}
+		else
+		{
+			$sources = array($this->getSettings()->source);
+		}
+
 		return craft()->templates->render('_includes/forms/elementSelect', array(
-			'elementType' => new ElementTypeVariable($this->_getElementType()),
-			'id'          => $id,
-			'name'        => $name,
-			'elements'    => $elements->all,
-			'sources'     => $this->getSettings()->sources,
-			'limit'       => $this->getSettings()->limit,
+			'jsClass'        => $this->inputJsClass,
+			'elementType'    => new ElementTypeVariable($this->getElementType()),
+			'id'             => $id,
+			'name'           => $name,
+			'elements'       => $elements->all,
+			'sources'        => $sources,
+			'criteria'       => $criteria,
+			'limit'          => ($this->allowLimit ? $this->getSettings()->limit : null),
+			'addButtonLabel' => $this->getAddButtonLabel(),
 		));
+	}
+
+	/**
+	 * Returns the search keywords that should be associated with this field,
+	 * based on the prepped post data.
+	 *
+	 * @param mixed $value
+	 * @return string
+	 */
+	public function getSearchKeywords($value)
+	{
+		$elements = $this->prepValue(null);
+		$titles = array();
+
+		foreach ($elements->all as $element)
+		{
+			$titles[] = (string) $element;
+		}
+
+		return parent::getSearchKeywords($titles);
 	}
 
 	/**
@@ -138,13 +208,26 @@ abstract class BaseElementFieldType extends BaseFieldType
 	}
 
 	/**
+	 * Returns the label for the "Add" button.
+	 *
+	 * @access protected
+	 * @return string
+	 */
+	protected function getAddButtonLabel()
+	{
+		return Craft::t('Add {type}', array(
+			'type' => strtolower($this->getElementType()->getClassHandle())
+		));
+	}
+
+	/**
 	 * Returns the element type.
 	 *
-	 * @access private
+	 * @access protected
 	 * @return BaseElementType
 	 * @throws Exception
 	 */
-	private function _getElementType()
+	protected function getElementType()
 	{
 		$elementType = craft()->elements->getElementType($this->elementType);
 

@@ -17,6 +17,15 @@ namespace Craft;
 class SectionsController extends BaseController
 {
 	/**
+	 * Init
+	 */
+	public function init()
+	{
+		// All section actions require an admin
+		craft()->userSession->requireAdmin();
+	}
+
+	/**
 	 * Saves a section
 	 */
 	public function actionSaveSection()

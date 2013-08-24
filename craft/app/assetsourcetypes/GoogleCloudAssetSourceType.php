@@ -251,7 +251,7 @@ class GoogleCloudAssetSourceType extends BaseAssetSourceType
 
 			$fileInfo = $this->_googleCloud->getObjectInfo($settings->bucket, $this->_getPathPrefix().$uriPath);
 
-			$targetPath = craft()->path->getAssetsImageSourcePath().$fileModel->id.'.'.pathinfo($fileModel->filename, PATHINFO_EXTENSION);
+			$targetPath = craft()->path->getAssetsImageSourcePath().$fileModel->id.'.'.IOHelper::getExtension($fileModel->filename);
 
 			$timeModified = new DateTime('@'.$fileInfo['time']);
 
@@ -323,7 +323,7 @@ class GoogleCloudAssetSourceType extends BaseAssetSourceType
 	 */
 	public function getImageSourcePath(AssetFileModel $fileModel)
 	{
-		return craft()->path->getAssetsImageSourcePath().$fileModel->id.'.'.pathinfo($fileModel->filename, PATHINFO_EXTENSION);
+		return craft()->path->getAssetsImageSourcePath().$fileModel->id.'.'.IOHelper::getExtension($fileModel->filename);
 	}
 
 	/**

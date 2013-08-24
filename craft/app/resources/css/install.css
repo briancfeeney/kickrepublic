@@ -1,17 +1,15 @@
 @charset "UTF-8";
 html, body { height: 100%; }
 
-body { overflow: hidden; background: #da5a47 url(../images/welcome_logo.png) no-repeat 50% 50%; }
+body { overflow: hidden; background: #fff; }
 
-.beginbtncontainer { position: absolute; top: 70%; margin-top: -15px; width: 100%; text-align: center; }
+#bg { position: fixed; top: 0; left: 0; width: 150%; height: 100%; background: url(../images/install_bg.jpg) no-repeat 0 50%; background-size: 100%; }
 
-#beginbtn { display: inline-block; border-radius: 4px; padding: 12px 15px; background: #fbecea; color: #da5a47; font-weight: bold; font-size: 19px; height: 42px; line-height: 18px; }
+.beginbtncontainer { position: absolute; top: 50%; margin-top: -15px; width: 100%; text-align: center; }
 
-#beginbtn:after { margin-top: -4px; }
+#beginbtn { display: inline-block; border-radius: 4px; padding: 12px 15px; font-weight: bold; font-size: 19px; height: 42px; line-height: 18px; }
 
-#beginbtn:hover { background: #fff; }
-
-.modal { display: none; position: absolute; top: 50%; left: 50%; margin: -255px 0 0 -385px; padding: 35px; width: 700px; height: 440px; background: #fff; }
+.modal { display: none; position: absolute; top: 50%; left: 50%; margin: -255px 0 0 -385px; padding: 35px; width: 700px; height: 440px; background: #fff; -webkit-box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.1), 0 10px 50px -10px black; box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.1), 0 10px 50px -10px black; }
 
 h1 { margin-bottom: 35px; text-align: center; }
 
@@ -21,7 +19,7 @@ h1 { margin-bottom: 35px; text-align: center; }
 
 #beginbtn, .buttons .btn { padding-right: 10px; }
 
-#beginbtn:after, .buttons .btn:after { font-family: 'Craft'; speak: none; -webkit-font-feature-settings: "liga", "dlig"; -moz-font-feature-settings: "liga=1, dlig=1"; -moz-font-feature-settings: "liga", "dlig"; -ms-font-feature-settings: "liga", "dlig"; -o-font-feature-settings: "liga", "dlig"; font-feature-settings: "liga", "dlig"; text-rendering: optimizeLegibility; font-weight: normal; font-variant: normal; text-transform: none; line-height: 1; -webkit-font-smoothing: subpixel-antialiased; display: inline-block; text-align: center; font-style: normal; vertical-align: middle; -webkit-user-select: none; -moz-user-select: none; -ms-user-select: none; margin-left: 4px; font-size: 20px; width: 20px; content: '→'; }
+#beginbtn:after, .buttons .btn:after { font-family: 'Craft'; speak: none; -webkit-font-feature-settings: "liga", "dlig"; -moz-font-feature-settings: "liga=1, dlig=1"; -moz-font-feature-settings: "liga", "dlig"; -ms-font-feature-settings: "liga", "dlig"; -o-font-feature-settings: "liga", "dlig"; font-feature-settings: "liga", "dlig"; text-rendering: optimizeLegibility; font-weight: normal; font-variant: normal; text-transform: none; line-height: 1; -webkit-font-smoothing: subpixel-antialiased; display: inline-block; text-align: center; font-style: normal; vertical-align: middle; -webkit-user-select: none; -moz-user-select: none; -ms-user-select: none; margin: -4px 0 0 4px; font-size: 20px; width: 20px; content: '→'; }
 
 .buttons .btn.loading:after { height: 24px; content: ''; background: url(../images/spinner_submit.gif) no-repeat 0 0; }
 
@@ -55,5 +53,4 @@ input.hidden { position: absolute; top: 100px; }
 
 #installing .buttons .btn { margin: 0; float: none; }
 
-@media only screen and (-webkit-min-device-pixel-ratio: 1.5), only screen and (-moz-min-device-pixel-ratio: 1.5), only screen and (-o-min-device-pixel-ratio: 3 / 2), only screen and (min-device-pixel-ratio: 1.5), only screen and (min-resolution: 1.5dppx) { body { background-image: url(../images/welcome_logo_2x.png); background-size: 208px; }
-  .buttons .btn.loading:after { background-image: url(../images/spinner_submit_2x.gif); background-size: 20px 2px; } }
+@media only screen and (-webkit-min-device-pixel-ratio: 1.5), only screen and (-moz-min-device-pixel-ratio: 1.5), only screen and (-o-min-device-pixel-ratio: 3 / 2), only screen and (min-device-pixel-ratio: 1.5), only screen and (min-resolution: 1.5dppx) { .buttons .btn.loading:after { background-image: url(../images/spinner_submit_2x.gif); background-size: 20px 2px; } }

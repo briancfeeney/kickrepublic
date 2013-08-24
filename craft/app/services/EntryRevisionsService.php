@@ -285,7 +285,6 @@ class EntryRevisionsService extends BaseApplicationComponent
 			'postDate'   => ($revision->postDate   ? $revision->postDate->getTimestamp()   : null),
 			'expiryDate' => ($revision->expiryDate ? $revision->expiryDate->getTimestamp() : null),
 			'enabled'    => $revision->enabled,
-			'tags'       => $revision->tags,
 			'fields'     => array(),
 		);
 

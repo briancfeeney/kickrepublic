@@ -19,6 +19,8 @@
 
 .route .template:before { font-family: 'Craft'; speak: none; -webkit-font-feature-settings: "liga", "dlig"; -moz-font-feature-settings: "liga=1, dlig=1"; -moz-font-feature-settings: "liga", "dlig"; -ms-font-feature-settings: "liga", "dlig"; -o-font-feature-settings: "liga", "dlig"; font-feature-settings: "liga", "dlig"; text-rendering: optimizeLegibility; font-weight: normal; font-variant: normal; text-transform: none; line-height: 1; -webkit-font-smoothing: subpixel-antialiased; display: inline-block; text-align: center; font-style: normal; vertical-align: middle; -webkit-user-select: none; -moz-user-select: none; -ms-user-select: none; margin: 0 5px 0 0; content: 'template'; }
 
+.route-settings { width: 450px; }
+
 .route-settings .url { width: auto; padding-top: 0; padding-bottom: 0; cursor: text; }
 
 .route-settings .url .token { position: relative; top: -1px; cursor: default; }

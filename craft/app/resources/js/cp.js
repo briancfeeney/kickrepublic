@@ -27,8 +27,6 @@ var CP = Garnish.Base.extend({
 	$notificationContainer: null,
 	$main: null,
 	$sidebar: null,
-	$sidebarNav: null,
-	$sidebarNavPlaceholder: null,
 	$altSidebar: null,
 	$altSidebarNavBtn: null,
 	$altSidebarNavMenu: null,
@@ -43,7 +41,7 @@ var CP = Garnish.Base.extend({
 	showingSidebar: true,
 
 	fixedNotifications: false,
-	fixedSidebarNav: false,
+	fixedSidebar: false,
 
 	tabs: null,
 	selectedTab: null,
@@ -58,9 +56,11 @@ var CP = Garnish.Base.extend({
 		this.$notificationContainer = $('#notifications');
 		this.$main = $('#main');
 		this.$sidebar = $('#sidebar');
-		this.$sidebarNav = this.$sidebar.children('nav');
 		this.$content = $('#content');
 		this.$collapsibleTables = this.$content.find('table.collapsible');
+
+		// Set the max sidebar height
+		this.setMaxSidebarHeight();
 
 		// Find all the nav items
 		this.navItems = [];
@@ -129,7 +129,7 @@ var CP = Garnish.Base.extend({
 			// Is this a menu item?
 			if ($btn.data('menu'))
 			{
-				var $form = $btn.data('menu').$btn.closest('form');
+				var $form = $btn.data('menu').$trigger.closest('form');
 			}
 			else
 			{
@@ -181,6 +181,20 @@ var CP = Garnish.Base.extend({
         }
     },
 
+    setMaxSidebarHeight: function()
+    {
+    	if (this.fixedSidebar)
+    	{
+	    	this.setMaxSidebarHeight._maxHeight = this.$main.offset().top + this.$main.height() - Garnish.$win.scrollTop();
+    	}
+    	else
+    	{
+    		this.setMaxSidebarHeight._maxHeight = this.$main.height();
+    	}
+
+    	this.$sidebar.css('max-height', this.setMaxSidebarHeight._maxHeight);
+    },
+
 	/**
 	 * Handles stuff that should happen when the window is resized.
 	 */
@@ -197,6 +211,9 @@ var CP = Garnish.Base.extend({
 
 		// Update any responsive tables
 		this.updateResponsiveTables();
+
+		// Reset the max sidebar height
+		this.setMaxSidebarHeight();
 	},
 
 	updateResponsiveNav: function()
@@ -279,7 +296,7 @@ var CP = Garnish.Base.extend({
 		{
 			if (this.showingSidebar)
 			{
-				this.makeSidebarNavUnfixed();
+				this.makeSidebarUnfixed();
 				this.$main.removeClass(CP.hasSidebarClass);
 
 				if (!this.$altSidebar)
@@ -328,7 +345,7 @@ var CP = Garnish.Base.extend({
 				this.$altSidebar.hide();
 				this.$sidebar.show();
 				this.showingSidebar = true;
-				this.updateFixedSidebarNav();
+				this.updateFixedSidebar();
 			}
 		}
 	},
@@ -407,7 +424,7 @@ var CP = Garnish.Base.extend({
 		this.onWindowScroll._scrollTop = Garnish.$win.scrollTop();
 
 		this.updateFixedNotifications();
-		this.updateFixedSidebarNav();
+		this.updateFixedSidebar();
 	},
 
 	updateFixedNotifications: function()
@@ -432,56 +449,41 @@ var CP = Garnish.Base.extend({
 		}
 	},
 
-	updateFixedSidebarNav: function()
+	updateFixedSidebar: function()
 	{
-		if (this.showingSidebar && this.$sidebarNav.length)
+		if (this.showingSidebar && this.$sidebar.length)
 		{
-			if (this.fixedSidebarNav)
+			// Determine if we've scrolled passed the top of the sidebar,
+			// which conveniently is the same as #main
+
+			if (this.onWindowScroll._scrollTop > this.$main.offset().top)
 			{
-				this.onWindowScroll._$offsetTarget = this.$sidebarNavPlaceholder;
+				this.makeSidebarFixed();
+				this.setMaxSidebarHeight();
 			}
 			else
 			{
-				this.onWindowScroll._$offsetTarget = this.$sidebarNav;
-			}
-
-			if (this.onWindowScroll._scrollTop > this.onWindowScroll._$offsetTarget.offset().top)
-			{
-				this.makeSidebarNavFixed();
-
-				// Make sure that the nav doesn't bleed into the page footer
-				this.onWindowScroll._maxNavHeight = this.$main.offset().top + this.$main.outerHeight() - Garnish.$win.scrollTop();
-				this.$sidebarNav.css('max-height', this.onWindowScroll._maxNavHeight);
-			}
-			else
-			{
-				this.makeSidebarNavUnfixed();
+				this.makeSidebarUnfixed();
 			}
 		}
 	},
 
-	makeSidebarNavFixed: function()
+	makeSidebarFixed: function()
 	{
-		if (!this.fixedSidebarNav)
+		if (!this.fixedSidebar)
 		{
-			if (typeof $sidebarNavPlaceholder == 'undefined')
-			{
-				this.$sidebarNavPlaceholder = $('<div/>');
-			}
-
-			this.$sidebarNavPlaceholder.insertBefore(this.$sidebarNav);
-			this.$sidebarNav.addClass('fixed');
-			this.fixedSidebarNav = true;
+			this.$sidebar.addClass('fixed');
+			this.fixedSidebar = true;
 		}
 	},
 
-	makeSidebarNavUnfixed: function()
+	makeSidebarUnfixed: function()
 	{
-		if (this.fixedSidebarNav)
+		if (this.fixedSidebar)
 		{
-			this.$sidebarNavPlaceholder.remove();
-			this.$sidebarNav.removeClass('fixed');
-			this.fixedSidebarNav = false;
+			this.$sidebar.removeClass('fixed');
+			this.fixedSidebar = false;
+			this.setMaxSidebarHeight();
 		}
 	},
 
@@ -537,6 +539,8 @@ var CP = Garnish.Base.extend({
 			var $tab = $(ev.currentTarget).addClass('sel');
 			this.selectedTab = $tab.attr('href');
 			this.tabs[this.selectedTab].$target.removeClass('hidden');
+
+			this.setMaxSidebarHeight();
 		}
 	},
 

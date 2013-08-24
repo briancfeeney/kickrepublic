@@ -70,7 +70,7 @@ class GlobalsController extends BaseController
 
 		$globalSetId = craft()->request->getRequiredPost('id');
 
-		craft()->elements->deleteElementById($globalSetId);
+		craft()->globals->deleteSetById($globalSetId);
 		$this->returnJson(array('success' => true));
 	}
 
@@ -91,8 +91,8 @@ class GlobalsController extends BaseController
 
 		$globalSet->locale = craft()->request->getPost('locale', craft()->i18n->getPrimarySiteLocaleId());
 
-		$fields = craft()->request->getPost('fields', array());
-		$globalSet->setContent($fields);
+		$fields = craft()->request->getPost('fields');
+		$globalSet->getContent()->setAttributes($fields);
 
 		if (craft()->globals->saveContent($globalSet))
 		{

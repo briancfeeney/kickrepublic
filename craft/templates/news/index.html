@@ -15,6 +15,11 @@
 
 	{% for entry in craft.entries.section('news').find() %}
 		<article>
+			
+		    {% for image in entry.news_image %}
+			   <img src="{{ image.url }}" height="{{ image.height }}" width="{{ image.width }}" alt="{{ entry.title }}">
+			{% endfor %}
+
 			<h3><a href="{{ entry.url }}">{{ entry.title }}</a></h3>
 			<p>Posted on {{ entry.postDate.format('F d, Y') }}</p>
 			{{ entry.body.page(1) }}

@@ -17,10 +17,59 @@ namespace Craft;
 class AssetSourcesController extends BaseController
 {
 	/**
+	 * Shows the asset source list.
+	 */
+	public function actionSourceIndex()
+	{
+		craft()->userSession->requireAdmin();
+
+		$variables['sources'] = craft()->assetSources->getAllSources();
+		$this->renderTemplate('settings/assets/sources/index', $variables);
+	}
+
+	/**
+	 * Edit an asset source.
+	 *
+	 * @param array $variables
+	 * @throws HttpException
+	 */
+	public function actionEditSource(array $variables = array())
+	{
+		craft()->userSession->requireAdmin();
+
+		if (empty($variables['source']))
+		{
+			if (!empty($variables['sourceId']))
+			{
+				$variables['source'] = craft()->assetSources->getSourceById($variables['sourceId']);
+				if (!$variables['source'])
+				{
+					throw new HttpException(404);
+				}
+				$variables['sourceType'] = craft()->assetSources->populateSourceType($variables['source']);
+			}
+			else
+			{
+				$variables['source'] = new AssetSourceModel();
+				$variables['sourceType'] = craft()->assetSources->getSourceType('Local');
+			}
+		}
+
+		if (Craft::hasPackage(CraftPackage::Cloud))
+		{
+			$sourceTypes = craft()->assetSources->getAllSourceTypes();
+			$variables['sourceTypes'] = AssetSourceTypeVariable::populateVariables($sourceTypes);
+		}
+
+		$this->renderTemplate('settings/assets/sources/_settings', $variables);
+	}
+
+	/**
 	 * Saves an asset source.
 	 */
 	public function actionSaveSource()
 	{
+		craft()->userSession->requireAdmin();
 		$this->requirePostRequest();
 
 		$existingSourceId = craft()->request->getPost('sourceId');
@@ -33,7 +82,7 @@ class AssetSourcesController extends BaseController
 		{
 			$source = new AssetSourceModel();
 		}
-		
+
 		$source->name = craft()->request->getPost('name');
 
 		if (Craft::hasPackage(CraftPackage::Cloud))
@@ -74,6 +123,7 @@ class AssetSourcesController extends BaseController
 	 */
 	public function actionReorderSources()
 	{
+		craft()->userSession->requireAdmin();
 		$this->requirePostRequest();
 		$this->requireAjaxRequest();
 
@@ -88,6 +138,7 @@ class AssetSourcesController extends BaseController
 	 */
 	public function actionDeleteSource()
 	{
+		craft()->userSession->requireAdmin();
 		$this->requirePostRequest();
 		$this->requireAjaxRequest();
 
@@ -103,19 +154,19 @@ class AssetSourcesController extends BaseController
 	 */
 	public function actionGetS3Buckets()
 	{
-		if (Craft::hasPackage(CraftPackage::Cloud))
-		{
-			$keyId = craft()->request->getRequiredPost('keyId');
-			$secret = craft()->request->getRequiredPost('secret');
+		craft()->userSession->requireAdmin();
+		Craft::requirePackage(CraftPackage::Cloud);
 
-			try
-			{
-				$this->returnJson(S3AssetSourceType::getBucketList($keyId, $secret));
-			}
-			catch (Exception $exception)
-			{
-				$this->returnErrorJson($exception->getMessage());
-			}
+		$keyId = craft()->request->getRequiredPost('keyId');
+		$secret = craft()->request->getRequiredPost('secret');
+
+		try
+		{
+			$this->returnJson(S3AssetSourceType::getBucketList($keyId, $secret));
+		}
+		catch (Exception $exception)
+		{
+			$this->returnErrorJson($exception->getMessage());
 		}
 	}
 
@@ -124,26 +175,26 @@ class AssetSourcesController extends BaseController
 	 */
 	public function actionGetRackspaceContainers()
 	{
-		if (Craft::hasPackage(CraftPackage::Cloud))
+		craft()->userSession->requireAdmin();
+		Craft::requirePackage(CraftPackage::Cloud);
+
+		$username = craft()->request->getRequiredPost('username');
+		$apiKey = craft()->request->getRequiredPost('apiKey');
+		$location = craft()->request->getRequiredPost('location');
+
+		try
 		{
-			$username = craft()->request->getRequiredPost('username');
-			$apiKey = craft()->request->getRequiredPost('apiKey');
-			$location = craft()->request->getRequiredPost('location');
+			// Static methods here are no-go (without passing unneeded variables around, such as location), we'll
+			// have to mock up a SourceType object here.
+			$model = new AssetSourceModel(array('type' => 'Rackspace', 'settings' => array('username' => $username, 'apiKey' => $apiKey, 'location' => $location)));
 
-			try
-			{
-				// Static methods here are no-go (without passing unneeded variables around, such as location), we'll
-				// have to mock up a SourceType object here.
-				$model = new AssetSourceModel(array('type' => 'Rackspace', 'settings' => array('username' => $username, 'apiKey' => $apiKey, 'location' => $location)));
-
-				/** @var RackspaceAssetSourceType $source */
-				$source = craft()->assetSources->populateSourceType($model);
-				$this->returnJson($source->getContainerList());
-			}
-			catch (Exception $exception)
-			{
-				$this->returnErrorJson($exception->getMessage());
-			}
+			/** @var RackspaceAssetSourceType $source */
+			$source = craft()->assetSources->populateSourceType($model);
+			$this->returnJson($source->getContainerList());
+		}
+		catch (Exception $exception)
+		{
+			$this->returnErrorJson($exception->getMessage());
 		}
 	}
 
@@ -152,19 +203,19 @@ class AssetSourcesController extends BaseController
 	 */
 	public function actionGetGoogleCloudBuckets()
 	{
-		if (Craft::hasPackage(CraftPackage::Cloud))
-		{
-			$keyId = craft()->request->getRequiredPost('keyId');
-			$secret = craft()->request->getRequiredPost('secret');
+		craft()->userSession->requireAdmin();
+		Craft::requirePackage(CraftPackage::Cloud);
 
-			try
-			{
-				$this->returnJson(GoogleCloudAssetSourceType::getBucketList($keyId, $secret));
-			}
-			catch (Exception $exception)
-			{
-				$this->returnErrorJson($exception->getMessage());
-			}
+		$keyId = craft()->request->getRequiredPost('keyId');
+		$secret = craft()->request->getRequiredPost('secret');
+
+		try
+		{
+			$this->returnJson(GoogleCloudAssetSourceType::getBucketList($keyId, $secret));
+		}
+		catch (Exception $exception)
+		{
+			$this->returnErrorJson($exception->getMessage());
 		}
 	}
 }

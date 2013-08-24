@@ -49,36 +49,7 @@ class Updater
 	 */
 	public function checkRequirements()
 	{
-		$installedMySqlVersion = craft()->db->serverVersion;
-		$requiredMySqlVersion = craft()->params['requiredMysqlVersion'];
-		$requiredPhpVersion = craft()->params['requiredPhpVersion'];
-
-		$phpCompat = version_compare(PHP_VERSION, $requiredPhpVersion, '>=');
-		$databaseCompat = version_compare($installedMySqlVersion, $requiredMySqlVersion, '>=');
-
-		if (!$phpCompat && !$databaseCompat)
-		{
-			throw new Exception(Craft::t('The update can’t be installed because Craft requires PHP version “{requiredPhpVersion}” or higher and MySQL version “{requiredMySqlVersion}” or higher.  You have PHP version “{installedPhpVersion}” and MySQL version “{installedMySqlVersion}” installed.',
-				array('requiredPhpVersion' => $requiredMySqlVersion,
-				      'installedPhpVersion' => PHP_VERSION,
-				      'requiredMySqlVersion' => $requiredMySqlVersion,
-				      'installedMySqlVersion' => $installedMySqlVersion
-				)));
-		}
-		else if (!$phpCompat)
-		{
-			throw new Exception(Craft::t('The update can’t be installed because Craft requires PHP version “{requiredPhpVersion}” or higher and you have PHP version “{installedPhpVersion}” installed.',
-				array('requiredPhpVersion' => $requiredMySqlVersion,
-				      'installedPhpVersion' => PHP_VERSION
-			)));
-		}
-		else if (!$databaseCompat)
-		{
-			throw new Exception(Craft::t('The update can’t be installed because Craft requires MySQL version “{requiredMySqlVersion}” or higher and you have MySQL version “{installedMySqlVersion}” installed.',
-				array('requiredMySqlVersion' => $requiredMySqlVersion,
-				      'installedMySqlVersion' => $installedMySqlVersion
-				)));
-		}
+		craft()->runController('templates/requirementscheck');
 	}
 
 	/**
@@ -330,61 +301,64 @@ class Updater
 		// Now delete any files/folders that were marked for deletion in the manifest file.
 		$manifestData = UpdateHelper::getManifestData($unzipFolder);
 
-		foreach ($manifestData as $row)
+		if ($manifestData)
 		{
-			if (UpdateHelper::isManifestVersionInfoLine($row))
+			foreach ($manifestData as $row)
 			{
-				continue;
-			}
-
-			$rowData = explode(';', $row);
-
-			$folder = false;
-			if (UpdateHelper::isManifestLineAFolder($rowData[0]))
-			{
-				$folder = true;
-				$tempFilePath = UpdateHelper::cleanManifestFolderLine($rowData[0]);
-			}
-			else
-			{
-				$tempFilePath = $rowData[0];
-			}
-
-			$fullPath = '';
-
-			switch (trim($rowData[1]))
-			{
-				// If the file/folder was set to be deleted, there is no backup and we go ahead and remove it now.
-				case PatchManifestFileAction::Remove:
+				if (UpdateHelper::isManifestVersionInfoLine($row))
 				{
-					if ($tempFilePath == '')
-					{
-						$fullPath = IOHelper::normalizePathSeparators(craft()->path->getAppPath());
-					}
-					else
-					{
-						$fullPath = IOHelper::normalizePathSeparators(craft()->path->getAppPath().$tempFilePath);
-					}
-
-					break;
+					continue;
 				}
-			}
 
-			// Delete any files/folders we backed up.
-			if ($folder)
-			{
-				if (($folder = IOHelper::getFolder($fullPath)) !== false)
+				$rowData = explode(';', $row);
+
+				$folder = false;
+				if (UpdateHelper::isManifestLineAFolder($rowData[0]))
 				{
-					Craft::log('Deleting folder: '.$folder->getRealPath(), LogLevel::Info, true);
-					$folder->delete();
+					$folder = true;
+					$tempFilePath = UpdateHelper::cleanManifestFolderLine($rowData[0]);
 				}
-			}
-			else
-			{
-				if (($file = IOHelper::getFile($fullPath)) !== false)
+				else
 				{
-					Craft::log('Deleting file: '.$file->getRealPath(), LogLevel::Info, true);
-					$file->delete();
+					$tempFilePath = $rowData[0];
+				}
+
+				$fullPath = '';
+
+				switch (trim($rowData[1]))
+				{
+					// If the file/folder was set to be deleted, there is no backup and we go ahead and remove it now.
+					case PatchManifestFileAction::Remove:
+					{
+						if ($tempFilePath == '')
+						{
+							$fullPath = IOHelper::normalizePathSeparators(craft()->path->getAppPath());
+						}
+						else
+						{
+							$fullPath = IOHelper::normalizePathSeparators(craft()->path->getAppPath().$tempFilePath);
+						}
+
+						break;
+					}
+				}
+
+				// Delete any files/folders we backed up.
+				if ($folder)
+				{
+					if (($folder = IOHelper::getFolder($fullPath)) !== false)
+					{
+						Craft::log('Deleting folder: '.$folder->getRealPath(), LogLevel::Info, true);
+						$folder->delete();
+					}
+				}
+				else
+				{
+					if (($file = IOHelper::getFile($fullPath)) !== false)
+					{
+						Craft::log('Deleting file: '.$file->getRealPath(), LogLevel::Info, true);
+						$file->delete();
+					}
 				}
 			}
 		}

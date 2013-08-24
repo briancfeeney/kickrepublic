@@ -1,4 +1,7 @@
 {% extends "_layouts/cp" %}
+
+{% set docsUrl = 'http://docs.buildwithcraft.com/cp/settings/assets.html#image-transforms' %}
+
 {% includeCssResource 'css/transforms.css' %}
 {% import "_includes/forms" as forms %}
 
@@ -7,12 +10,6 @@
 	{ label: "Assets"|t, url: url('settings/assets') },
 	{ label: "Transforms"|t, url: url('settings/assets/transforms') }
 ] %}
-
-
-{% if transform is not defined and handle is defined %}
-	{% set transform = craft.assets.getTransformByHandle(handle) %}
-	{% if not transform %}{% exit 404 %}{% endif %}
-{% endif %}
 
 {% set isNewTransform = (transform is not defined or not transform.id) %}
 

@@ -37,7 +37,7 @@ class DbBackup
 		$result .= $this->_processConstraints();
 		$result .= $this->_processFooter();
 
-		$fileName = gmdate('ymd_His').'_'.$this->_currentVersion.'.sql';
+		$fileName = IOHelper::cleanFilename(Craft::getSiteName()).'_'.gmdate('ymd_His').'_'.$this->_currentVersion.'.sql';
 		$filePath = craft()->path->getDbBackupPath().strtolower($fileName);
 		IOHelper::writeToFile($filePath, $result);
 
@@ -58,11 +58,61 @@ class DbBackup
 
 		$this->_nukeDb();
 
-		$sql = IOHelper::getFileContents($filePath);
+		$sql = IOHelper::getFileContents($filePath, true);
 
-		Craft::log('Executing SQL statement: '.$sql);
-		$command = craft()->db->createCommand($sql);
-		$command->execute();
+		array_walk($sql, array($this, 'trimValue'));
+		$sql = array_filter($sql);
+
+		$statements = $this->_buildSQLStatements($sql);
+
+		foreach ($statements as $statement)
+		{
+			Craft::log('Executing SQL statement: '.$statement);
+			$command = craft()->db->createCommand($statement);
+			$command->execute();
+		}
+	}
+
+	/**
+	 * @param $value
+	 */
+	public function trimValue(&$value)
+	{
+		$value = trim($value);
+	}
+
+	private function _buildSQLStatements($sql)
+	{
+		$statementArray = array();
+		$runningStatement = '';
+
+		foreach ($sql as $statement)
+		{
+			if ($statement[0] == '-')
+			{
+				continue;
+			}
+
+			if ($statement[strlen($statement) - 1] == ';')
+			{
+				if (!$runningStatement)
+				{
+					$statementArray[] = $statement;
+				}
+				else
+				{
+					$statementArray[] = $runningStatement.$statement;
+					$runningStatement = '';
+				}
+
+			}
+			else
+			{
+				$runningStatement .= $statement;
+			}
+		}
+
+		return $statementArray;
 	}
 
 	/**

@@ -16,14 +16,6 @@ namespace Craft;
  */
 class AssetsService extends BaseApplicationComponent
 {
-	private static $_DefaultFileParameters = array(
-		'folderId' => array(),
-		'offset' => 0,
-		'limit' => 100,
-		'order' => 'filename ASC',
-		'keywords' => array()
-	);
-
 	private $_includedTransformLoader = false;
 
 	/**
@@ -53,26 +45,6 @@ class AssetsService extends BaseApplicationComponent
 	}
 
 	/**
-	 * Get files by a folder id.
-	 *
-	 * @param $folderIds
-	 * @param $parameters
-	 * @return array
-	 */
-	public function getFilesByFolderId($folderIds, $parameters)
-	{
-		if (!is_array($folderIds))
-		{
-			$folderIds = array($folderIds);
-		}
-
-		$parameters = array_merge(self::$_DefaultFileParameters, $parameters);
-
-		$parameters['folderId'] = $folderIds;
-		return $this->findFiles($parameters);
-	}
-
-	/**
 	 * Returns a file by its ID.
 	 *
 	 * @param $fileId
@@ -83,57 +55,6 @@ class AssetsService extends BaseApplicationComponent
 		return $this->findFile(array(
 			'id' => $fileId
 		));
-	}
-
-	/**
-	 * Finds files that match a given criteria.
-	 *
-	 * @param mixed $criteria
-	 * @return array
-	 */
-	public function findFiles($criteria = null)
-	{
-		$keywords = array();
-		if (is_array($criteria) && !empty($criteria['keywords']))
-		{
-			$keywords = $criteria['keywords'];
-			unset($criteria['keywords']);
-		}
-
-		if (!($criteria instanceof ElementCriteriaModel))
-		{
-			$criteria = craft()->elements->getCriteria(ElementType::Asset, $criteria);
-		}
-
-		$query = craft()->db->createCommand()
-			->select('f.*')
-			->from('assetfiles AS f');
-
-		$this->_applyFileConditions($query, $criteria);
-
-		foreach ($keywords as $keyword)
-		{
-			$query->andWhere(array('like', 'filename', '%'.$keyword.'%'));
-		}
-
-		if ($criteria->order)
-		{
-			$query->order($criteria->order);
-		}
-
-		if ($criteria->offset)
-		{
-			$query->offset($criteria->offset);
-		}
-
-		if ($criteria->limit)
-		{
-			$query->limit($criteria->limit);
-		}
-
-		$result = $query->queryAll();
-
-		return AssetFileModel::populateModels($result, $criteria->indexBy);
 	}
 
 	/**
@@ -149,14 +70,7 @@ class AssetsService extends BaseApplicationComponent
 			$criteria = craft()->elements->getCriteria(ElementType::Asset, $criteria);
 		}
 
-		$criteria->limit = 1;
-		$criteria->indexBy = null;
-		$files = $this->findFiles($criteria);
-
-		if ($files)
-		{
-			return $files[0];
-		}
+		return $criteria->first();
 	}
 
 	/**
@@ -172,57 +86,7 @@ class AssetsService extends BaseApplicationComponent
 			$criteria = craft()->elements->getCriteria(ElementType::Asset, $criteria);
 		}
 
-		$query = craft()->db->createCommand()
-			->select('count(id)')
-			->from('assetfiles AS f');
-
-		$this->_applyFileConditions($query, $criteria);
-
-		return (int)$query->queryScalar();
-	}
-
-	/**
-	 * Applies WHERE conditions to a DbCommand query for folders.
-	 *
-	 * @access private
-	 * @param DbCommand $query
-	 * @param ElementCriteriaModel $criteria
-	 */
-	private function _applyFileConditions($query, ElementCriteriaModel $criteria)
-	{
-		$whereConditions = array();
-		$whereParams = array();
-
-		if ($criteria->id)
-		{
-			$whereConditions[] = DbHelper::parseParam('f.id', $criteria->id, $whereParams);
-		}
-		if ($criteria->sourceId)
-		{
-			$whereConditions[] = DbHelper::parseParam('f.sourceId', $criteria->sourceId, $whereParams);
-		}
-		if ($criteria->folderId)
-		{
-			$whereConditions[] = DbHelper::parseParam('f.folderId', $criteria->folderId, $whereParams);
-		}
-		if ($criteria->filename)
-		{
-			$whereConditions[] = DbHelper::parseParam('f.filename', $criteria->filename, $whereParams);
-		}
-		if ($criteria->kind)
-		{
-			$whereConditions[] = DbHelper::parseParam('f.kind', $criteria->kind, $whereParams);
-		}
-
-		if (count($whereConditions) == 1)
-		{
-			$query->where($whereConditions[0], $whereParams);
-		}
-		else
-		{
-			array_unshift($whereConditions, 'and');
-			$query->where($whereConditions, $whereParams);
-		}
+		return $criteria->total();
 	}
 
 	/**
@@ -267,6 +131,10 @@ class AssetsService extends BaseApplicationComponent
 			{
 				// Save the ID on the model now that we have it
 				$file->id = $fileRecord->id;
+
+				// Give it a default title based on the file name
+				$file->getContent()->title = str_replace('_', ' ', IOHelper::getFileName($file->filename, false));
+				$this->saveFileContent($file, false);
 			}
 
 			// Update the search index
@@ -285,14 +153,18 @@ class AssetsService extends BaseApplicationComponent
 	 * Saves a file's content.
 	 *
 	 * @param AssetFileModel $file
+	 * @param bool           $validate
 	 * @return bool
 	 */
-	public function saveFileContent(AssetFileModel $file)
+	public function saveFileContent(AssetFileModel $file, $validate = true)
 	{
 		// TODO: translation support
 		$fieldLayout = craft()->fields->getLayoutByType(ElementType::Asset);
-		if (craft()->content->saveElementContent($file, $fieldLayout))
+		if (craft()->content->saveElementContent($file, $fieldLayout, $validate))
 		{
+			// Update the search index since the title may have just changed
+			craft()->search->indexElementAttributes($file);
+
 			// Fire an 'onSaveFileContent' event
 			$this->onSaveFileContent(new Event($this, array(
 				'file' => $file
@@ -503,13 +375,13 @@ class AssetsService extends BaseApplicationComponent
 	}
 
 	/**
-	 * Delete a folder by it's id.
+	 * Deletes a folder by its ID.
 	 *
-	 * @param $folderId
+	 * @param int $folderId
 	 * @return AssetOperationResponseModel
 	 * @throws Exception
 	 */
-	public function deleteFolder($folderId)
+	public function deleteFolderById($folderId)
 	{
 		try
 		{
@@ -785,6 +657,8 @@ class AssetsService extends BaseApplicationComponent
 		$folder = $this->getFolderById($folderId);
 		$source = craft()->assetSources->getSourceTypeById($folder->sourceId);
 
+		$fileId = null;
+
 		switch ($userResponse)
 		{
 			case AssetsHelper::ActionReplace:
@@ -795,9 +669,10 @@ class AssetsService extends BaseApplicationComponent
 					'filename' => $fileName
 				));
 
-				$replaceWith = craft()->assets->getFileById($createdFileId);
+				$replaceWith = $this->getFileById($createdFileId);
 
 				$source->replaceFile($targetFile, $replaceWith);
+				$fileId = $targetFile->id;
 			}
 			// Falling through to delete the file
 			case AssetsHelper::ActionCancel:
@@ -805,10 +680,19 @@ class AssetsService extends BaseApplicationComponent
 				$this->deleteFiles($createdFileId);
 				break;
 			}
+			default:
+			{
+				$fileId = $createdFileId;
+				break;
+			}
 		}
 
 		$response = new AssetOperationResponseModel();
 		$response->setSuccess();
+		if ($fileId)
+		{
+			$response->setDataItem('fileId', $fileId);
+		}
 
 		return $response;
 	}
@@ -940,17 +824,6 @@ class AssetsService extends BaseApplicationComponent
 	}
 
 	/**
-	 * Delete a file record by id.
-	 *
-	 * @param $fileId
-	 * @return bool
-	 */
-	public function deleteFileRecord($fileId)
-	{
-		return (bool) AssetFileRecord::model()->deleteAll('id = :fileId', array(':fileId' => $fileId));
-	}
-
-	/**
 	* Delete a folder record by id.
 	*
 	* @param $fileId
@@ -972,7 +845,7 @@ class AssetsService extends BaseApplicationComponent
 	{
 		$returnPlaceholder = false;
 
-		if (!$transform || !in_array(IOHelper::getExtension($file), Image::getAcceptedExtensions()))
+		if (!$transform || !in_array(IOHelper::getExtension($file->filename), ImageHelper::getAcceptedExtensions()))
 		{
 			$sourceType = craft()->assetSources->getSourceTypeById($file->sourceId);
 			$base = $sourceType->getBaseUrl();

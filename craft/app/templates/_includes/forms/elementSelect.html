@@ -1,4 +1,7 @@
 {% set elements = (elements is defined ? elements : []) -%}
+{% set jsClass = (jsClass is defined and jsClass ? jsClass : 'Craft.BaseElementSelectInput') -%}
+{% set sources = (sources is defined and sources ? sources : null) -%}
+{% set criteria = (criteria is defined and criteria ? criteria : null) -%}
 
 <div id="{{ id }}" class="elementselect">
 	<div class="elements">
@@ -7,15 +10,16 @@
 		{% endfor %}
 	</div>
 
-	<div class="btn add icon">{{ "Add {type}"|t({ type: elementType.getClassHandle()|lower }) }}</div>
+	<div class="btn add icon">{{ addButtonLabel }}</div>
 </div>
 
 {% set js %}
-	new Craft.ElementSelectInput(
+	new {{ jsClass }}(
 		"{{ id|e('js') }}",
 		"{{ name|e('js') }}",
 		"{{ elementType.getClassHandle()|e('js') }}",
 		{{ sources|json_encode|raw }},
+		{{ criteria|json_encode|raw }},
 		{{ limit ? limit : 'null' }}
 	);
 {% endset %}

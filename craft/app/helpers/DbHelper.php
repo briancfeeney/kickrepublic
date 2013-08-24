@@ -381,6 +381,11 @@ class DbHelper
 	 */
 	public static function parseParam($key, $values, &$params)
 	{
+		if ($values == 'not ')
+		{
+			return '';
+		}
+
 		$conditions = array();
 
 		$values = ArrayHelper::stringToArray($values);

@@ -18,21 +18,9 @@ class EntryModel extends BaseElementModel
 {
 	protected $elementType = ElementType::Entry;
 
-	private $_tags;
-
 	const LIVE     = 'live';
 	const PENDING  = 'pending';
 	const EXPIRED  = 'expired';
-
-	/**
-	 * Use the entry's title as its string representation.
-	 *
-	 * @return string
-	 */
-	function __toString()
-	{
-		return $this->title;
-	}
 
 	/**
 	 * @access protected
@@ -43,7 +31,6 @@ class EntryModel extends BaseElementModel
 		return array_merge(parent::defineAttributes(), array(
 			'sectionId'  => AttributeType::Number,
 			'authorId'   => AttributeType::Number,
-			'title'      => AttributeType::String,
 			'slug'       => AttributeType::String,
 			'postDate'   => AttributeType::DateTime,
 			'expiryDate' => AttributeType::DateTime,
@@ -106,38 +93,6 @@ class EntryModel extends BaseElementModel
 		}
 
 		return $status;
-	}
-
-	/**
-	 * Returns the entry's tags.
-	 *
-	 * @return array
-	 */
-	public function getTags()
-	{
-		if (!isset($this->_tags))
-		{
-			if ($this->id)
-			{
-				$this->_tags = craft()->entries->getTagsByEntryId($this->id);
-			}
-			else
-			{
-				$this->_tags = array();
-			}
-		}
-
-		return $this->_tags;
-	}
-
-	/**
-	 * Sets the entry's tags.
-	 *
-	 * @param array|string $tags
-	 */
-	public function setTags($tags)
-	{
-		$this->_tags = ArrayHelper::stringToArray($tags);
 	}
 
 	/**

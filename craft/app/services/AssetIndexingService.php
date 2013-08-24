@@ -180,6 +180,7 @@ class AssetIndexingService extends BaseApplicationComponent
 	{
 		craft()->db->createCommand()->delete('assettransformindex', array('in', 'fileId', $fileIds));
 		craft()->db->createCommand()->delete('assetfiles', array('in', 'id', $fileIds));
+
 		foreach ($fileIds as $fileId)
 		{
 			craft()->elements->deleteElementById($fileId);

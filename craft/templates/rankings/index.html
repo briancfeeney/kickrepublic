@@ -15,7 +15,7 @@
 		{% for row in rankings.ranking %}
 		   {% if loop.first %}<ol>{% endif %}
 			<li>
-				<h4>{{ row.nation }}<h4>
+				<h5>{{ row.nation }}<h5>
 				<p>{{ row.nation_info }}</p>
 			</li>
 		   {% if loop.last %}</ol>{% endif %}

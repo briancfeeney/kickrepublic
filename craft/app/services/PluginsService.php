@@ -22,6 +22,22 @@ class PluginsService extends BaseApplicationComponent
 	public $componentTypes;
 
 	/**
+	 * Stores whether plugins have been loaded yet for this request.
+	 *
+	 * @access private
+	 * @var bool
+	 */
+	private $_pluginsLoaded = false;
+
+	/**
+	 * Stores whether plugins are in the middle of being loaded.
+	 *
+	 * @access private
+	 * @var bool
+	 */
+	private $_loadingPlugins = false;
+
+	/**
 	 * Stores all plugins, whether installed or not.
 	 *
 	 * @access private
@@ -55,44 +71,60 @@ class PluginsService extends BaseApplicationComponent
 	private $_pluginComponentClasses = array();
 
 	/**
-	 * Holds a list of all of the enabled plugin active record objects indexed by the plugin class name.
+	 * Holds a list of all of the enabled plugin info indexed by the plugin class name.
 	 *
 	 * @access private
 	 * @var array
 	 */
-	private $_enabledPluginRecords = array();
+	private $_enabledPluginInfo = array();
 
 	/**
-	 * Init
+	 * Returns whether plugins have been loaded yet for this request.
+	 *
+	 * @return bool
 	 */
-	public function init()
+	public function arePluginsLoaded()
 	{
-		if (Craft::isInstalled())
-		{
-			// Find all of the enabled plugins
-			$records = PluginRecord::model()->findAllByAttributes(array(
-				'enabled' => true
-			));
+		return $this->_pluginsLoaded;
+	}
 
-			foreach ($records as $record)
-			{
-				$this->_enabledPluginRecords[$record->class] = $record;
-			}
+	/**
+	 * Loads the enabled plugins.
+	 */
+	public function loadPlugins()
+	{
+		if (!$this->_pluginsLoaded && !$this->_loadingPlugins)
+		{
+			// Prevent this function from getting called twice.
+			$this->_loadingPlugins = true;
+
+			// Find all of the enabled plugins
+			$rows = craft()->db->createCommand()
+				->select('id, class, version, settings, installDate')
+				->from('plugins')
+				->where('enabled=1')
+				->queryAll();
 
 			$names = array();
 
-			foreach ($this->_enabledPluginRecords as $record)
+			foreach ($rows as $row)
 			{
-				$plugin = $this->_getPlugin($record->class);
+				$plugin = $this->_getPlugin($row['class']);
 
 				if ($plugin)
 				{
+					// Clean it up a bit
+					$row['settings'] = JsonHelper::decode($row['settings']);
+					$row['installDate'] = DateTime::createFromString($row['installDate']);
+
+					$this->_enabledPluginInfo[$row['class']] = $row;
+
 					$lcPluginHandle = strtolower($plugin->getClassHandle());
 					$this->_plugins[$lcPluginHandle] = $plugin;
 					$this->_enabledPlugins[$lcPluginHandle] = $plugin;
 					$names[] = $plugin->getName();
 
-					$plugin->setSettings($record->settings);
+					$plugin->setSettings($row['settings']);
 
 					$plugin->isInstalled = true;
 					$plugin->isEnabled = true;
@@ -111,6 +143,12 @@ class PluginsService extends BaseApplicationComponent
 			{
 				$plugin->init();
 			}
+
+			$this->_pluginsLoaded = true;
+			$this->_loadingPlugins = false;
+
+			// Fire an 'onLoadPlugins' event
+			$this->onLoadPlugins(new Event($this));
 		}
 	}
 
@@ -210,7 +248,7 @@ class PluginsService extends BaseApplicationComponent
 
 							if ($plugin)
 							{
-								$this->_allPlugins[] = $plugin;
+								$this->_allPlugins[strtolower($handle)] = $plugin;
 								$names[] = $plugin->getName();
 							}
 						}
@@ -321,12 +359,12 @@ class PluginsService extends BaseApplicationComponent
 		try
 		{
 			// Add the plugins as a record to the database.
-			$record = new PluginRecord();
-			$record->class = $plugin->getClassHandle();
-			$record->version = $plugin->version;
-			$record->enabled = true;
-			$record->installDate = DateTimeHelper::currentTimeStamp();
-			$record->save();
+			craft()->db->createCommand()->insert('plugins', array(
+				'class'       => $plugin->getClassHandle(),
+				'version'     => $plugin->version,
+				'enabled'     => true,
+				'installDate' => DateTimeHelper::currentTimeForDb(),
+			));
 
 			$plugin->isInstalled = true;
 			$plugin->isEnabled = true;
@@ -411,22 +449,19 @@ class PluginsService extends BaseApplicationComponent
 	 * @param mixed $settings
 	 * @return bool
 	 */
-	public function savePluginSettings($plugin, $settings)
+	public function savePluginSettings(BasePlugin $plugin, $settings)
 	{
-		$record = PluginRecord::model()->findByAttributes(array(
+		// Give the plugin a chance to modify the settings
+		$settings = $plugin->prepSettings($settings);
+		$settings = JsonHelper::encode($settings);
+
+		$affectedRows = craft()->db->createCommand()->update('plugins', array(
+			'settings' => $settings
+		), array(
 			'class' => $plugin->getClassHandle()
 		));
 
-		if ($record)
-		{
-			// Give the plugin a chance to modify the settings
-			$record->settings = $plugin->prepSettings($settings);
-			$record->save();
-
-			return true;
-		}
-
-		return false;
+		return (bool) $affectedRows;
 	}
 
 	/**
@@ -465,10 +500,10 @@ class PluginsService extends BaseApplicationComponent
 	 * @param string $method
 	 * @param array $args
 	 * @return array
+	 * @deprecated Deprecated since 1.0
 	 */
 	public function callHook($method, $args = array())
 	{
-		// TODO: Remove for 2.0
 		Craft::log('The craft()->plugins->callHook() method has been deprecated. Use craft()->plugins->call() instead.', LogLevel::Warning);
 		return $this->call($method, $args);
 	}
@@ -539,15 +574,16 @@ class PluginsService extends BaseApplicationComponent
 	/**
 	 * Returns whether the given plugin's local version number is greater than the record we have in the database.
 	 *
-	 * @param $plugin
+	 * @param BasePlugin $plugin
 	 * @return bool
 	 */
-	public function doesPluginRequireDatabaseUpdate($plugin)
+	public function doesPluginRequireDatabaseUpdate(BasePlugin $plugin)
 	{
-		// If the plugin is not set here, it's not enabled.
-		if ($this->getPluginRecord($plugin))
+		$storedPluginInfo = $this->getPluginInfo($plugin);
+
+		if ($storedPluginInfo)
 		{
-			if (version_compare($plugin->getVersion(), $this->_enabledPluginRecords[$plugin->getClassHandle()]->version, '>'))
+			if (version_compare($plugin->getVersion(), $storedPluginInfo['version'], '>'))
 			{
 				return true;
 			}
@@ -557,18 +593,32 @@ class PluginsService extends BaseApplicationComponent
 	}
 
 	/**
-	 * @param $plugin
-	 * @return bool
+	 * Returns an array of the stored info for a given plugin.
+	 *
+	 * @param BasePlugin $plugin
+	 * @return array|null
 	 */
-	public function getPluginRecord($plugin)
+	public function getPluginInfo(BasePlugin $plugin)
 	{
-		if (isset($this->_enabledPluginRecords[$plugin->getClassHandle()]))
+		if (isset($this->_enabledPluginInfo[$plugin->getClassHandle()]))
 		{
-			return $this->_enabledPluginRecords[$plugin->getClassHandle()];
+			return $this->_enabledPluginInfo[$plugin->getClassHandle()];
 		}
-
-		return false;
 	}
+
+	// Events
+
+	/**
+	 * Fires an 'onLoadPlugins' event.
+	 *
+	 * @param Event $event
+	 */
+	public function onLoadPlugins(Event $event)
+	{
+		$this->raiseEvent('onLoadPlugins', $event);
+	}
+
+	// Private Methods
 
 	/**
 	 * Throws a "no plugin exists" exception.

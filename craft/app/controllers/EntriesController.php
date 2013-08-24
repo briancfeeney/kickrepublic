@@ -202,8 +202,7 @@ class EntriesController extends BaseController
 		$hasErrors = ($variables['entry']->hasErrors() && (
 			$variables['entry']->getErrors('slug') ||
 			$variables['entry']->getErrors('postDate') ||
-			$variables['entry']->getErrors('expiryDate') ||
-			$variables['entry']->getErrors('tags')
+			$variables['entry']->getErrors('expiryDate')
 		));
 
 		// Enable preview mode?
@@ -229,7 +228,7 @@ class EntriesController extends BaseController
 			if ($templateExists)
 			{
 				craft()->templates->includeJsResource('js/EntryPreviewMode.js');
-				craft()->templates->includeJs('new Craft.EntryPreviewMode('.JsonHelper::encode($variables['entry']->getUrl()).');');
+				craft()->templates->includeJs('new Craft.EntryPreviewMode('.JsonHelper::encode($variables['entry']->getUrl()).', "'.$variables['entry']->locale.'");');
 				$variables['showPreviewBtn'] = true;
 			}
 		}
@@ -251,6 +250,8 @@ class EntriesController extends BaseController
 	public function actionPreviewEntry()
 	{
 		$this->requirePostRequest();
+
+		craft()->setLanguage(craft()->request->getPost('locale'));
 
 		$entry = $this->_populateEntryModel();
 
@@ -296,7 +297,7 @@ class EntriesController extends BaseController
 			if (craft()->request->isAjaxRequest())
 			{
 				$return['success']   = true;
-				$return['entry']     = $entry->getAttributes();
+				$return['title']     = $entry->title;
 				$return['cpEditUrl'] = $entry->getCpEditUrl();
 				$return['author']    = $entry->getAuthor()->getAttributes();
 				$return['postDate']  = ($entry->postDate ? $entry->postDate->localeDate() : null);
@@ -386,15 +387,15 @@ class EntriesController extends BaseController
 		$entry->locale     = craft()->request->getPost('locale', craft()->i18n->getPrimarySiteLocaleId());
 		$entry->id         = craft()->request->getPost('entryId');
 		$entry->authorId   = craft()->request->getPost('author', craft()->userSession->getUser()->id);
-		$entry->title      = craft()->request->getPost('title');
 		$entry->slug       = craft()->request->getPost('slug');
 		$entry->postDate   = (($postDate   = craft()->request->getPost('postDate'))   ? DateTime::createFromString($postDate,   craft()->timezone) : null);
 		$entry->expiryDate = (($expiryDate = craft()->request->getPost('expiryDate')) ? DateTime::createFromString($expiryDate, craft()->timezone) : null);
 		$entry->enabled    = (bool)craft()->request->getPost('enabled');
-		$entry->tags       = craft()->request->getPost('tags');
+
+		$entry->getContent()->title = craft()->request->getPost('title');
 
 		$fields = craft()->request->getPost('fields');
-		$entry->setContent($fields);
+		$entry->getContent()->setAttributes($fields);
 
 		return $entry;
 	}

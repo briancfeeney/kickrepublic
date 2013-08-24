@@ -29,9 +29,10 @@ interface IFieldType extends ISavableComponentType
 	public function getInputHtml($name, $value);
 
 	/**
+	 * @param mixed $value
 	 * @return mixed
 	 */
-	public function getPostData();
+	public function prepValueFromPost($value);
 
 	/**
 	 */

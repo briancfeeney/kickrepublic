@@ -83,7 +83,7 @@ class ResourcesService extends BaseApplicationComponent
 							IOHelper::ensureFolderExists($sizedPhotoFolder);
 
 							craft()->images->loadImage($originalPhotoPath)
-								->resizeTo($size)
+								->resize($size)
 								->saveAs($sizedPhotoPath);
 						}
 

@@ -151,14 +151,15 @@ class EntryRevisionsController extends BaseController
 	 */
 	private function _setDraftValuesFromPost(EntryDraftModel $draft)
 	{
-		$draft->title      = craft()->request->getPost('title');
 		$draft->slug       = craft()->request->getPost('slug');
 		$draft->postDate   = craft()->request->getPost('postDate');
 		$draft->expiryDate = craft()->request->getPost('expiryDate');
 		$draft->enabled    = (bool)craft()->request->getPost('enabled');
-		$draft->tags       = craft()->request->getPost('tags');
 
-		$draft->setContent(craft()->request->getPost('fields'));
+		$draft->getContent()->title = craft()->request->getPost('title');
+
+		$fields = craft()->request->getPost('fields');
+		$draft->getContent()->setAttributes($fields);
 
 		if (Craft::hasPackage(CraftPackage::Users))
 		{

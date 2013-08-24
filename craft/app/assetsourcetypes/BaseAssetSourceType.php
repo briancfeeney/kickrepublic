@@ -291,13 +291,13 @@ abstract class BaseAssetSourceType extends BaseSavableComponentType
 
 		if ($response->isSuccess())
 		{
-			$filename = pathinfo($response->getDataItem('filePath'), PATHINFO_BASENAME);
+			$filename = IOHelper::getFileName($response->getDataItem('filePath'));
 
 			$fileModel = new AssetFileModel();
 			$fileModel->sourceId = $this->model->id;
 			$fileModel->folderId = $folder->id;
-			$fileModel->filename = pathinfo($filename, PATHINFO_BASENAME);
-			$fileModel->kind = IOHelper::getFileKind(pathinfo($filename, PATHINFO_EXTENSION));
+			$fileModel->filename = IOHelper::getFileName($filename);
+			$fileModel->kind = IOHelper::getFileKind(IOHelper::getExtension($filename));
 			$fileModel->size = filesize($filePath);
 			$fileModel->dateModified = IOHelper::getLastTimeModified($filePath);
 
@@ -313,7 +313,7 @@ abstract class BaseAssetSourceType extends BaseSavableComponentType
 			if (!$this->isSourceLocal() && $fileModel->kind == 'image')
 			{
 				// Store copy locally for all sorts of operations.
-				IOHelper::copyFile($filePath, craft()->path->getAssetsImageSourcePath().$fileModel->id.'.'.pathinfo($fileModel, PATHINFO_EXTENSION));
+				IOHelper::copyFile($filePath, craft()->path->getAssetsImageSourcePath().$fileModel->id.'.'.IOHelper::getExtension($fileModel->filename));
 			}
 
 			// Check if we stored a conflict response originally - send that back then.
@@ -383,7 +383,7 @@ abstract class BaseAssetSourceType extends BaseSavableComponentType
 			if (!$this->isSourceLocal() && $file->kind == "image")
 			{
 				// Store copy locally for all sorts of operations.
-				IOHelper::copyFile($localCopy, craft()->path->getAssetsImageSourcePath().$file->id.'.'.pathinfo($file, PATHINFO_EXTENSION));
+				IOHelper::copyFile($localCopy, craft()->path->getAssetsImageSourcePath().$file->id.'.'.IOHelper::getExtension($file));
 			}
 		}
 
@@ -626,7 +626,7 @@ abstract class BaseAssetSourceType extends BaseSavableComponentType
 				$localCopy = $this->getLocalCopy($replaceWith);
 				if ($oldFile->kind == "image")
 				{
-					IOHelper::copyFile($localCopy, craft()->path->getAssetsImageSourcePath().$oldFile->id.'.'.pathinfo($oldFile, PATHINFO_EXTENSION));
+					IOHelper::copyFile($localCopy, craft()->path->getAssetsImageSourcePath().$oldFile->id.'.'.IOHelper::getExtension($oldFile));
 				}
 				IOHelper::deleteFile($localCopy);
 			}
@@ -679,7 +679,7 @@ abstract class BaseAssetSourceType extends BaseSavableComponentType
 		}
 
 		// Delete DB record and the file itself.
-		craft()->assets->deleteFileRecord($file->id);
+		craft()->elements->deleteElementById($file->id);
 		$this->_deleteSourceFile($file->getFolder(), $file->filename);
 
 		$response = new AssetOperationResponseModel();
@@ -829,7 +829,9 @@ abstract class BaseAssetSourceType extends BaseSavableComponentType
 
 		$response->setDataItem('changedFolderIds', $mirroringData['changedFolderIds']);
 
-		$files = craft()->assets->findFiles(array('folderId' => array_keys(craft()->assets->getAllChildFolders($folder))));
+		$criteria = craft()->elements->getCriteria(ElementType::Asset);
+		$criteria->folderId = array_keys(craft()->assets->getAllChildFolders($folder));
+		$files = $criteria->find();
 
 		$transferList = array();
 		foreach ($files as $file)
@@ -888,11 +890,10 @@ abstract class BaseAssetSourceType extends BaseSavableComponentType
 	 */
 	public function deleteFolder(AssetFolderModel $folder)
 	{
-
 		// Get rid of children files
-		$files = craft()->assets->findFiles(array(
-			'folderId' => $folder->id
-		));
+		$criteria = craft()->elements->getCriteria(ElementType::Asset);
+		$criteria->folderId = $folder->id;
+		$files = $criteria->find();
 
 		foreach ($files as $file)
 		{

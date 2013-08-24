@@ -104,42 +104,56 @@ class UsersController extends BaseController
 	{
 		$this->requirePostRequest();
 
-		$loginName = craft()->request->getRequiredPost('loginName');
+		$loginName = craft()->request->getPost('loginName');
+		$errors = array();
 
-		$user = craft()->users->getUserByUsernameOrEmail($loginName);
-
-		if ($user)
+		if (!$loginName)
 		{
-			if (craft()->users->sendForgotPasswordEmail($user))
+			$errors[] = Craft::t('Username or email is required.');
+		}
+		else
+		{
+			$user = craft()->users->getUserByUsernameOrEmail($loginName);
+
+			if ($user)
 			{
-				if (craft()->request->isAjaxRequest())
+				if (craft()->users->sendForgotPasswordEmail($user))
 				{
-					$this->returnJson(array('success' => true));
+					if (craft()->request->isAjaxRequest())
+					{
+						$this->returnJson(array('success' => true));
+					}
+					else
+					{
+						craft()->userSession->setNotice(Craft::t('Check your email for instructions to reset your password.'));
+						$this->redirectToPostedUrl();
+					}
 				}
 				else
 				{
-					craft()->userSession->setNotice(Craft::t('Check your email for instructions to reset your password.'));
-					$this->redirectToPostedUrl();
+					$errors[] = Craft::t('There was a problem sending the forgot password email.');
 				}
 			}
 			else
 			{
-				$error = Craft::t('There was a problem sending the forgot password email.');
+				$errors[] = Craft::t('Invalid username or email.');
 			}
-		}
-		else
-		{
-			$error = Craft::t('Invalid username or email.');
 		}
 
 		if (craft()->request->isAjaxRequest())
 		{
-			$this->returnErrorJson($error);
+			$this->returnErrorJson($errors);
 		}
 		else
 		{
-			craft()->userSession->setError($error);
+			// Send the data back to the template
+			craft()->urlManager->setRouteVariables(array(
+				'errors' => $errors,
+				'loginName'   => $loginName,
+			));
 		}
+
+
 	}
 
 	/**
@@ -165,7 +179,7 @@ class UsersController extends BaseController
 
 			if (!$user)
 			{
-				throw new Exception(Craft::t('Invalid verification code.'));
+				throw new HttpException('200', Craft::t('Invalid verification code.'));
 			}
 
 			$newPassword = craft()->request->getRequiredPost('newPassword');
@@ -182,8 +196,18 @@ class UsersController extends BaseController
 					Craft::log('Tried to automatically log in after a password update, but could not: '.$errorMessage, LogLevel::Warning);
 				}
 
-				craft()->userSession->setNotice(Craft::t('Password updated.'));
-				$this->redirectToPostedUrl();
+				// If the user can't access the CP, then send them to the front-end setPasswordSuccessPath.
+				if (!$user->can('accessCp'))
+				{
+					// No password reset required and they have permissions to access the CP, so send them to the login page.
+					$url = UrlHelper::getUrl(craft()->config->get('setPasswordSuccessPath'));
+					$this->redirect($url);
+				}
+				else
+				{
+					craft()->userSession->setNotice(Craft::t('Password updated.'));
+					$this->redirectToPostedUrl();
+				}
 			}
 			else
 			{
@@ -208,7 +232,7 @@ class UsersController extends BaseController
 				throw new HttpException(404);
 			}
 
-			$template = craft()->users->getSetPasswordUrl($code, $id, false);
+			$template = craft()->config->getSetPasswordPath($code, $id, false);
 
 			$this->renderTemplate($template, array(
 				'code' => $code,
@@ -243,32 +267,22 @@ class UsersController extends BaseController
 			}
 			else
 			{
-				throw new Exception(Craft::t('Invalid verification code.'));
+				throw new HttpException('200', Craft::t('Invalid verification code.'));
 			}
 		}
 
 		if (craft()->users->activateUser($user))
 		{
-			// Successfully activated user, do they require a password reset?
-			if ($user->passwordResetRequired || !$user->password)
+			// All users that go through account activation will need to set their password.
+			$code = craft()->users->setVerificationCodeOnUser($user);
+
+			if ($user->can('accessCp'))
 			{
-				// Password reset required, generating a new verification code and sending to the setPassword url.
-				$code = craft()->users->setVerificationCodeOnUser($user);
-				$url = craft()->users->getSetPasswordUrl($code, $id);
+				$url = craft()->config->getSetPasswordPath($code, $id, true, 'cp');
 			}
 			else
 			{
-				// No password reset required.
-				if (($url = craft()->config->get('activateSuccessPath')) != '')
-				{
-					// They have specified a custom validate success path, use it.
-					$url = UrlHelper::getSiteUrl(craft()->config->get('activateSuccessPath'));
-				}
-				else
-				{
-					// No password reset required and no custom validate success path.  Send to login page.
-					$url = UrlHelper::getUrl(craft()->config->get('loginPath'));
-				}
+				$url = craft()->config->getSetPasswordPath($code, $id);
 			}
 		}
 		else
@@ -276,7 +290,7 @@ class UsersController extends BaseController
 			if (($url = craft()->config->get('activateFailurePath')) === '')
 			{
 				// Failed to validate user and there is no custom validation failure path.  Throw an exception.
-				throw new Exception(Craft::t('There was a problem activating this account.'));
+				throw new HttpException('200', Craft::t('There was a problem activating this account.'));
 			}
 			else
 			{
@@ -311,7 +325,7 @@ class UsersController extends BaseController
 		}
 
 		$publicRegistration = false;
-		$valid = true;
+		$canRegisterUsers = false;
 
 		// Are we editing an existing user?
 		if ($userId)
@@ -330,34 +344,44 @@ class UsersController extends BaseController
 		}
 		else
 		{
+			// Users package is required
+			Craft::requirePackage(CraftPackage::Users);
+
 			// Are they already logged in?
 			if (craft()->userSession->getUser())
 			{
-				// Make sure they have permission to register users
+				// Make sure they have permission to register users, regardless of if public registration is enabled or not.
 				craft()->userSession->requirePermission('registerUsers');
+				$canRegisterUsers = true;
 			}
 			else
 			{
-				// Make sure that public registration is allowed
+				// Is public registration enabled?
 				if (craft()->systemSettings->getSetting('users', 'allowPublicRegistration', false))
 				{
 					$publicRegistration = true;
 				}
-				else
-				{
-					// Sorry pal.
-					throw new HttpException(403);
-				}
+			}
+
+			// If there is no public registration and the current user can't register users, complain loudly.
+			if (!$publicRegistration && !$canRegisterUsers)
+			{
+				// Sorry pal.
+				throw new HttpException(403);
 			}
 
 			$user = new UserModel();
 		}
 
 		// Can only change sensitive fields if you are an admin or this is your account.
-		if (craft()->userSession->isAdmin() || ($userId && $userId == craft()->userSession->getUser()->id))
+		if (craft()->userSession->isAdmin() || $user->isCurrent())
 		{
 			// Validate stuff.
-			$valid = $this->_validateSensitiveFields($userId, $user, $publicRegistration);
+			$valid = $this->_validateSensitiveFields($userId, $user, $publicRegistration || $canRegisterUsers);
+		}
+		else
+		{
+			$valid = true;
 		}
 
 		if ($valid)
@@ -368,15 +392,15 @@ class UsersController extends BaseController
 			{
 				$user->email = craft()->request->getPost('email');
 
-				// If it is a new user and public registration is enabled, grab the password from post.
-				if ($publicRegistration)
+				// If it is a new user, grab the password from post.
+				if (!$userId && !craft()->request->isCpRequest())
 				{
 					$user->newPassword = craft()->request->getPost('password');
 				}
 			}
 
 			// If no username was provided, set it to the email.
-			$userName = $userName === null ? $user->email : $userName;
+			$userName = $userName == null ? $user->email : $userName;
 
 			$user->username = $userName;
 			$user->firstName       = craft()->request->getPost('firstName');
@@ -401,13 +425,7 @@ class UsersController extends BaseController
 				{
 					if ($publicRegistration)
 					{
-						// Assign them to the default user group, if any
-						$defaultGroup = craft()->systemSettings->getSetting('users', 'defaultGroup');
-
-						if ($defaultGroup)
-						{
-							craft()->userGroups->assignUserToGroups($user->id, array($defaultGroup));
-						}
+						$this->_assignDefaultGroupToUser($user->id);
 					}
 
 					craft()->userSession->setNotice(Craft::t('User saved.'));
@@ -429,6 +447,12 @@ class UsersController extends BaseController
 			catch (\phpmailerException $e)
 			{
 				craft()->userSession->setError(Craft::t('Registered user, but couldn’t send activation email. Check your email settings.'));
+
+				// Still assign the default group
+				if (($publicRegistration || $canRegisterUsers) && !craft()->request->isCpRequest())
+				{
+					$this->_assignDefaultGroupToUser($user->id);
+				}
 			}
 		}
 
@@ -460,8 +484,8 @@ class UsersController extends BaseController
 			throw new Exception(Craft::t('No user exists with the ID “{id}”.', array('id' => $userId)));
 		}
 
-		$fields = craft()->request->getPost('fields', array());
-		$user->setContent($fields);
+		$fields = craft()->request->getPost('fields');
+		$user->getContent()->setAttributes($fields);
 
 		if (craft()->users->saveProfile($user))
 		{
@@ -911,29 +935,46 @@ class UsersController extends BaseController
 				{
 					if ($this->_validateCurrentPassword($password))
 					{
-						$user->email = $email;
+						if (!$email)
+						{
+							$user->addError('email', Craft::t('Email address is required.'));
+						}
+						else
+						{
+							$user->email = $email;
+						}
 					}
 					else
 					{
 						Craft::log('Tried to change password for userId: '.$user->id.', but the current password does not match what the user supplied.', LogLevel::Warning);
 						$user->addError('currentPassword', Craft::t('Incorrect current password.'));
-						return false;
 					}
 				}
 				else
 				{
 					Craft::log('Tried to change the email for userId: '.$user->id.', but the did not supply the existing password.', LogLevel::Warning);
 					$user->addError('currentPassword', Craft::t('You must supply your existing password.'));
-					return false;
 				}
 			}
 		}
 
 		// If public registration is enabled, make sure it's a new user before we set the password.
-		if ($publicRegistration && !$user->id)
+		if ($publicRegistration && !$user->id && !craft()->request->isCpRequest())
 		{
-			// Force newPassword to be a string so it gets validated.
-			$user->newPassword = (string) craft()->request->getPost('password');
+			$password = (string)craft()->request->getPost('password');
+
+			// Validate the password.
+			$passwordModel = new PasswordModel();
+			$passwordModel->password = $password;
+
+			if ($passwordModel->validate())
+			{
+				$user->password = $password;
+			}
+			else
+			{
+				$user->addError('password', $passwordModel->getError('password'));
+			}
 		}
 		else
 		{
@@ -947,24 +988,47 @@ class UsersController extends BaseController
 				{
 					if ($this->_validateCurrentPassword($password))
 					{
-						$user->newPassword = (string)$newPassword;
+						$newPasswordModel = new PasswordModel();
+						$newPasswordModel->password = $newPassword;
+
+						if ($newPasswordModel->validate())
+						{
+							$user->newPassword = (string)$newPassword;
+						}
+						else
+						{
+							$user->addError('newPassword', $newPasswordModel->getError('password'));
+						}
 					}
 					else
 					{
 						$user->addError('currentPassword', Craft::t('Incorrect current password.'));
 						Craft::log('Tried to change password for userId: '.$user->id.', but the current password does not match what the user supplied.', LogLevel::Warning);
-						return false;
 					}
 				}
 				else if ($newPassword && !$password)
 				{
 					$user->addError('currentPassword', Craft::t('You must supply your existing password.'));
 					Craft::log('Tried to change password for userId: '.$user->id.', but the did not supply the existing password.', LogLevel::Warning);
-					return false;
 				}
 			}
 		}
 
-		return true;
+		return !$user->hasErrors();
+	}
+
+	/**
+	 * @param $userId
+	 * @return void
+	 */
+	private function _assignDefaultGroupToUser($userId)
+	{
+		// Assign them to the default user group, if any
+		$defaultGroup = craft()->systemSettings->getSetting('users', 'defaultGroup');
+
+		if ($defaultGroup)
+		{
+			craft()->userGroups->assignUserToGroups($userId, array($defaultGroup));
+		}
 	}
 }

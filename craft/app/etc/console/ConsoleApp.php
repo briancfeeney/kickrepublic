@@ -60,14 +60,4 @@ class ConsoleApp extends \CConsoleApplication
 	{
 		return true;
 	}
-
-	/**
-	 * Bogus function.
-	 *
-	 * @return bool
-	 */
-	public function isDbConfigValid()
-	{
-		return true;
-	}
 }

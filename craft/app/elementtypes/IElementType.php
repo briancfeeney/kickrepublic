@@ -19,6 +19,11 @@ interface IElementType extends IComponentType
 	/**
 	 * @return bool
 	 */
+	public function hasTitles();
+
+	/**
+	 * @return bool
+	 */
 	public function hasStatuses();
 
 	/**

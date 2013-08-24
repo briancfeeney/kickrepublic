@@ -53,8 +53,10 @@ class CraftVariable
 		{
 			return true;
 		}
-
-		return false;
+		else
+		{
+			return false;
+		}
 	}
 
 	/**
@@ -101,11 +103,12 @@ class CraftVariable
 	}
 
 	/**
-	 * @return AssetsVariable
+	 * @param array|null $criteria
+	 * @return ElementCriteriaModel
 	 */
-	public function assets()
+	public function assets($criteria = null)
 	{
-		return new AssetsVariable();
+		return craft()->elements->getCriteria(ElementType::Asset, $criteria);
 	}
 
 	/**
@@ -265,6 +268,15 @@ class CraftVariable
 	public function systemSettings()
 	{
 		return new SystemSettingsVariable();
+	}
+
+	/**
+	 * @param array|null $criteria
+	 * @return ElementCriteriaModel
+	 */
+	public function tags($criteria = null)
+	{
+		return craft()->elements->getCriteria(ElementType::Tag, $criteria);
 	}
 
 	/**

@@ -84,28 +84,31 @@ class LocalAssetSourceType extends BaseAssetSourceType
 
 		$localPath = $this->_getSourceFileSystemPath();
 
-		if ($localPath == '/' || !IOHelper::folderExists($localPath))
+		if ($localPath == '/' || !IOHelper::folderExists($localPath) || $localPath === false)
 		{
 			return array('sourceId' => $this->model->id, 'error' => Craft::t('The path of your source “{source}” appears to be invalid.', array('source' => $this->model->name)));
 		}
 
 		$fileList = IOHelper::getFolderContents($localPath, true);
 
-		$fileList = array_filter($fileList, function ($value) use ($localPath)
+		if ($fileList && is_array($fileList) && count($fileList) > 0)
 		{
-			$path = substr($value, strlen($localPath));
-			$segments = explode('/', $path);
-
-			foreach ($segments as $segment)
+			$fileList = array_filter($fileList, function ($value) use ($localPath)
 			{
-				if (isset($segment[0]) && $segment[0] == '_')
-				{
-					return false;
-				}
-			}
+				$path = substr($value, strlen($localPath));
+				$segments = explode('/', $path);
 
-			return true;
-		});
+				foreach ($segments as $segment)
+				{
+					if (isset($segment[0]) && $segment[0] == '_')
+					{
+						return false;
+					}
+				}
+
+				return true;
+			});
+		}
 
 		$offset = 0;
 		$total = 0;
@@ -144,11 +147,12 @@ class LocalAssetSourceType extends BaseAssetSourceType
 	/**
 	 * Get the file system path for upload source.
 	 *
+	 * @param BaseAssetSourceType $sourceType = null
 	 * @return string
 	 */
-	private function _getSourceFileSystemPath()
+	private function _getSourceFileSystemPath(LocalAssetSourceType $sourceType = null)
 	{
-		$path = $this->getSettings()->path;
+		$path = is_null($sourceType) ? $this->getBasePath() : $sourceType->getBasePath();
 		$path = IOHelper::getRealPath($path);
 		return $path;
 	}
@@ -261,7 +265,7 @@ class LocalAssetSourceType extends BaseAssetSourceType
 
 		foreach ($fileList as $file)
 		{
-			$existingFiles[pathinfo($file, PATHINFO_BASENAME)] = true;
+			$existingFiles[IOHelper::getFileName($file)] = true;
 		}
 
 		$fileParts = explode(".", $fileName);
@@ -368,7 +372,8 @@ class LocalAssetSourceType extends BaseAssetSourceType
 	private function _getFileSystemPath(AssetFileModel $file)
 	{
 		$folder = $file->getFolder();
-		return $this->_getSourceFileSystemPath().$folder->fullPath.$file->filename;
+		$fileSourceType = craft()->assetSources->getSourceTypeById($file->sourceId);
+		return $this->_getSourceFileSystemPath($fileSourceType).$folder->fullPath.$file->filename;
 	}
 
 	/**
@@ -559,7 +564,18 @@ class LocalAssetSourceType extends BaseAssetSourceType
 	 */
 	public function getBaseUrl()
 	{
-		return $this->getSettings()->url;
+		$url = $this->getSettings()->url;
+		return craft()->config->parseEnvironmentString($url);
 	}
 
+	/**
+	 * Returns the source's base server path.
+	 *
+	 * @return string
+	 */
+	public function getBasePath()
+	{
+		$path = $this->getSettings()->path;
+		return craft()->config->parseEnvironmentString($path);
+	}
 }

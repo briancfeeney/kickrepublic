@@ -21,16 +21,6 @@ class AssetFileModel extends BaseElementModel
 	private $_transform;
 
 	/**
-	 * User the filename as the string representation.
-	 *
-	 * @return string
-	 */
-	function __toString()
-	{
-		return $this->filename;
-	}
-
-	/**
 	 * Checks if an attribute value is set.
 	 *
 	 * @param string $name
@@ -216,7 +206,7 @@ class AssetFileModel extends BaseElementModel
 	 */
 	public function getExtension()
 	{
-		return pathinfo($this->filename, PATHINFO_EXTENSION);
+		return IOHelper::getExtension($this->filename);
 	}
 
 	/**
@@ -276,7 +266,7 @@ class AssetFileModel extends BaseElementModel
 		if (!$transform->width || !$transform->height)
 		{
 			// Fill in the blank
-			list($dimensions['width'], $dimensions['height']) = Image::calculateMissingDimension($dimensions['width'], $dimensions['height'], $this->_getWidth(), $this->_getHeight());
+			list($dimensions['width'], $dimensions['height']) = ImageHelper::calculateMissingDimension($dimensions['width'], $dimensions['height'], $this->_getWidth(), $this->_getHeight());
 		}
 
 		// Special case for 'fit' since that's the only one whose dimensions vary from the transform dimensions

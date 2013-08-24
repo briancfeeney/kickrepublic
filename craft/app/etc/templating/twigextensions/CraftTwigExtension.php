@@ -180,6 +180,7 @@ class CraftTwigExtension extends \Twig_Extension
 			'renderObjectTemplate' => new \Twig_Function_Function('\Craft\craft()->templates->renderObjectTemplate'),
 			'round'                => new \Twig_Function_Function('round'),
 			'resourceUrl'          => new \Twig_Function_Function('\Craft\UrlHelper::getResourceUrl'),
+			'shuffle'              => new \Twig_Function_Method($this, 'shuffleFunction'),
 			'siteUrl'              => new \Twig_Function_Function('\Craft\UrlHelper::getSiteUrl'),
 			'url'                  => new \Twig_Function_Function('\Craft\UrlHelper::getUrl'),
 		);
@@ -208,6 +209,28 @@ class CraftTwigExtension extends \Twig_Extension
 	}
 
 	/**
+	 * Shuffles an array.
+	 *
+	 * @param mixed $arr
+	 * @return mixed
+	 */
+	public function shuffleFunction($arr)
+	{
+		if ($arr instanceof \Traversable)
+		{
+			$arr = iterator_to_array($arr, false);
+		}
+		else
+		{
+			$arr = array_merge($arr);
+		}
+
+		shuffle($arr);
+
+		return $arr;
+	}
+
+	/**
 	 * Returns a list of global variables to add to the existing list.
 	 *
 	 * @return array An array of global variables
@@ -220,8 +243,8 @@ class CraftTwigExtension extends \Twig_Extension
 		$globals['blx']   = $craftVariable;
 
 		$globals['now'] = DateTimeHelper::currentUTCDateTime();
-		$globals['loginUrl'] = UrlHelper::getUrl(craft()->config->get('loginPath'));
-		$globals['logoutUrl'] = UrlHelper::getUrl(craft()->config->get('logoutPath'));
+		$globals['loginUrl'] = UrlHelper::getUrl(craft()->config->getLoginPath());
+		$globals['logoutUrl'] = UrlHelper::getUrl(craft()->config->getLogoutPath());
 
 		if (Craft::isInstalled())
 		{

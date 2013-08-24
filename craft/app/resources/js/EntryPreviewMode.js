@@ -23,6 +23,7 @@ Craft.EntryPreviewMode = Garnish.Base.extend({
 	$fieldPlaceholder: null,
 
 	postUrl: null,
+	locale: null,
 	basePostData: null,
 	inPreviewMode: false,
 	fields: null,
@@ -31,7 +32,7 @@ Craft.EntryPreviewMode = Garnish.Base.extend({
 	loading: false,
 	checkAgain: false,
 
-	init: function(entryUrl)
+	init: function(entryUrl, locale)
 	{
 		if (entryUrl)
 		{
@@ -39,7 +40,15 @@ Craft.EntryPreviewMode = Garnish.Base.extend({
 		}
 		else
 		{
-			this.postUrl = Craft.baseSiteUrl;
+			this.postUrl = Craft.baseSiteUrl.replace(/\/+$/, '') + '/';
+		}
+
+		this.locale = locale;
+
+		// Load the preview over SSL if the current request is
+		if (document.location.protocol == 'https:')
+		{
+			this.postUrl = this.postUrl.replace(/^http:/, 'https:');
 		}
 
 		this.$form = $('#entry-form');
@@ -48,7 +57,8 @@ Craft.EntryPreviewMode = Garnish.Base.extend({
 		this.$fieldPlaceholder = $('<div/>');
 
 		this.basePostData = {
-			action: 'entries/previewEntry'
+			action: 'entries/previewEntry',
+			locale: this.locale
 		};
 
 		var $hiddenInputs = this.$form.children('input[type=hidden]');

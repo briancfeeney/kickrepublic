@@ -23,6 +23,7 @@ class ElementsService extends BaseApplicationComponent
 	 * Returns an element criteria model for a given element type.
 	 *
 	 * @param string $type
+	 * @param mixed $attributes
 	 * @return ElementCriteriaModel
 	 * @throws Exception
 	 */
@@ -42,9 +43,10 @@ class ElementsService extends BaseApplicationComponent
 	 * Finds elements.
 	 *
 	 * @param mixed $criteria
+	 * @param bool $justIds
 	 * @return array
 	 */
-	public function findElements($criteria = null)
+	public function findElements($criteria = null, $justIds = false)
 	{
 		$elements = array();
 		$subquery = $this->buildElementsQuery($criteria);
@@ -59,11 +61,21 @@ class ElementsService extends BaseApplicationComponent
 				$subquery->andWhere(array('in', 'elements.id', $filteredElementIds));
 			}
 
-			$query = craft()->db->createCommand()
-				//->select('r.id, r.type, r.expiryDate, r.enabled, r.archived, r.dateCreated, r.dateUpdated, r.locale, r.title, r.uri, r.sectionId, r.slug')
-				->select('*')
-				->from('('.$subquery->getText().') AS '.craft()->db->quoteTableName('r'))
-				->group('r.id');
+			$query = craft()->db->createCommand();
+
+			if ($justIds)
+			{
+				$query->select('r.id');
+			}
+			else
+			{
+				// Tests are showing that listing out all of the columns here is actually slower
+				// than just doing SELECT * -- probably due to the large number of columns we need to select.
+				$query->select('*');
+			}
+
+			$query->from('('.$subquery->getText().') AS '.craft()->db->quoteTableName('r'))
+			      ->group('r.id');
 
 			$query->params = $subquery->params;
 
@@ -96,20 +108,37 @@ class ElementsService extends BaseApplicationComponent
 				array_multisort($searchPositions, $result);
 			}
 
-			$elementType = $criteria->getElementType();
-			$indexBy = $criteria->indexBy;
-
-			foreach ($result as $row)
+			if ($justIds)
 			{
-				$element = $elementType->populateElementModel($row);
-
-				if ($indexBy)
+				foreach ($result as $row)
 				{
-					$elements[$element->$indexBy] = $element;
+					$elements[] = $row['id'];
 				}
-				else
+			}
+			else
+			{
+				$elementType = $criteria->getElementType();
+				$indexBy = $criteria->indexBy;
+
+				foreach ($result as $row)
 				{
-					$elements[] = $element;
+					// The locale column might be null since the element_i18n table was left-joined into the query,
+					// In that case it should be removed from the $row array so that the default value can be used.
+					if (!$row['locale'])
+					{
+						unset($row['locale']);
+					}
+
+					$element = $elementType->populateElementModel($row);
+
+					if ($indexBy)
+					{
+						$elements[$element->$indexBy] = $element;
+					}
+					else
+					{
+						$elements[] = $element;
+					}
 				}
 			}
 		}
@@ -118,7 +147,7 @@ class ElementsService extends BaseApplicationComponent
 	}
 
 	/**
-	 * Gets the total number of elements.
+	 * Returns the total number of elements that match a given criteria.
 	 *
 	 * @param mixed $criteria
 	 * @return int
@@ -159,14 +188,35 @@ class ElementsService extends BaseApplicationComponent
 
 		$elementType = $criteria->getElementType();
 
+		if ($criteria->source)
+		{
+			$sources = $elementType->getSources();
+			$sourceCriteria = $this->_getSourceCriteria($sources, $criteria->source);
+
+			if ($sourceCriteria !== null)
+			{
+				$criteria->setAttributes($sourceCriteria);
+			}
+			else
+			{
+				return false;
+			}
+		}
+
 		$query = craft()->db->createCommand()
 			->select('elements.id, elements.type, elements.enabled, elements.archived, elements.dateCreated, elements.dateUpdated, elements_i18n.locale, elements_i18n.uri')
 			->from('elements elements');
 
+		if ($elementType->hasTitles() && $criteria)
+		{
+			$query->addSelect('content.title');
+			$query->join('content content', 'content.elementId = elements.id');
+		}
+
+		$query->leftJoin('elements_i18n elements_i18n', 'elements_i18n.elementId = elements.id');
+
 		if ($elementType->isTranslatable())
 		{
-			$query->join('elements_i18n elements_i18n', 'elements_i18n.elementId = elements.id');
-
 			// Locale conditions
 			if (!$criteria->locale)
 			{
@@ -200,10 +250,6 @@ class ElementsService extends BaseApplicationComponent
 				$query->andWhere("{$quotedLocaleColumn} IN (".implode(', ', $quotedLocales).')');
 				$query->order($localeOrder);
 			}
-		}
-		else
-		{
-			$query->leftJoin('elements_i18n elements_i18n', 'elements.id = elements_i18n.elementId');
 		}
 
 		// The rest
@@ -363,6 +409,11 @@ class ElementsService extends BaseApplicationComponent
 	 */
 	public function deleteElementById($elementId)
 	{
+		if (!$elementId)
+		{
+			return false;
+		}
+
 		if (is_array($elementId))
 		{
 			$condition = array('in', 'id', $elementId);
@@ -372,9 +423,9 @@ class ElementsService extends BaseApplicationComponent
 			$condition = array('id' => $elementId);
 		}
 
-		craft()->db->createCommand()->delete('elements', $condition);
+		$affectedRows = craft()->db->createCommand()->delete('elements', $condition);
 
-		return true;
+		return (bool) $affectedRows;
 	}
 
 	// Element types
@@ -405,6 +456,41 @@ class ElementsService extends BaseApplicationComponent
 	// =================
 
 	/**
+	 * Returns the criteria for a given source.
+	 *
+	 * @param array  $sources
+	 * @param string $selectedSource
+	 * @return array|null
+	 */
+	private function _getSourceCriteria($sources, $selectedSource)
+	{
+		if (isset($sources[$selectedSource]))
+		{
+			if (isset($sources[$selectedSource]['criteria']))
+			{
+				return $sources[$selectedSource]['criteria'];
+			}
+			else
+			{
+				return array();
+			}
+		}
+		else
+		{
+			// Look through any nested sources
+			foreach ($sources as $key => $source)
+			{
+				if (!empty($source['nested']) && ($nestedSourceCriteria = $this->_getSourceCriteria($source['nested'], $selectedSource)))
+				{
+					return $nestedSourceCriteria;
+				}
+			}
+		}
+
+		return null;
+	}
+
+	/**
 	 * Normalizes parentOf and childOf criteria params,
 	 * allowing them to be set to ElementCriteriaModel's,
 	 * and swapping them with their IDs.
@@ -415,34 +501,49 @@ class ElementsService extends BaseApplicationComponent
 	 */
 	private function _normalizeRelationParams($elements, $fields)
 	{
+		$elementIds = array();
+		$fieldIds = array();
+
 		// Normalize the element(s)
 		$elements = ArrayHelper::stringToArray($elements);
 
-		foreach ($elements as &$element)
+		foreach ($elements as $element)
 		{
-			if ($element instanceof BaseElementModel)
+			if (is_numeric($element) && intval($element) == $element)
 			{
-				$element = $element->id;
+				$elementIds[] = $element;
+			}
+			else if ($element instanceof BaseElementModel)
+			{
+				$elementIds[] = $element->id;
+			}
+			else if ($element instanceof ElementCriteriaModel)
+			{
+				$elementIds = array_merge($elementIds, $element->ids());
 			}
 		}
 
 		// Normalize the field(s)
 		$fields = ArrayHelper::stringToArray($fields);
 
-		foreach ($fields as &$field)
+		foreach ($fields as $field)
 		{
-			if (is_string($field) && !is_numeric($field))
+			if (is_numeric($field) && intval($field) == $field)
+			{
+				$fieldIds[] = $field;
+			}
+			else if (is_string($field))
 			{
 				$fieldModel = craft()->fields->getFieldByHandle($field);
 
 				if ($fieldModel)
 				{
-					$field = $fieldModel->id;
+					$fieldIds[] = $fieldModel->id;
 				}
 			}
 		}
 
-		return array($elements, $fields);
+		return array($elementIds, $fieldIds);
 	}
 
 	/**

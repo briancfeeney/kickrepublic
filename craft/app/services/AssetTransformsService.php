@@ -119,7 +119,7 @@ class AssetTransformsService extends BaseApplicationComponent
 	 */
 	public function updateTransforms(AssetFileModel $fileModel, $transformsToUpdate)
 	{
-		if (!in_array(IOHelper::getExtension($fileModel), Image::getAcceptedExtensions()))
+		if (!in_array(IOHelper::getExtension($fileModel->filename), ImageHelper::getAcceptedExtensions()))
 		{
 			return true;
 		}
@@ -159,7 +159,7 @@ class AssetTransformsService extends BaseApplicationComponent
 
 					case 'stretch':
 					{
-						craft()->images->loadImage($imageSource)->resizeTo($transform->width, $transform->height)->saveAs($targetFile);
+						craft()->images->loadImage($imageSource)->resize($transform->width, $transform->height)->saveAs($targetFile);
 						break;
 					}
 
@@ -318,6 +318,7 @@ class AssetTransformsService extends BaseApplicationComponent
 	 *
 	 * @param mixed $transform
 	 * @return AssetTransformModel|null
+	 * @throws Exception
 	 */
 	public function normalizeTransform($transform)
 	{
@@ -327,7 +328,12 @@ class AssetTransformsService extends BaseApplicationComponent
 		}
 		else if (is_string($transform))
 		{
-			return $this->getTransformByHandle($transform);
+			$transformModel =  $this->getTransformByHandle($transform);
+			if ($transformModel)
+			{
+				return $transformModel;
+			}
+			throw new Exception(Craft::t("The transform “{handle}” cannot be found!", array('handle' => $transform)));
 		}
 		else if ($transform instanceof AssetTransformModel)
 		{
@@ -414,7 +420,7 @@ class AssetTransformsService extends BaseApplicationComponent
 		$sourceType = craft()->assetSources->getSourceTypeById($file->sourceId);
 		$baseUrl = $sourceType->getBaseUrl();
 		$folderPath = $baseUrl.$file->getFolder()->fullPath;
-		$transformPath = craft()->assetTransforms->getTransformSubpath($transform);
+		$transformPath = $this->getTransformSubpath($transform);
 
 		return $folderPath.$transformPath.$file->filename;
 	}

@@ -287,7 +287,7 @@ class UsersService extends BaseApplicationComponent
 				craft()->templates->registerTwigAutoloader();
 
 				craft()->email->sendEmailByKey($user, 'account_activation', array(
-					'link' => new \Twig_Markup($this->getActivateAccountUrl($unhashedVerificationCode, $userRecord->uid), craft()->templates->getTwig()->getCharset()),
+					'link' => new \Twig_Markup(craft()->config->getActivateAccountPath($unhashedVerificationCode, $userRecord->uid), craft()->templates->getTwig()->getCharset()),
 				));
 			}
 
@@ -303,26 +303,6 @@ class UsersService extends BaseApplicationComponent
 		{
 			return false;
 		}
-	}
-
-	/**
-	 * Fires an 'onBeforeSaveUser' event.
-	 *
-	 * @param Event $event
-	 */
-	public function onBeforeSaveUser(Event $event)
-	{
-		$this->raiseEvent('onBeforeSaveUser', $event);
-	}
-
-	/**
-	 * Fires an 'onSaveUser' event.
-	 *
-	 * @param Event $event
-	 */
-	public function onSaveUser(Event $event)
-	{
-		$this->raiseEvent('onSaveUser', $event);
 	}
 
 	/**
@@ -374,7 +354,7 @@ class UsersService extends BaseApplicationComponent
 		craft()->templates->registerTwigAutoloader();
 
 		return craft()->email->sendEmailByKey($user, 'account_activation', array(
-			'link' => new \Twig_Markup($this->getActivateAccountUrl($unhashedVerificationCode, $userRecord->uid), craft()->templates->getTwig()->getCharset()),
+			'link' => new \Twig_Markup(craft()->config->getActivateAccountPath($unhashedVerificationCode, $userRecord->uid), craft()->templates->getTwig()->getCharset()),
 		));
 	}
 
@@ -398,7 +378,7 @@ class UsersService extends BaseApplicationComponent
 		IOHelper::ensureFolderExists($userPhotoFolder);
 		IOHelper::ensureFolderExists($targetFolder);
 
-		$filename = pathinfo($source, PATHINFO_BASENAME);
+		$filename = IOHelper::getFileName($source);
 		$targetPath = $targetFolder . $filename;
 
 
@@ -452,7 +432,7 @@ class UsersService extends BaseApplicationComponent
 		craft()->templates->registerTwigAutoloader();
 
 		return craft()->email->sendEmailByKey($user, 'forgot_password', array(
-			'link' => new \Twig_Markup($this->getSetPasswordUrl($unhashedVerificationCode, $userRecord->uid), craft()->templates->getTwig()->getCharset()),
+			'link' => new \Twig_Markup(craft()->config->getSetPasswordPath($unhashedVerificationCode, $userRecord->uid), craft()->templates->getTwig()->getCharset()),
 		));
 	}
 
@@ -599,13 +579,57 @@ class UsersService extends BaseApplicationComponent
 	 * Deletes a user.
 	 *
 	 * @param UserModel $user
+	 * @throws \Exception
 	 * @return bool
 	 */
 	public function deleteUser(UserModel $user)
 	{
-		$userRecord = $this->_getUserRecordById($user->id);
+		if (!$user->id)
+		{
+			return false;
+		}
 
-		return $userRecord->delete();
+		$transaction = craft()->db->beginTransaction();
+		try
+		{
+			// Fire an 'onBeforeDeleteUser' event
+			$this->onBeforeDeleteUser(new Event($this, array(
+				'user' => $user
+			)));
+
+			// Grab the entry IDs that were authored by this user so we can delete them too.
+			$entryIds = craft()->db->createCommand()
+				->select('id')
+				->from('entries')
+				->where(array('authorId' => $user->id))
+				->queryColumn();
+
+			craft()->elements->deleteElementById($entryIds);
+
+			// Delete the user
+			$success = craft()->elements->deleteElementById($user->id);
+
+			$transaction->commit();
+
+			if ($success)
+			{
+				// Fire an 'onDeleteUser' event
+				$this->onDeleteUser(new Event($this, array(
+					'user' => $user
+				)));
+
+				return true;
+			}
+			else
+			{
+				return false;
+			}
+		}
+		catch (\Exception $e)
+		{
+			$transaction->rollBack();
+			throw $e;
+		}
 	}
 
 	/**
@@ -711,78 +735,6 @@ class UsersService extends BaseApplicationComponent
 	}
 
 	/**
-	 * Gets the account verification URL for a user account.
-	 *
-	 * @param       $code
-	 * @param       $uid
-	 * @param  bool $full
-	 * @return string
-	 */
-	public function getActivateAccountUrl($code, $uid, $full = true)
-	{
-		if (craft()->request->isCpRequest())
-		{
-			$url = 'activate';
-		}
-		else
-		{
-			$url = craft()->config->get('activateAccountPath');
-		}
-
-		if (!$full)
-		{
-			return $url;
-		}
-
-		if (craft()->request->isSecureConnection)
-		{
-			return UrlHelper::getUrl($url, array(
-				'code' => $code, 'id' => $uid
-			), 'https');
-		}
-
-		return UrlHelper::getUrl($url, array(
-			'code' => $code, 'id' => $uid
-		));
-	}
-
-	/**
-	 * Gets the set password URL for a user account.
-	 *
-	 * @param       $code
-	 * @param       $uid
-	 * @param  bool $full
-	 * @return string
-	 */
-	public function getSetPasswordUrl($code, $uid, $full = true)
-	{
-		if (craft()->request->isCpRequest())
-		{
-			$url = 'setpassword';
-		}
-		else
-		{
-			$url = craft()->config->get('setPasswordPath');
-		}
-
-		if (!$full)
-		{
-			return $url;
-		}
-
-		if (craft()->request->isSecureConnection)
-		{
-			return UrlHelper::getUrl($url, array(
-				'code' => $code, 'id' => $uid
-			), 'https');
-		}
-
-		return UrlHelper::getUrl($url, array(
-			'code' => $code, 'id' => $uid
-		));
-	}
-
-	/**
 	 * Validates a given password against a hash.
 	 *
 	 * @param $hash
@@ -799,6 +751,49 @@ class UsersService extends BaseApplicationComponent
 		return false;
 	}
 
+	// Events
+
+	/**
+	 * Fires an 'onBeforeSaveUser' event.
+	 *
+	 * @param Event $event
+	 */
+	public function onBeforeSaveUser(Event $event)
+	{
+		$this->raiseEvent('onBeforeSaveUser', $event);
+	}
+
+	/**
+	 * Fires an 'onSaveUser' event.
+	 *
+	 * @param Event $event
+	 */
+	public function onSaveUser(Event $event)
+	{
+		$this->raiseEvent('onSaveUser', $event);
+	}
+
+	/**
+	 * Fires an 'onBeforeDeleteUser' event.
+	 *
+	 * @param Event $event
+	 */
+	public function onBeforeDeleteUser(Event $event)
+	{
+		$this->raiseEvent('onBeforeDeleteUser', $event);
+	}
+
+	/**
+	 * Fires an 'onDeleteUser' event.
+	 *
+	 * @param Event $event
+	 */
+	public function onDeleteUser(Event $event)
+	{
+		$this->raiseEvent('onDeleteUser', $event);
+	}
+
+	// Private stuff
 
 	/**
 	 * Gets a user record by its ID.
@@ -973,9 +968,19 @@ class UsersService extends BaseApplicationComponent
 		}
 		else
 		{
-			$user->addErrors(array(
-				'newPassword' => $passwordModel->getErrors('password')
-			));
+			// If it's a new user AND we allow public registration, set it on the 'password' field and not 'newpassword'.
+			if (!$user->id && craft()->systemSettings->getSetting('users', 'allowPublicRegistration', false))
+			{
+				$user->addErrors(array(
+					'password' => $passwordModel->getErrors('password')
+				));
+			}
+			else
+			{
+				$user->addErrors(array(
+					'newPassword' => $passwordModel->getErrors('password')
+				));
+			}
 
 			return false;
 		}

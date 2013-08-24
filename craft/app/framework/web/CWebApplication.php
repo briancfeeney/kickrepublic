@@ -344,12 +344,12 @@ class CWebApplication extends CApplication
 				$controllerID.='/';
 			$className=ucfirst($id).'Controller';
 			$classFile=$basePath.DIRECTORY_SEPARATOR.$className.'.php';
-			// Begin Hack - We need a case insensitive way to check if the file exists.
-			if(($classFile = Blocks\IOHelper::fileExists($classFile, true)) !== false)
+
+			if($owner->controllerNamespace!==null)
+				$className=$owner->controllerNamespace.'\\'.$className;
+
+			if(is_file($classFile))
 			{
-				 // Prepend the Blocks namespace to the className.
-				$className = 'Blocks\\'.$className;
-				// End Hack
 				if(!class_exists($className,false))
 					require($classFile);
 				if(class_exists($className,false) && is_subclass_of($className,'CController'))

@@ -18,6 +18,7 @@ namespace Craft;
  * @property AssetTransformsService      $assetTransforms      The assets sizes service
  * @property ComponentsService           $components           The components service
  * @property ConfigService               $config               The config service
+ * @property ContentService              $content              The content service
  * @property DashboardService            $dashboard            The dashboard service
  * @property DbConnection                $db                   The database
  * @property ElementsService             $elements             The elements service
@@ -44,6 +45,7 @@ namespace Craft;
  * @property SecurityService             $security             The security service
  * @property SystemSettingsService       $systemSettings       The system settings service
  * @property TemplatesService            $templates            The template service
+ * @property TagsService                 $tags                 The tags service
  * @property UpdatesService              $updates              The updates service
  * @property UserGroupsService           $userGroups           The user groups service
  * @property UserPermissionsService      $userPermissions      The user permission service
@@ -67,8 +69,8 @@ class WebApp extends \CWebApplication
 
 	private $_templatePath;
 	private $_packageComponents;
-	private $_isDbConfigValid = false;
 	private $_pendingEvents;
+	private $_isDbConfigValid = false;
 
 	/**
 	 * Processes resource requests before anything else has a chance to initialize.
@@ -113,6 +115,17 @@ class WebApp extends \CWebApplication
 	}
 
 	/**
+	 * Returns the localization data for a given locale.
+	 *
+	 * @param string $localeId
+	 * @return LocaleData
+	 */
+	public function getLocale($localeId = null)
+	{
+		return craft()->i18n->getLocaleData($localeId);
+	}
+
+	/**
 	 * Returns the current target timezone.
 	 *
 	 * @return string
@@ -132,8 +145,8 @@ class WebApp extends \CWebApplication
 		// If this is a resource request, we should respond with the resource ASAP
 		$this->_processResourceRequest();
 
-		// Database config validation
-		$this->_validateDbConfig();
+		// Validate some basics on the database configuration file.
+		$this->_validateDbConfigFile();
 
 		// Process install requests
 		$this->_processInstallRequest();
@@ -146,6 +159,9 @@ class WebApp extends \CWebApplication
 
 		// Set the target language
 		$this->setLanguage($this->_getTargetLanguage());
+
+		// Check if the app path has changed.  If so, run the requirements check again.
+		$this->_processRequirementsCheck();
 
 		// If the track has changed, put the brakes on the request.
 		if (!$this->updates->isTrackValid())
@@ -161,58 +177,19 @@ class WebApp extends \CWebApplication
 			}
 		}
 
-		// isDbUpdateNeeded will return true if we're in the middle of a manual or auto-update.
+		// Set the package components
+		$this->_setPackageComponents();
+
+		// isCraftDbUpdateNeeded will return true if we're in the middle of a manual or auto-update for Craft itself.
 		// If we're in maintenance mode and it's not a site request, show the manual update template.
-		if ($this->updates->isDbUpdateNeeded() || (Craft::isInMaintenanceMode() && $this->request->isCpRequest()) || $this->request->getActionSegments() == array('update', 'cleanUp'))
+		if (
+			$this->updates->isCraftDbUpdateNeeded() ||
+			(Craft::isInMaintenanceMode() && $this->request->isCpRequest()) ||
+			$this->request->getActionSegments() == array('update', 'cleanUp') ||
+			$this->request->getActionSegments() == array('update', 'rollback')
+		)
 		{
-			// Let all non-action CP requests through.
-			if (
-				$this->request->isCpRequest() &&
-				(!$this->request->isActionRequest() || $this->request->getActionSegments() == array('users', 'login'))
-			)
-			{
-				// If this is a request to actually manually update Craft, do it
-				if ($this->request->getSegment(1) == 'manualupdate')
-				{
-					$this->runController('templates/manualUpdate');
-					$this->end();
-				}
-				else
-				{
-					if ($this->updates->isBreakpointUpdateNeeded())
-					{
-						// Load the breakpoint update template
-						$this->runController('templates/breakpointUpdateNotification');
-					}
-					else
-					{
-						if (!$this->request->isAjaxRequest())
-						{
-							if ($this->request->getPathInfo() !== '')
-							{
-								$this->userSession->setReturnUrl($this->request->getPath());
-							}
-						}
-
-						// Show the manual update notification template
-						$this->runController('templates/manualUpdateNotification');
-					}
-				}
-			}
-			// We'll also let action requests to UpdateController through as well.
-			else if ($this->request->isActionRequest() && (($actionSegs = $this->request->getActionSegments()) !== null) && isset($actionSegs[0]) && $actionSegs[0] == 'update')
-			{
-				$controller = $actionSegs[0];
-				$action = isset($actionSegs[1]) ? $actionSegs[1] : 'index';
-				$this->runController($controller.'/'.$action);
-			}
-			else
-			{
-				throw new HttpException(503);
-			}
-
-			// YOU SHALL NOT PASS
-			$this->end();
+			$this->_processUpdateLogic();
 		}
 
 		// Make sure that the system is on, or that the user has permission to access the site/CP while the system is off
@@ -222,8 +199,14 @@ class WebApp extends \CWebApplication
 			($this->request->isCpRequest()) && $this->userSession->checkPermission('accessCpWhenSystemIsOff')
 		)
 		{
-			// Set the package components
-			$this->_setPackageComponents();
+			// Load the plugins
+			craft()->plugins->loadPlugins();
+
+			// Check if a plugin needs to update the database.
+			if ($this->updates->isPluginDbUpdateNeeded())
+			{
+				$this->_processUpdateLogic();
+			}
 
 			// If this is a non-login, non-validate, non-setPassword CP request, make sure the user has access to the CP
 			if ($this->request->isCpRequest() && !($this->request->isActionRequest() && $this->_isValidActionRequest()))
@@ -243,9 +226,6 @@ class WebApp extends \CWebApplication
 					}
 				}
 			}
-
-			// Load the plugins
-			$this->plugins;
 
 			// If this is an action request, call the controller
 			$this->_processActionRequest();
@@ -276,6 +256,10 @@ class WebApp extends \CWebApplication
 
 	/**
 	 * Creates a controller instance based on a route.
+	 *
+	 * @param string $route
+	 * @param mixed $owner
+	 * @return array|null
 	 */
 	public function createController($route, $owner = null)
 	{
@@ -284,29 +268,41 @@ class WebApp extends \CWebApplication
 			$route = $this->defaultController;
 		}
 
-		$routeParts = explode('/', $route);
-		$controllerId = ucfirst(array_shift($routeParts));
-		$action = implode('/', $routeParts);
+		$routeParts = array_filter(explode('/', $route));
 
-		$class = __NAMESPACE__.'\\'.$controllerId.'Controller';
+		// First check if the controller class is a combination of the first two segments.
+		// That way FooController won't steal all of Foo_BarController's requests.
+		if (isset($routeParts[1]))
+		{
+			$controllerId = ucfirst($routeParts[0]).'_'.ucfirst($routeParts[1]);
+			$class = __NAMESPACE__.'\\'.$controllerId.'Controller';
 
-		if (class_exists($class))
+			if (class_exists($class))
+			{
+				$action = implode('/', array_slice($routeParts, 2));
+			}
+		}
+
+		// If that didn't work, now look for that FooController.
+		if (!isset($action))
+		{
+			$controllerId = ucfirst($routeParts[0]);
+			$class = __NAMESPACE__.'\\'.$controllerId.'Controller';
+
+			if (class_exists($class))
+			{
+				$action = implode('/', array_slice($routeParts, 1));
+			}
+		}
+
+		// Did we find a valid controller?
+		if (isset($action))
 		{
 			return array(
 				Craft::createComponent($class, $controllerId),
 				$this->parseActionParams($action),
 			);
 		}
-	}
-
-	/**
-	 * Returns whether the current db configuration is valid.
-	 *
-	 * @return bool
-	 */
-	public function isDbConfigValid()
-	{
-		return $this->_isDbConfigValid;
 	}
 
 	/**
@@ -543,6 +539,14 @@ class WebApp extends \CWebApplication
 	}
 
 	/**
+	 * @return bool
+	 */
+	public function isDbConfigValid()
+	{
+		return $this->_isDbConfigValid;
+	}
+
+	/**
 	 * Attaches any pending event listeners to the newly-initialized component.
 	 *
 	 * @access private
@@ -586,106 +590,6 @@ class WebApp extends \CWebApplication
 	}
 
 	/**
-	 * Validates that we can connect to the database with the settings in the db config file.
-	 *
-	 * @access private
-	 * @return mixed
-	 * @throws Exception|HttpException
-	 */
-	private function _validateDbConfig()
-	{
-		$messages = array();
-
-		$databaseServerName = $this->config->getDbItem('server');
-		$databaseAuthName = $this->config->getDbItem('user');
-		$databaseName = $this->config->getDbItem('database');
-		$databasePort = $this->config->getDbItem('port');
-		$databaseCharset = $this->config->getDbItem('charset');
-		$databaseCollation = $this->config->getDbItem('collation');
-
-		if (StringHelper::isNullOrEmpty($databaseServerName))
-		{
-			$messages[] = Craft::t('The database server name isn’t set in your db config file.');
-		}
-
-		if (StringHelper::isNullOrEmpty($databaseAuthName))
-		{
-			$messages[] = Craft::t('The database user name isn’t set in your db config file.');
-		}
-
-		if (StringHelper::isNullOrEmpty($databaseName))
-		{
-			$messages[] = Craft::t('The database name isn’t set in your db config file.');
-		}
-
-		if (StringHelper::isNullOrEmpty($databasePort))
-		{
-			$messages[] = Craft::t('The database port isn’t set in your db config file.');
-		}
-
-		if (StringHelper::isNullOrEmpty($databaseCharset))
-		{
-			$messages[] = Craft::t('The database charset isn’t set in your db config file.');
-		}
-
-		if (StringHelper::isNullOrEmpty($databaseCollation))
-		{
-			$messages[] = Craft::t('The database collation isn’t set in your db config file.');
-		}
-
-		if (!empty($messages))
-		{
-			throw new DbConnectException(Craft::t('Database configuration errors: {errors}', array('errors' => implode(PHP_EOL, $messages))));
-		}
-
-		try
-		{
-			$connection = $this->db;
-			if (!$connection)
-			{
-				$messages[] = Craft::t('There is a problem connecting to the database with the credentials supplied in your db config file.');
-			}
-		}
-		// Most likely missing PDO in general or the specific database PDO driver.
-		catch(\CDbException $e)
-		{
-			Craft::log($e->getMessage(), LogLevel::Error);
-			$missingPdo = false;
-
-			// TODO: Multi-db driver check.
-			if (!extension_loaded('pdo'))
-			{
-				$missingPdo = true;
-				$messages[] = Craft::t('Craft requires the PDO extension to operate.');
-			}
-
-			if (!extension_loaded('pdo_mysql'))
-			{
-				$missingPdo = true;
-				$messages[] = Craft::t('Craft requires the PDO_MYSQL driver to operate.');
-			}
-
-			if (!$missingPdo)
-			{
-				Craft::log($e->getMessage(), LogLevel::Error);
-				$messages[] = Craft::t('There is a problem connecting to the database with the credentials supplied in your db config file.');
-			}
-		}
-		catch (\Exception $e)
-		{
-			Craft::log($e->getMessage(), LogLevel::Error);
-			$messages[] = Craft::t('There is a problem connecting to the database with the credentials supplied in your db config file.');
-		}
-
-		if (!empty($messages))
-		{
-			throw new DbConnectException(Craft::t('Database configuration errors: {errors}', array('errors' => implode(PHP_EOL, $messages))));
-		}
-
-		$this->_isDbConfigValid = true;
-	}
-
-	/**
 	 * Sets the package components.
 	 */
 	private function _setPackageComponents()
@@ -716,7 +620,7 @@ class WebApp extends \CWebApplication
 		$isCpRequest = $this->request->isCpRequest();
 
 		// Are they requesting an installer template/action specifically?
-		if ($isCpRequest && $this->request->getSegment(1) === 'install')
+		if ($isCpRequest && $this->request->getSegment(1) === 'install' && !Craft::isInstalled())
 		{
 			$action = $this->request->getSegment(2, 'index');
 			$this->runController('install/'.$action);
@@ -756,54 +660,82 @@ class WebApp extends \CWebApplication
 	 */
 	private function _getTargetLanguage()
 	{
-		// CP requests should get "auto" by default
-		if ($this->request->isCpRequest() && !defined('CRAFT_LOCALE'))
+		if (Craft::isInstalled())
 		{
-			define('CRAFT_LOCALE', 'auto');
-		}
-
-		if (defined('CRAFT_LOCALE'))
-		{
-			$locale = strtolower(CRAFT_LOCALE);
-
-			// Get the list of actual site locale IDs
-			$siteLocaleIds = $this->i18n->getSiteLocaleIds();
-
-			// Is it set to "auto"?
-			if ($locale == 'auto')
+			// Will any locale validation be necessary here?
+			if ($this->request->isCpRequest() || defined('CRAFT_LOCALE'))
 			{
-				// If the user is logged in *and* has a primary language set, use that
-				$user = $this->userSession->getUser();
-
-				if ($user && $user->preferredLocale)
+				if ($this->request->isCpRequest())
 				{
-					return $user->preferredLocale;
+					$locale = 'auto';
+				}
+				else
+				{
+					$locale = strtolower(CRAFT_LOCALE);
 				}
 
-				// Otherwise check if the browser's preferred language matches any of the site locales
-				$browserLanguages = $this->request->getBrowserLanguages();
+				// Get the list of actual site locale IDs
+				$siteLocaleIds = $this->i18n->getSiteLocaleIds();
 
-				if ($browserLanguages)
+				// Is it set to "auto"?
+				if ($locale == 'auto')
 				{
-					foreach ($browserLanguages as $language)
+					// If the user is logged in *and* has a primary language set, use that
+					$user = $this->userSession->getUser();
+
+					if ($user && $user->preferredLocale)
 					{
-						if (in_array($language, $siteLocaleIds))
+						return $user->preferredLocale;
+					}
+
+					// Otherwise check if the browser's preferred language matches any of the site locales
+					$browserLanguages = $this->request->getBrowserLanguages();
+
+					if ($browserLanguages)
+					{
+						foreach ($browserLanguages as $language)
 						{
-							return $language;
+							if (in_array($language, $siteLocaleIds))
+							{
+								return $language;
+							}
 						}
+					}
+				}
+
+				// Is it set to a valid site locale?
+				else if (in_array($locale, $siteLocaleIds))
+				{
+					return $locale;
+				}
+			}
+
+			// Use the primary site locale by default
+			return $this->i18n->getPrimarySiteLocaleId();
+		}
+		else
+		{
+			// Just try to find a match between the browser's preferred locales
+			// and the locales Craft has been translated into.
+
+			$browserLanguages = $this->request->getBrowserLanguages();
+
+			if ($browserLanguages)
+			{
+				$appLocaleIds = $this->i18n->getAppLocaleIds();
+
+				foreach ($browserLanguages as $language)
+				{
+					if (in_array($language, $appLocaleIds))
+					{
+						return $language;
 					}
 				}
 			}
 
-			// Is it set to a valid site locale?
-			else if (in_array($locale, $siteLocaleIds))
-			{
-				return $locale;
-			}
+			// Default to the source language.
+			return $this->sourceLanguage;
 		}
-
-		// Use the primary site locale by default
-		return $this->i18n->getPrimarySiteLocaleId();
 	}
 
 	/**
@@ -817,65 +749,8 @@ class WebApp extends \CWebApplication
 		if ($this->request->isActionRequest())
 		{
 			$actionSegs = $this->request->getActionSegments();
-
-			// See if there is a first segment.
-			if (isset($actionSegs[0]))
-			{
-				$controller = $actionSegs[0];
-				$action = isset($actionSegs[1]) ? $actionSegs[1] : '';
-
-				// Check for a valid controller
-				$class = __NAMESPACE__.'\\'.ucfirst($controller).'Controller';
-				if (class_exists($class))
-				{
-					$route = $controller.'/'.$action;
-					$this->runController($route);
-					return;
-				}
-				else
-				{
-					// Mayhaps this is a plugin action request.
-					$plugin = strtolower($actionSegs[0]);
-
-					if (($plugin = $this->plugins->getPlugin($plugin)) !== null)
-					{
-						$pluginHandle = $plugin->getClassHandle();
-
-						// Check to see if the second segment is an existing controller.  If no second segment, check for "PluginHandle"Controller, which is a plugin's default controller.
-						// i.e. pluginHandle/testController or pluginHandle/pluginController
-						$controller = (isset($actionSegs[1]) ? ucfirst($pluginHandle).'_'.ucfirst($actionSegs[1]) : ucfirst($pluginHandle)).'Controller';
-
-						if (class_exists(__NAMESPACE__.'\\'.$controller))
-						{
-							// Check to see if there is a 3rd path segment.  If so, use it for the action.  If not, use the default Index for the action.
-							// i.e. pluginHandle/pluginController/index or pluginHandle/pluginController/testAction
-							$action = isset($actionSegs[2]) ? $actionSegs[2] : 'Index';
-
-							$route = substr($controller, 0, strpos($controller, 'Controller')).'/'.$action;
-							$this->runController($route);
-							return;
-						}
-						else
-						{
-							// It's possible the 2nd segment is an action and they are using the plugin's default controller.
-							// i.e. pluginHandle/testAction or pluginHandle/indexAction.
-							// Here, the plugin's default controller is assumed.
-							$controller = ucfirst($pluginHandle).'Controller';
-
-							if (class_exists(__NAMESPACE__.'\\'.$controller))
-							{
-								$action = $actionSegs[1];
-
-								$route = substr($controller, 0, strpos($controller, 'Controller')).'/'.$action;
-								$this->runController($route);
-								return;
-							}
-						}
-					}
-				}
-			}
-
-			throw new HttpException(404);
+			$route = implode('/', $actionSegs);
+			$this->runController($route);
 		}
 	}
 
@@ -895,5 +770,126 @@ class WebApp extends \CWebApplication
 		}
 
 		return false;
+	}
+
+	/**
+	 * If there is not cached app path or the existing cached app path does not match the current one, let’s run the requirement checker again.
+	 * This should catch the case where an install is deployed to another server that doesn’t meet Craft’s minimum requirements.
+	 */
+	private function _processRequirementsCheck()
+	{
+		$cachedAppPath = craft()->fileCache->get('appPath');
+		$appPath = $this->path->getAppPath();
+
+		if ($cachedAppPath === false || $cachedAppPath !== $appPath)
+		{
+			$this->runController('templates/requirementscheck');
+		}
+	}
+
+	private function _processUpdateLogic()
+	{
+		// Let all non-action CP requests through.
+		if (
+			$this->request->isCpRequest() &&
+			(!$this->request->isActionRequest() || $this->request->getActionSegments() == array('users', 'login'))
+		)
+		{
+			// If this is a request to actually manually update Craft, do it
+			if ($this->request->getSegment(1) == 'manualupdate')
+			{
+				$this->runController('templates/manualUpdate');
+				$this->end();
+			}
+			else
+			{
+				if ($this->updates->isBreakpointUpdateNeeded())
+				{
+					// Load the breakpoint update template
+					$this->runController('templates/breakpointUpdateNotification');
+				}
+				else
+				{
+					if (!$this->request->isAjaxRequest())
+					{
+						if ($this->request->getPathInfo() !== '')
+						{
+							$this->userSession->setReturnUrl($this->request->getPath());
+						}
+					}
+
+					// Show the manual update notification template
+					$this->runController('templates/manualUpdateNotification');
+				}
+			}
+		}
+		// We'll also let action requests to UpdateController through as well.
+		else if ($this->request->isActionRequest() && (($actionSegs = $this->request->getActionSegments()) !== null) && isset($actionSegs[0]) && $actionSegs[0] == 'update')
+		{
+			$controller = $actionSegs[0];
+			$action = isset($actionSegs[1]) ? $actionSegs[1] : 'index';
+			$this->runController($controller.'/'.$action);
+		}
+		else
+		{
+			throw new HttpException(503);
+		}
+
+		// YOU SHALL NOT PASS
+		$this->end();
+	}
+
+	/**
+	 * Make sure the basics are in place in the db connection file before we actually try to connect later on.
+	 *
+	 * @throws DbConnectException
+	 */
+	private function _validateDbConfigFile()
+	{
+		$messages = array();
+
+		$databaseServerName = craft()->config->getDbItem('server');
+		$databaseAuthName = craft()->config->getDbItem('user');
+		$databaseName = craft()->config->getDbItem('database');
+		$databasePort = craft()->config->getDbItem('port');
+		$databaseCharset = craft()->config->getDbItem('charset');
+		$databaseCollation = craft()->config->getDbItem('collation');
+
+		if (StringHelper::isNullOrEmpty($databaseServerName))
+		{
+			$messages[] = Craft::t('The database server name isn’t set in your db config file.');
+		}
+
+		if (StringHelper::isNullOrEmpty($databaseAuthName))
+		{
+			$messages[] = Craft::t('The database user name isn’t set in your db config file.');
+		}
+
+		if (StringHelper::isNullOrEmpty($databaseName))
+		{
+			$messages[] = Craft::t('The database name isn’t set in your db config file.');
+		}
+
+		if (StringHelper::isNullOrEmpty($databasePort))
+		{
+			$messages[] = Craft::t('The database port isn’t set in your db config file.');
+		}
+
+		if (StringHelper::isNullOrEmpty($databaseCharset))
+		{
+			$messages[] = Craft::t('The database charset isn’t set in your db config file.');
+		}
+
+		if (StringHelper::isNullOrEmpty($databaseCollation))
+		{
+			$messages[] = Craft::t('The database collation isn’t set in your db config file.');
+		}
+
+		if (!empty($messages))
+		{
+			throw new DbConnectException(Craft::t('Database configuration errors: {errors}', array('errors' => implode(PHP_EOL, $messages))));
+		}
+
+		$this->_isDbConfigValid = true;
 	}
 }

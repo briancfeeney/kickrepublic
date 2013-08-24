@@ -214,20 +214,18 @@ class UpdatesService extends BaseApplicationComponent
 	}
 
 	/**
-	 * @param $plugin
+	 * @param BasePlugin $plugin
 	 * @return bool
 	 */
-	public function setNewPluginInfo($plugin)
+	public function setNewPluginInfo(BasePlugin $plugin)
 	{
-		$pluginRecord = craft()->plugins->getPluginRecord($plugin);
+		$affectedRows = craft()->db->createCommand()->update('plugins', array(
+			'version' => $plugin->getVersion()
+		), array(
+			'class' => $plugin->getClassHandle()
+		));
 
-		$pluginRecord->version = $plugin->getVersion();
-		if ($pluginRecord->save())
-		{
-			return true;
-		}
-
-		return false;
+		return (bool) $affectedRows;
 	}
 
 	/**
@@ -503,7 +501,13 @@ class UpdatesService extends BaseApplicationComponent
 			if ($uid !== false)
 			{
 				Craft::log('Rolling back any file changes.', LogLevel::Info, true);
-				UpdateHelper::rollBackFileChanges(UpdateHelper::getManifestData(UpdateHelper::getUnzipFolderFromUID($uid)));
+				$manifestData = UpdateHelper::getManifestData(UpdateHelper::getUnzipFolderFromUID($uid));
+
+				if ($manifestData)
+				{
+					UpdateHelper::rollBackFileChanges($manifestData);
+				}
+
 				Craft::log('Done rolling back any file changes.', LogLevel::Info, true);
 			}
 
@@ -517,17 +521,12 @@ class UpdatesService extends BaseApplicationComponent
 	}
 
 	/**
-	 * Determines if we're in the middle of a manual update either because of Craft or a plugin, and a DB update is needed.
+	 * Returns if a plugin needs to run a database update or not.
 	 *
 	 * @return bool
 	 */
-	public function isDbUpdateNeeded()
+	public function isPluginDbUpdateNeeded()
 	{
-		if ($this->isCraftDbUpdateNeeded())
-		{
-			return true;
-		}
-
 		$plugins = craft()->plugins->getPlugins();
 
 		foreach ($plugins as $plugin)

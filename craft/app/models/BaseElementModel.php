@@ -37,11 +37,21 @@ abstract class BaseElementModel extends BaseModel
 			//'type'        => array(AttributeType::String, 'default' => $this->elementType),
 			'enabled'     => array(AttributeType::Bool, 'default' => true),
 			'archived'    => array(AttributeType::Bool, 'default' => false),
-			'locale'      => AttributeType::Locale,
+			'locale'      => array(AttributeType::Locale, 'default' => craft()->i18n->getPrimarySiteLocaleId()),
 			'uri'         => AttributeType::String,
 			'dateCreated' => AttributeType::DateTime,
 			'dateUpdated' => AttributeType::DateTime,
 		);
+	}
+
+	/**
+	 * Use the entry's title as its string representation.
+	 *
+	 * @return string
+	 */
+	function __toString()
+	{
+		return $this->getTitle();
 	}
 
 	/**
@@ -121,6 +131,28 @@ abstract class BaseElementModel extends BaseModel
 	}
 
 	/**
+	 * Returns the next element relative to this one, from a given set of criteria.
+	 *
+	 * @param mixed $criteria
+	 * @return ElementCriteriaModel|null
+	 */
+	public function getNext($criteria = null)
+	{
+		return $this->_getRelativeElement($criteria, 1);
+	}
+
+	/**
+	 * Returns the previous element relative to this one, from a given set of criteria.
+	 *
+	 * @param mixed $criteria
+	 * @return ElementCriteriaModel|null
+	 */
+	public function getPrev($criteria = null)
+	{
+		return $this->_getRelativeElement($criteria, -1);
+	}
+
+	/**
 	 * Returns a new ElementCriteriaModel prepped to return this element's same-type children.
 	 *
 	 * @param mixed $field
@@ -146,6 +178,17 @@ abstract class BaseElementModel extends BaseModel
 		$criteria->parentOf($this);
 		$criteria->parentField($field);
 		return $criteria;
+	}
+
+	/**
+	 * Returns the element's title.
+	 *
+	 * @return string
+	 */
+	public function getTitle()
+	{
+		$content = $this->getContent();
+		return $content->title;
 	}
 
 	/**
@@ -228,37 +271,6 @@ abstract class BaseElementModel extends BaseModel
 	}
 
 	/**
-	 * Sets content that's indexed by the field ID.
-	 *
-	 * @param array $content
-	 */
-	public function setContentIndexedByFieldId($content)
-	{
-		$this->_content = new ContentModel();
-
-		foreach ($content as $fieldId => $value)
-		{
-			$field = craft()->fields->getFieldById($fieldId);
-			if ($field)
-			{
-				$fieldHandle = $field->handle;
-				$this->_content->$fieldHandle = $value;
-			}
-		}
-	}
-
-	/**
-	 * Sets the content.
-	 *
-	 * @param array $values
-	 */
-	public function setContent($values)
-	{
-		$content = $this->getContent();
-		$content->setAttributes($values);
-	}
-
-	/**
 	 * Populates a new model instance with a given set of attributes.
 	 *
 	 * @static
@@ -293,6 +305,34 @@ abstract class BaseElementModel extends BaseModel
 	}
 
 	/**
+	 * Returns an element right before/after this one, from a given set of criteria.
+	 *
+	 * @access private
+	 * @param mixed $criteria
+	 * @param int $dir
+	 * @return BaseElementModel|null
+	 */
+	private function _getRelativeElement($criteria, $dir)
+	{
+		if ($this->id)
+		{
+			if (!($criteria instanceof ElementCriteriaModel))
+			{
+				$criteria = craft()->elements->getCriteria($this->elementType, $criteria);
+			}
+
+			$elementIds = $criteria->ids();
+			$key = array_search($this->id, $elementIds);
+
+			if ($key !== false && isset($elementIds[$key+$dir]))
+			{
+				$criteria->id = $elementIds[$key+$dir];
+				return $criteria->first();
+			}
+		}
+	}
+
+	/**
 	 * Returns the content for the element.
 	 *
 	 * @return ContentModel
@@ -303,12 +343,14 @@ abstract class BaseElementModel extends BaseModel
 		{
 			if ($this->id)
 			{
-				$this->_content = craft()->content->getContent($this->id, $this->locale);
+				$this->_content = craft()->content->getElementContent($this->id, $this->locale);
 			}
 
 			if (empty($this->_content))
 			{
 				$this->_content = new ContentModel();
+				$this->_content->elementId = $this->id;
+				$this->_content->locale = $this->locale;
 			}
 		}
 
