@@ -4,17 +4,19 @@
 // BASIC RESET
 
 body {
-	.Leitura();
+	font-family: Georgia, serif;
 }
 
 h1 {
 	.AlternateGothic();
 	font-size: 3.5em;
+	line-height: 1em;
 }
 
 h2 {
 	.AlternateGothic();
 	font-size: 2.5em;
+	line-height: 1em;
 }
 
 h3 {
@@ -36,6 +38,14 @@ h5 {
 
 h1, h2, h3, h4, h5, h6 {
 	a {
+		color: @black;
+		&:hover {
+			text-decoration: none;
+		}
+	}
+}
+a {
+	h1, h2, h3, h4, h5, h6 {
 		color: @black;
 		&:hover {
 			text-decoration: none;
@@ -87,6 +97,27 @@ nav {
 				font-size: 2em;
 			}
 		}
+	}
+}
+
+
+/* ----------------------------------------------------------------------------- */
+// NEWS
+
+#news {
+	article {
+	border-bottom: 1px solid @red;
+	margin-bottom: 20px;
+	padding-bottom: 20px;
+		.featured-image {
+			float: left;
+		}
+	}
+}
+
+.top-news {
+	p {
+		font-size: @font-size-large;
 	}
 }
 

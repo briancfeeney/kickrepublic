@@ -14,26 +14,48 @@
 <div class="row">
 	<div class="col-md-8">
 		<section id="news">
-			{% for entry in craft.entries.section('news').find() %}
-				<article>
+			{% for entry in craft.entries.section('news').find()|slice(0, 1) %}
+				<article class="top-news">
 				    {% for image in entry.news_image %}
 					   <img src="{{ image.url }}" height="{{ image.height }}" width="{{ image.width }}" alt="{{ entry.title }}">
 					{% endfor %}
 				
-					<h2><a href="{{ entry.url }}">{{ entry.title }}</a></h2>
+					<h1><a href="{{ entry.url }}">{{ entry.title }}</a></h1>
 					<h5>Posted on {{ entry.postDate.format('F d, Y') }}</h5>
 					{{ entry.body.page(1) }}
 					<p><a href="{{ entry.url }}">Continue reading</a></p>
 				</article>
 			{% endfor %}
+			
+			{% for entry in craft.entries.section('news').find()|slice(1, 5) %}
+				<article>
+					<h2><a href="{{ entry.url }}">{{ entry.title }}</a></h2>
+					
+					<div class="row">
+						<div class="col-sm-3">
+							{% for image in entry.news_image %}
+							   <img src="{{ image.url }}" height="{{ image.height }}" width="{{ image.width }}" alt="{{ entry.title }}">
+							{% endfor %}
+						</div>
+						<div class="col-sm-9">
+							<h5>Posted on {{ entry.postDate.format('F d, Y') }}</h5>
+							{{ entry.body.page(1) }}
+							<p><a href="{{ entry.url }}">Continue reading</a></p>
+						</div>
+					</div>
+				</article>
+			{% endfor %}
+			
 		</section>
 	</div>
-	<div class="col-md-4">
-		<section id="sidebar">
+	<div class="col-md-3 col-md-offset-1">
+		<section id="sidebar" class="hidden-xs">
 			<section>
 				<h4>Featured Posts</h4>
 				<ul class="list-unstyled">
-					<li></li>
+					{% for post in team.current_roster %}
+				           <li><a href="{{ post.url }}"><h3>{{ post.title }}</h3></a></li>
+				       {% endfor %}
 				</ul>
 			</section>
 			<section>

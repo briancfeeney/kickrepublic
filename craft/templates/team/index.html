@@ -12,34 +12,42 @@
 
 {% block content %}
 
-	<h2>United States Men's National Team</h2>
+<h1>United States Men's National Team</h1>
 	
-	<section>
-		<p>{{team.team_bio}}</p>
-	</section>
-
-	<section>
-		<h3>Current Roster</h3>
-
-		{% for row in team.coach %}
-			<h4>Coach</h4>
-			<h5>{{ row.coach_name }}</h5>
-			<!-- <p>{{ row.coach_bio }}</p> -->
-		{% endfor %}
-		
-		<h4>Players</h4>
-		<ul>
-	       {% for post in team.current_roster %}
-	           <li><a href="{{ post.url }}">{{ post.title }}</a></li>
-	       {% endfor %}
-		</ul>
-		
-		<h4><a href="{{ url('players') }}">View the full list of players.</a></h4>
-		
-	</section>
+<div class="row">
+	<div class="col-md-6">	
+		<section>
+			<img src="{{team_photo}}">
+			{{team.team_bio}}
+		</section>
+	</div>
 	
-	<section>
-		<p><a href="{{ url('rankings') }}">See the International Rankings.</a></p>
-	</section>
+	<div class="col-md-6">	
+
+		<section>
+			<h2>Current Roster</h2>
+
+			{% for row in team.coach %}
+				<h3>Coach</h3>
+				<p>{{ row.coach_name }}</p>
+				<!-- <p>{{ row.coach_bio }}</p> -->
+			{% endfor %}
+		
+			<h3>Players</h3>
+			<ul>
+		       {% for post in team.current_roster %}
+		           <li><a href="{{ post.url }}">{{ post.title }}</a></li>
+		       {% endfor %}
+			</ul>
+		
+			<a href="{{ url('players') }}">View the full list of players.</a>
+		
+		</section>
+	
+		<section>
+			<a href="{{ url('rankings') }}">See the International Rankings.</a>
+		</section>
+	</div>
+</div>
 
 {% endblock %}

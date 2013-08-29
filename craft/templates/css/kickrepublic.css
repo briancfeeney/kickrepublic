@@ -1692,15 +1692,15 @@ textarea.input-sm {
   height: auto;
 }
 .input-lg {
-  height: 45px;
+  height: 43px;
   padding: 10px 16px;
-  font-size: 18px;
+  font-size: 16px;
   line-height: 1.33;
   border-radius: 6px;
 }
 select.input-lg {
-  height: 45px;
-  line-height: 45px;
+  height: 43px;
+  line-height: 43px;
 }
 textarea.input-lg {
   height: auto;
@@ -2139,7 +2139,7 @@ fieldset[disabled] .btn-link:focus {
 }
 .btn-lg {
   padding: 10px 16px;
-  font-size: 18px;
+  font-size: 16px;
   line-height: 1.33;
   border-radius: 6px;
 }
@@ -3063,7 +3063,7 @@ input[type="button"].btn-block {
 }
 .btn-group-lg > .btn {
   padding: 10px 16px;
-  font-size: 18px;
+  font-size: 16px;
   line-height: 1.33;
   border-radius: 6px;
 }
@@ -3187,17 +3187,17 @@ input[type="button"].btn-block {
 .input-group-lg > .form-control,
 .input-group-lg > .input-group-addon,
 .input-group-lg > .input-group-btn > .btn {
-  height: 45px;
+  height: 43px;
   padding: 10px 16px;
-  font-size: 18px;
+  font-size: 16px;
   line-height: 1.33;
   border-radius: 6px;
 }
 select.input-group-lg > .form-control,
 select.input-group-lg > .input-group-addon,
 select.input-group-lg > .input-group-btn > .btn {
-  height: 45px;
-  line-height: 45px;
+  height: 43px;
+  line-height: 43px;
 }
 textarea.input-group-lg > .form-control,
 textarea.input-group-lg > .input-group-addon,
@@ -3257,7 +3257,7 @@ textarea.input-group-sm > .input-group-btn > .btn {
 }
 .input-group-addon.input-lg {
   padding: 10px 16px;
-  font-size: 18px;
+  font-size: 16px;
   border-radius: 6px;
 }
 .input-group-addon input[type="radio"],
@@ -3678,7 +3678,7 @@ textarea.input-group-sm > .input-group-btn > .btn {
 .navbar-brand {
   float: left;
   padding: 15px 15px;
-  font-size: 18px;
+  font-size: 16px;
   line-height: 20px;
 }
 .navbar-brand:hover,
@@ -4122,7 +4122,7 @@ textarea.input-group-sm > .input-group-btn > .btn {
 .pagination-lg > li > a,
 .pagination-lg > li > span {
   padding: 10px 16px;
-  font-size: 18px;
+  font-size: 16px;
 }
 .pagination-lg > li:first-child > a,
 .pagination-lg > li:first-child > span {
@@ -5943,21 +5943,21 @@ td.visible-print {
 }
 /* ----------------------------------------------------------------------------- */
 body {
-  font-family: "leitura-news", serif;
-  font-style: normal;
-  font-weight: 300;
+  font-family: Georgia, serif;
 }
 h1 {
   font-family: "alternate-gothic-no-2-d", sans-serif;
   font-style: normal;
   font-weight: 400;
   font-size: 3.5em;
+  line-height: 1em;
 }
 h2 {
   font-family: "alternate-gothic-no-2-d", sans-serif;
   font-style: normal;
   font-weight: 400;
   font-size: 2.5em;
+  line-height: 1em;
 }
 h3 {
   font-family: "alternate-gothic-no-2-d", sans-serif;
@@ -5993,6 +5993,22 @@ h3 a:hover,
 h4 a:hover,
 h5 a:hover,
 h6 a:hover {
+  text-decoration: none;
+}
+a h1,
+a h2,
+a h3,
+a h4,
+a h5,
+a h6 {
+  color: #000000;
+}
+a h1:hover,
+a h2:hover,
+a h3:hover,
+a h4:hover,
+a h5:hover,
+a h6:hover {
   text-decoration: none;
 }
 em,
@@ -6039,6 +6055,18 @@ nav .bottom-nav {
 }
 nav .bottom-nav li a {
   font-size: 2em;
+}
+/* ----------------------------------------------------------------------------- */
+#news article {
+  border-bottom: 1px solid #cf2e2c;
+  margin-bottom: 20px;
+  padding-bottom: 20px;
+}
+#news article .featured-image {
+  float: left;
+}
+.top-news p {
+  font-size: 16px;
 }
 /* ----------------------------------------------------------------------------- */
 footer {
