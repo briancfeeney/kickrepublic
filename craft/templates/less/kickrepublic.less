@@ -4,12 +4,12 @@
 // BASIC RESET
 
 body {
-	font-family: Georgia, serif;
+	font-family: "ff-tisa-web-pro", Georgia, serif;
 }
 
 h1 {
 	.AlternateGothic();
-	font-size: 3.5em;
+	font-size: 3em;
 	line-height: 1em;
 }
 
@@ -27,20 +27,23 @@ h4 {
 	.SourceSans();
 	text-transform: uppercase;
 	color: @gold;
+	font-size: 18px;
 	letter-spacing: 2px;
+	margin-bottom: 20px;
 }
 
 h5 {
-	.SourceSansSB();
+	.SourceSansR();
 	color: @gold;
 	font-size: 16px;
 }
 
-h1, h2, h3, h4, h5, h6 {
-	a {
+h1, h2, h3, h4, h5, h6, li {
+	a, a * {
 		color: @black;
 		&:hover {
 			text-decoration: none;
+			color: @red;
 		}
 	}
 }
@@ -51,6 +54,10 @@ a {
 			text-decoration: none;
 		}
 	}
+}
+
+p {
+	line-height: 1.5em;
 }
 
 em, i {
@@ -68,13 +75,41 @@ img {
 }
 
 /* ----------------------------------------------------------------------------- */
+// MISCELLANEOUS
+
+.title {
+	margin-top: 0;
+}
+
+.read-more {
+	.h4();
+	font-size: 12px;
+	text-transform: uppercase;
+	color: @red;
+	&:hover {
+		color: @blue;
+		text-decoration: none;
+	}
+}
+
+.fluid-width-video-wrapper {
+	margin: 20px 0;
+}
+
+
+
+/* ----------------------------------------------------------------------------- */
 // HEADER
 
 header {
 	.AlternateGothic();
 	color: @black;
+	margin-bottom: 40px;
 	a {
 		color: @black;
+	}
+	.navbar {
+		border-bottom: 1px solid @red;
 	}
 }
 
@@ -82,23 +117,32 @@ nav {
 	text-transform: uppercase;
 	.navbar-brand {
 		font-size: 6em;
-		line-height: inherit;
+		line-height: 1.2em;
 		padding: 0;
+		margin-top: 10px;
+		display: inline-block;
 	}
 	.top-nav {
 		position: absolute;
 		right: 0;
-		top: 0;
+		top: 14px;
 	}
 	.bottom-nav {
-		margin-top: 40px;
+		margin-top: 74px;
 		li {
 			a {
 				font-size: 2em;
+				padding: 0;
+				margin-right: 20px;
+			}
+			&:last-child a {
+				margin-right: 0;
 			}
 		}
 	}
 }
+
+
 
 
 /* ----------------------------------------------------------------------------- */
@@ -106,11 +150,24 @@ nav {
 
 #news {
 	article {
-	border-bottom: 1px solid @red;
-	margin-bottom: 20px;
-	padding-bottom: 20px;
+		border-bottom: 1px solid @red;
+		margin-bottom: 20px;
+		padding-bottom: 20px;
+		h2 {
+			.title();
+		}
+	}
+	.news {
+		overflow: hidden;
 		.featured-image {
 			float: left;
+			width: 50%;
+			margin: 0 20px 20px 0;
+		}
+	}
+	.news.single {
+		p:first-of-type {
+			font-size: @font-size-large;
 		}
 	}
 }
@@ -118,6 +175,41 @@ nav {
 .top-news {
 	p {
 		font-size: @font-size-large;
+		line-height: 1.6em;
+	}
+	.featured-image {
+		width: 100%;
+		height: 440px;
+		background-size: cover;
+		background-position: 50% 50%;
+		margin-bottom: 20px;
+	}
+}
+
+
+/* ----------------------------------------------------------------------------- */
+// SIDEBAR
+
+#sidebar {
+	section {
+		margin-bottom: 40px;
+		border-bottom: 1px solid @red;
+		padding-bottom: 20px;
+	}
+	ol {
+		.AlternateGothic();
+		margin-left: 15px;
+		padding-left: 0;
+	}
+	li {
+		margin-bottom: 10px;
+		* {
+			margin: 0;
+		}
+		h3 {
+			font-size: 1.5em;
+		}
+		
 	}
 }
 

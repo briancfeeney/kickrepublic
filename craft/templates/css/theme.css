@@ -28,10 +28,15 @@
   font-style: normal;
   font-weight: 700;
 }
-.SourceSansSB {
+.SourceSansR {
   font-family: "source-sans-pro", sans-serif;
   font-style: normal;
-  font-weight: 600;
+  font-weight: 400;
+}
+.FFTisa {
+  font-family: "ff-tisa-web-pro", serif;
+  font-style: normal;
+  font-weight: 400;
 }
 .btn-default,
 .btn-primary,
