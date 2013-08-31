@@ -1581,16 +1581,16 @@ input[type="number"]::-webkit-inner-spin-button {
   height: auto;
 }
 .form-control:-moz-placeholder {
-  color: #999999;
+  color: #ffffff;
 }
 .form-control::-moz-placeholder {
-  color: #999999;
+  color: #ffffff;
 }
 .form-control:-ms-input-placeholder {
-  color: #999999;
+  color: #ffffff;
 }
 .form-control::-webkit-input-placeholder {
-  color: #999999;
+  color: #ffffff;
 }
 .form-control {
   display: block;
@@ -1610,10 +1610,10 @@ input[type="number"]::-webkit-inner-spin-button {
   transition: border-color ease-in-out .15s, box-shadow ease-in-out .15s;
 }
 .form-control:focus {
-  border-color: #66afe9;
+  border-color: #ffffff;
   outline: 0;
-  -webkit-box-shadow: inset 0 1px 1px rgba(0,0,0,.075), 0 0 8px rgba(102, 175, 233, 0.6);
-  box-shadow: inset 0 1px 1px rgba(0,0,0,.075), 0 0 8px rgba(102, 175, 233, 0.6);
+  -webkit-box-shadow: inset 0 1px 1px rgba(0,0,0,.075), 0 0 8px rgba(255, 255, 255, 0.6);
+  box-shadow: inset 0 1px 1px rgba(0,0,0,.075), 0 0 8px rgba(255, 255, 255, 0.6);
 }
 .form-control[disabled],
 .form-control[readonly],
@@ -6118,6 +6118,19 @@ nav .bottom-nav li a {
 }
 nav .bottom-nav li:last-child a {
   margin-right: 0;
+}
+.navbar-default .navbar-form {
+  border: 1px solid #000000;
+  padding: 0;
+}
+.navbar-default .navbar-form .form-control,
+.navbar-default .navbar-form button {
+  border: none;
+  padding: 0 10px;
+  height: 30px;
+}
+.navbar-default .navbar-form button {
+  text-transform: uppercase;
 }
 /* ----------------------------------------------------------------------------- */
 #news article {
