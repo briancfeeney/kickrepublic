@@ -5975,7 +5975,7 @@ h4 {
   font-weight: 700;
   text-transform: uppercase;
   color: #d1a657;
-  font-size: 18px;
+  font-size: 1.1em;
   letter-spacing: 2px;
   margin-bottom: 20px;
 }
@@ -6055,6 +6055,9 @@ img {
   height: auto;
 }
 /* ----------------------------------------------------------------------------- */
+#main {
+  font-size: .85em;
+}
 .title {
   margin-top: 0;
 }
@@ -6085,7 +6088,7 @@ header {
   font-family: "alternate-gothic-no-2-d", sans-serif;
   font-style: normal;
   font-weight: 400;
-  margin: 20px 0 40px;
+  margin: 20px 0 20px;
 }
 header .left-head {
   background-color: #2e2f48;
@@ -6103,7 +6106,7 @@ nav.navbar {
   border: none;
 }
 nav .navbar-brand {
-  font-size: 4em;
+  font-size: 3.9em;
   line-height: 1em;
   padding: 0;
   margin-top: 12px;
@@ -6112,7 +6115,7 @@ nav .navbar-brand {
 nav .top-nav {
   position: absolute;
   right: 0;
-  top: 8px;
+  top: 2px;
   padding: 0 5px;
 }
 nav .bottom-nav {
@@ -6123,9 +6126,9 @@ nav .bottom-nav li {
   margin-bottom: 10px;
 }
 nav .bottom-nav li a {
-  font-size: 1.8em;
+  font-size: 1.4em;
   padding: 0;
-  margin-right: 20px;
+  margin-right: 15px;
   color: #ffffff;
 }
 nav .bottom-nav li:last-child a {
@@ -6143,7 +6146,7 @@ nav .bottom-nav li:last-child a {
   margin: 7px 10px;
 }
 .navbar-default .navbar-form .form-group {
-  width: 165px;
+  width: 84px;
   font-family: "source-sans-pro", sans-serif;
   font-style: normal;
   font-weight: 400;
@@ -6153,8 +6156,15 @@ nav .bottom-nav li:last-child a {
 .navbar-default .navbar-form button {
   border: none;
   padding: 0 10px;
-  height: 30px;
-  line-height: 29px;
+  height: 25px;
+  line-height: 25px;
+  color: #ffffff;
+}
+.navbar-default .navbar-form .form-control {
+  font-size: 15px;
+}
+.navbar-default .navbar-form .form-control:focus {
+  box-shadow: none;
 }
 .navbar-default .navbar-form button {
   text-transform: uppercase;
@@ -6165,14 +6175,15 @@ nav .bottom-nav li:last-child a {
   padding: 13px 10px;
 }
 .nav .social-link img {
-  width: 20px;
+  width: 15px;
 }
 .nav .social-link img:hover {
   opacity: .8;
 }
 .navbar-toggle {
-  margin-right: 15px;
-  margin-top: 23px;
+  margin-right: 25px;
+  margin-top: 25px;
+  padding: 5px;
 }
 /* ----------------------------------------------------------------------------- */
 #news article {
@@ -6182,6 +6193,9 @@ nav .bottom-nav li:last-child a {
 }
 #news article h2 {
   margin-top: 0;
+}
+#news article img {
+  margin-bottom: 20px;
 }
 #news .news {
   overflow: hidden;
@@ -6202,7 +6216,7 @@ nav .bottom-nav li:last-child a {
   width: 100%;
   height: 380px;
   background-size: cover;
-  background-position: 50% 50%;
+  background-position: 50% 25%;
   margin-bottom: 20px;
 }
 /* ----------------------------------------------------------------------------- */
@@ -6241,24 +6255,26 @@ footer ul li {
 /* ----------------------------------------------------------------------------- */
 /* Small devices (tablets, 768px and up) */
 @media (min-width: 768px) {
-  header .left-head {
-    padding: 0 20px;
+  header .right-head {
+    height: 83px;
   }
   nav .navbar-header {
-    float: none;
-    text-align: center;
+    text-align: left;
   }
   nav .navbar-brand {
     font-size: 6.1em;
-    float: none;
-  }
-  nav .top-nav {
-    right: 132px;
   }
   nav .bottom-nav {
-    margin-top: 69px;
+    margin-top: 50px;
     padding: 0;
     margin-left: 132px;
+  }
+  nav .navbar-brand {
+    font-size: 4.45em;
+  }
+  nav .bottom-nav {
+    float: right;
+    margin-left: 0;
   }
 }
 /* Medium devices (desktops, 992px and up) */
@@ -6269,20 +6285,35 @@ footer ul li {
   header .right-head {
     height: 108px;
   }
-  nav .navbar-header {
-    float: left;
-    text-align: left;
-  }
   nav .navbar-brand {
-    float: left;
     font-size: 6em;
   }
   nav .top-nav {
-    right: 0;
+    top: 8px;
   }
   nav .bottom-nav {
-    float: right;
-    margin-left: 0;
+    margin-top: 69px;
+  }
+  nav .bottom-nav li a {
+    font-size: 1.8em;
+    margin-right: 20px;
+  }
+  .nav .social-link img {
+    width: 20px;
+  }
+  .navbar-default .navbar-form {
+    margin: 7px 10px;
+  }
+  .navbar-default .navbar-form .form-group {
+    width: 165px;
+  }
+  .navbar-default .navbar-form .form-control,
+  .navbar-default .navbar-form button {
+    height: 30px;
+    line-height: 29px;
+  }
+  #main {
+    font-size: 1em;
   }
 }
 /* Large devices (large desktops, 1200px and up) */

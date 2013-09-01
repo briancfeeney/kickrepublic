@@ -12,7 +12,7 @@
 {% block content %}
 
 <div class="row">
-	<div class="col-md-8">
+	<div class="col-sm-9">
 		<section id="news">
 			{% for entry in craft.entries.section('news').find()|slice(0, 1) %}
 				<article class="top-news">
@@ -50,7 +50,7 @@
 			
 		</section>
 	</div>
-	<div class="col-md-3 col-md-offset-1">
+	<div class="col-sm-3">
 		<section id="sidebar" class="hidden-xs">
 			<section>
 				<h4>Featured Posts</h4>
