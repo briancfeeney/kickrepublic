@@ -84,10 +84,11 @@ img {
 .read-more {
 	.h4();
 	font-size: 12px;
+	font-weight: 600;
 	text-transform: uppercase;
-	color: @red;
+	color: @blue;
 	&:hover {
-		color: @blue;
+		color: @red;
 		text-decoration: none;
 	}
 }
@@ -103,37 +104,44 @@ img {
 
 header {
 	.AlternateGothic();
-	color: @black;
-	margin-bottom: 40px;
-	a {
-		color: @black;
+	margin: 20px 0 40px;
+	.left-head {
+		background-color: @blue;
+		padding-left: 20px;
 	}
-	.navbar {
-		border-bottom: 1px solid @red;
+	.right-head {
+		background-color: @red;
+		padding: 0 5px;
+		min-height: 0;
 	}
 }
 
 nav {
+	&.navbar { border: none; }
 	text-transform: uppercase;
 	.navbar-brand {
-		font-size: 6em;
-		line-height: 1.2em;
+		font-size: 4em;
+		line-height: 1em;
 		padding: 0;
-		margin-top: 10px;
+		margin-top: 12px;
 		display: inline-block;
 	}
 	.top-nav {
 		position: absolute;
 		right: 0;
-		top: 14px;
+		top: 8px;
+		padding: 0 5px;
 	}
 	.bottom-nav {
-		margin-top: 74px;
+		margin-top: 20px;
+		padding-left: 16px;
 		li {
+			margin-bottom: 10px;
 			a {
-				font-size: 2em;
+				font-size: 1.8em;
 				padding: 0;
 				margin-right: 20px;
+				color: @white;
 			}
 			&:last-child a {
 				margin-right: 0;
@@ -142,22 +150,50 @@ nav {
 	}
 }
 
-.navbar-default .navbar-form {
-	border: 1px solid @black;
-	padding: 0;
-	.form-control,
-	button {
+.navbar-default {
+	background-color: transparent;
+	.navbar-collapse {
 		border: none;
-		padding: 0 10px;
-		height: 30px;
 	}
-	button {
-		text-transform: uppercase;
+	.navbar-form {
+		border: 1px solid @white;
+		padding: 0;
+		margin: 7px 10px;
+		.form-group {
+			width: 165px;
+			.SourceSansR();
+			color: @white;
+		}
+		.form-control, button {
+			border: none;
+			padding: 0 10px;
+			height: 30px;
+			line-height: 29px;
+		}
+		button {
+			text-transform: uppercase;
+			color: @white;
+			background-color: @red;
+		}
 	}
 }
 
+.nav .social-link {
+	a {
+		padding: 13px 10px;
+	}
+	img {
+		width: 20px;
+		&:hover {
+			opacity: .8;
+		}
+	}
+}
 
-
+.navbar-toggle {
+	margin-right: 15px;
+	margin-top: 23px;
+}
 
 /* ----------------------------------------------------------------------------- */
 // NEWS
@@ -193,7 +229,7 @@ nav {
 	}
 	.featured-image {
 		width: 100%;
-		height: 440px;
+		height: 380px;
 		background-size: cover;
 		background-position: 50% 50%;
 		margin-bottom: 20px;
@@ -232,6 +268,7 @@ nav {
 // FOOTER
 
 footer {
+	.SourceSansR();
 	padding: 60px;
 	ul {
 		li {
@@ -239,4 +276,80 @@ footer {
 			margin-right: 20px;
 		}
 	}
+}
+
+
+/* ----------------------------------------------------------------------------- */
+// RESPONSIVE
+
+/* Small devices (tablets, 768px and up) */
+@media (min-width: @screen-sm) { 
+	
+	header {
+		.left-head {
+			padding: 0 20px;
+		}
+	}
+	
+	nav {
+		.navbar-header {
+			float: none;
+			text-align: center;
+		}
+		.navbar-brand {
+			font-size: 6.1em;
+			float: none;
+		}
+		.top-nav {
+			right: 132px;
+		}
+		.bottom-nav {
+			margin-top: 69px;
+			padding: 0;
+			margin-left: 132px;
+			li {
+				a {
+
+				}
+			}
+		}
+	}
+	
+}
+
+/* Medium devices (desktops, 992px and up) */
+@media (min-width: @screen-md) {
+
+	header {
+		left-head {
+			padding-left: 20px;
+		}
+		.right-head {
+			height: 108px;
+		}
+	}
+	
+	nav {
+		.navbar-header {
+			float: left;
+			text-align: left;
+		}
+		.navbar-brand {
+			float: left;
+			font-size: 6em;
+		}
+		.top-nav {
+			right: 0;
+		}
+		.bottom-nav {
+			float: right;
+			margin-left: 0;
+		}
+	}
+
+}
+
+/* Large devices (large desktops, 1200px and up) */
+@media (min-width: @screen-lg) {
+
 }
