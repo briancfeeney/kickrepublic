@@ -13,9 +13,12 @@
 {% block content %}
 
 <div class="row">
-	<div class="col-md-8">
+	<div class="col-sm-9">
 		<section id="news">
-			{% for entry in craft.entries.section('news').find() %}
+			
+			{% paginate craft.entries.section('news').limit(3) as entries %}
+			
+			{% for entry in entries %}
 				<article class="news">
 					<h1><a href="{{ entry.url }}">{{ entry.title }}</a></h1>
 			
@@ -25,12 +28,33 @@
 				
 					<h5>Posted on {{ entry.postDate.format('F d, Y') }} by {{ entry.author }}</h5>
 					{{ entry.body.page(1) }}
+					
+					{% if entry.related_players | length %}
+					<h4 class="related-players">Related Players:
+						{% for related_players in entry.related_players %}
+							<small><a href="{{ related_players.url }}">{{ related_players.title }},</a></small>
+						{% endfor %}
+					</h4>
+					{% endif %}
+					
 				</article>
 			{% endfor %}
 			
+			
+			{% if paginate.prevUrl %}
+		        <a href="{{ paginate.prevUrl }}" class="read-more prev">Next Page</a>
+		    {% endif %}
+
+		    {% if paginate.nextUrl %}
+		        <a href="{{ paginate.nextUrl }}" class="read-more next">Previous Page</a>
+		    {% endif %}
+		
+			
+			{% endpaginate %}
+			
 		</section>
 	</div>
-	<div class="col-md-3 col-md-offset-1">
+	<div class="col-sm-3">
 		<section id="sidebar" class="hidden-xs">
 			<section>
 				<h4>Featured Posts</h4>

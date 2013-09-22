@@ -28,7 +28,7 @@
 				</article>
 			{% endfor %}
 			
-			{% for entry in craft.entries.section('news').find()|slice(1, 5) %}
+			{% for entry in craft.entries.section('news').find()|slice(1, 4) %}
 				<article>
 					
 					
@@ -39,7 +39,7 @@
 							{% endfor %}
 						</div>
 						<div class="col-sm-8">
-							<h2><a href="{{ entry.url }}">{{ entry.title }}</a></h2>
+							<h2 class="title"><a href="{{ entry.url }}">{{ entry.title }}</a></h2>
 							<h5>Posted on {{ entry.postDate.format('F d, Y') }} by {{ entry.author }}</h5>
 							{{ entry.news_excerpt }}
 							<a href="{{ entry.url }}" class="read-more">Continue reading</a>
@@ -47,6 +47,8 @@
 					</div>
 				</article>
 			{% endfor %}
+			
+			<a href="/news" class="read-more">Read More Kick Republic News</a>
 			
 		</section>
 	</div>

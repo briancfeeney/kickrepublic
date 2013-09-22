@@ -11,21 +11,28 @@
 {% set title = "About" %}
 
 {% block content %}
-
-	<h2>About</h2>
 	
-	<section>
-		{{ about.purpose }}
-	</section>
+	<div class="row">
+		<div class="col-sm-8 col-sm-offset-2">
 	
-	<section>
-		<h3>Writers</h3>
-		{% for row in about.writers %}
-			<article>
-				<h4>{{ row.writer_name }}</h4>
-				<p>{{ row.writer_bio }}</p>
-			</article>
-		{% endfor %}
-	</section>
+			<section>
+				<h1>About Kick Republic</h1>
+				
+				{{ about.purpose }}
+			</section>
+			
+	
+			<section id="writers">
+				<h4>Writers</h4>
+				{% for row in about.writers %}
+					<article>
+						<h2>{{ row.writer_name }}</h2>
+						<p>{{ row.writer_bio }}</p>
+					</article>
+				{% endfor %}
+			</section>
+			
+		</div>
+	</div>
 
 {% endblock %}

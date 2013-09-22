@@ -13,10 +13,26 @@
 {% extends "_layout" %}
 
 {% block content %}
-	<article>
-		<h1>{{ entry.title }}</h1>
-		<p>{% for option in entry.player_position %}{{ option }}{% endfor %}</p>
-		<p>{% for row in entry.player_clubs %}{{ row.player_club }}{% endfor %}</p>
-		{{ entry.body }}
-	</article>
+
+<article>
+	
+<h1>{{ entry.title }}</h1>
+
+<div class="row">
+	<div class="col-xs-3">
+
+			{% for image in entry.player_photo %}
+			
+				<img src="{{ image.url }}" height="{{ image.height }}" width="{{ image.width }}" alt="{{ entry.title }}" class="featured-image">
+			
+			{% endfor %}
+			
+	</div>
+	<div class="col-xs-9">
+			<h4>{% for option in entry.player_position %}{{ option }}{% endfor %}</h4>
+			<h3>{% for row in entry.player_clubs %}{{ row.player_club }}{% endfor %}</h3>
+			{{ entry.body }}
+	</div>
+</div>
+		</article>
 {% endblock %}

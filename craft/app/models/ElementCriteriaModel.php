@@ -37,7 +37,6 @@ class ElementCriteriaModel extends BaseModel
 	protected function defineAttributes()
 	{
 		$attributes = array(
-			'source'        => AttributeType::String,
 			'id'            => AttributeType::Number,
 			'locale'        => AttributeType::Locale,
 			'uri'           => AttributeType::String,
@@ -69,24 +68,6 @@ class ElementCriteriaModel extends BaseModel
 		}
 
 		return $attributes;
-	}
-
-	/**
-	 * Sets an attribute's value.
-	 *
-	 * @param string $name
-	 * @param mixed $value
-	 * @return bool
-	 */
-	public function setAttribute($name, $value)
-	{
-		// Treat asterisks as null (for fun)
-		if ($value === '*')
-		{
-			$value = null;
-		}
-
-		return parent::setAttribute($name, $value);
 	}
 
 	/**

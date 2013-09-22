@@ -7,18 +7,37 @@
 {% set title = "Rankings" %}
 
 {% block content %}
-	<h1>International Ranking</h1>
 
-	<section>
-		<p>{{ rankings.ranking_intro }}</p>
+
+<div class="row">
+	<div class="col-sm-8 col-sm-offset-2">
 		
-		{% for row in rankings.ranking %}
-		   {% if loop.first %}<ol>{% endif %}
-			<li>
-				<h5>{{ row.nation }}<h5>
-				<p>{{ row.nation_info }}</p>
-			</li>
-		   {% if loop.last %}</ol>{% endif %}
-		{% endfor %}
-	</section>
+		<h1>International Ranking</h1>
+		
+		<section id="rankings-intro">
+			<p>{{ rankings.ranking_intro }}</p>
+		</section>
+
+		<section id="rankings">
+			<ol>
+			{% for row in rankings.ranking %}
+				<li>
+						<div class="row">
+							<!-- <div class="col-sm-1">
+															{{ count }}
+														</div> -->
+							<div class="col-sm-4">
+								<h3>{{ row.nation }}</h3>
+							</div>
+							<div class="col-sm-8">
+								<p>{{ row.nation_info }}</p>
+							</div>
+						</div>
+				</li>
+			{% endfor %}
+			</ol>
+		</section>
+	</div>
+</div>
+	
 {% endblock %}

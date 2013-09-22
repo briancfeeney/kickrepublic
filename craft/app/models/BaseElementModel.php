@@ -192,27 +192,39 @@ abstract class BaseElementModel extends BaseModel
 	}
 
 	/**
-	 * Is set?
+	 * Treats custom fields as properties.
 	 *
 	 * @param $name
 	 * @return bool
 	 */
 	function __isset($name)
 	{
-		if (parent::__isset($name))
+		if (parent::__isset($name) || craft()->fields->getFieldByHandle($name))
 		{
 			return true;
 		}
+		else
+		{
+			return false;
+		}
+	}
 
-		// Is $name a field handle?
-		$field = craft()->fields->getFieldByHandle($name);
-		if ($field)
+	/**
+	 * Treats custom fields as array offsets.
+	 *
+	 * @param mixed $offset
+	 * @return boolean
+	 */
+	public function offsetExists($offset)
+	{
+		if (parent::offsetExists($offset) || craft()->fields->getFieldByHandle($offset))
 		{
 			return true;
 		}
-
-
-		return false;
+		else
+		{
+			return false;
+		}
 	}
 
 	/**

@@ -12,25 +12,15 @@
   font-style: normal;
   font-weight: 400;
 }
-.Leitura {
-  font-family: "leitura-news", serif;
+.FranklinGothicBook {
+  font-family: "franklin-gothic-urw-cond", sans-serif;
   font-style: normal;
-  font-weight: 300;
+  font-weight: 400;
 }
-.LeituraI {
-  font-family: "leitura-news", serif;
-  font-style: italic;
-  font-weight: 300;
-}
-.LeituraB {
-  font-family: "leitura-news", serif;
+.FranklinGothicMedium {
+  font-family: "franklin-gothic-urw-cond", sans-serif;
   font-style: normal;
-  font-weight: 600;
-}
-.LeituraBI {
-  font-family: "leitura-news", serif;
-  font-style: italic;
-  font-weight: 600;
+  font-weight: 500;
 }
 .SourceSans {
   font-family: "source-sans-pro", sans-serif;
@@ -5948,26 +5938,35 @@ td.visible-print {
 }
 /* ----------------------------------------------------------------------------- */
 body {
-  font-family: "ff-tisa-web-pro", Georgia, serif;
+  font-family: "ff-tisa-web-pro", serif;
+  font-style: normal;
+  font-weight: 400;
 }
 h1 {
-  font-family: "alternate-gothic-no-2-d", sans-serif;
+  font-family: "franklin-gothic-urw-cond", sans-serif;
   font-style: normal;
-  font-weight: 400;
+  font-weight: 500;
   font-size: 3em;
   line-height: 1em;
+  margin-bottom: 19px;
 }
 h2 {
-  font-family: "alternate-gothic-no-2-d", sans-serif;
+  font-family: "franklin-gothic-urw-cond", sans-serif;
   font-style: normal;
-  font-weight: 400;
+  font-weight: 500;
+  font-size: 2em;
+  margin: 1.5em 0 .5em;
+}
+h2.title {
   font-size: 2.5em;
   line-height: 1em;
 }
 h3 {
-  font-family: "alternate-gothic-no-2-d", sans-serif;
+  font-family: "franklin-gothic-urw-cond", sans-serif;
   font-style: normal;
   font-weight: 400;
+  font-size: 1.2em;
+  line-height: 1.2em;
 }
 h4 {
   font-family: "source-sans-pro", sans-serif;
@@ -6038,26 +6037,11 @@ a h6:hover {
 p {
   line-height: 1.5em;
 }
-em,
-i {
-  font-family: "leitura-news", serif;
-  font-style: italic;
-  font-weight: 300;
-}
-strong,
-b {
-  font-family: "leitura-news", serif;
-  font-style: normal;
-  font-weight: 600;
-}
 img {
   width: 100%;
   height: auto;
 }
 /* ----------------------------------------------------------------------------- */
-#main {
-  font-size: .85em;
-}
 .title {
   margin-top: 0;
 }
@@ -6069,7 +6053,12 @@ img {
   font-size: 12px;
   font-weight: 600;
   text-transform: uppercase;
-  color: #2e2f48;
+  background-color: #2e2f48;
+  color: #ffffff;
+  padding: 4px 8px;
+  letter-spacing: 1px;
+  margin-top: 20px;
+  display: inline-block;
 }
 .read-more small {
   font-weight: normal;
@@ -6077,7 +6066,8 @@ img {
   color: #999999;
 }
 .read-more:hover {
-  color: #cf2e2c;
+  color: #ffffff;
+  background-color: #cf2e2c;
   text-decoration: none;
 }
 .fluid-width-video-wrapper {
@@ -6092,7 +6082,7 @@ header {
 }
 header .left-head {
   background-color: #2e2f48;
-  padding-left: 20px;
+  padding-left: 10px;
 }
 header .right-head {
   background-color: #cf2e2c;
@@ -6106,7 +6096,7 @@ nav.navbar {
   border: none;
 }
 nav .navbar-brand {
-  font-size: 3.9em;
+  font-size: 3.3em;
   line-height: 1em;
   padding: 0;
   margin-top: 12px;
@@ -6128,7 +6118,7 @@ nav .bottom-nav li {
 nav .bottom-nav li a {
   font-size: 1.4em;
   padding: 0;
-  margin-right: 15px;
+  margin-right: 14px;
   color: #ffffff;
 }
 nav .bottom-nav li:last-child a {
@@ -6143,10 +6133,10 @@ nav .bottom-nav li:last-child a {
 .navbar-default .navbar-form {
   border: 1px solid #ffffff;
   padding: 0;
-  margin: 7px 10px;
+  margin: 10px 10px;
 }
 .navbar-default .navbar-form .form-group {
-  width: 84px;
+  width: 82px;
   font-family: "source-sans-pro", sans-serif;
   font-style: normal;
   font-weight: 400;
@@ -6180,19 +6170,21 @@ nav .bottom-nav li:last-child a {
 .nav .social-link img:hover {
   opacity: .8;
 }
-.navbar-toggle {
-  margin-right: 25px;
-  margin-top: 25px;
+.navbar-default .navbar-toggle {
+  margin-right: 10px;
+  margin-top: 20px;
   padding: 5px;
+}
+.navbar-default .navbar-toggle:focus,
+.navbar-default .navbar-toggle:active,
+.navbar-default .navbar-toggle:hover {
+  background-color: #4c4d77;
 }
 /* ----------------------------------------------------------------------------- */
 #news article {
   border-bottom: 1px solid #cf2e2c;
   margin-bottom: 20px;
   padding-bottom: 20px;
-}
-#news article h2 {
-  margin-top: 0;
 }
 #news article img {
   margin-bottom: 20px;
@@ -6219,14 +6211,34 @@ nav .bottom-nav li:last-child a {
   background-position: 50% 25%;
   margin-bottom: 20px;
 }
+.related-players {
+  margin: 40px 0 20px;
+}
+.related-players small a {
+  color: #2e2f48;
+  text-transform: none;
+  letter-spacing: 0;
+}
+.related-players small a:hover {
+  color: #cf2e2c;
+}
+.next {
+  float: left;
+}
+.prev {
+  float: right;
+}
 /* ----------------------------------------------------------------------------- */
+#sidebar {
+  font-size: .85em;
+}
 #sidebar section {
   margin-bottom: 40px;
   border-bottom: 1px solid #cf2e2c;
   padding-bottom: 20px;
 }
 #sidebar ol {
-  font-family: "alternate-gothic-no-2-d", sans-serif;
+  font-family: "franklin-gothic-urw-cond", sans-serif;
   font-style: normal;
   font-weight: 400;
   margin-left: 15px;
@@ -6239,22 +6251,88 @@ nav .bottom-nav li:last-child a {
   margin: 0;
 }
 #sidebar li h3 {
-  font-size: 1.5em;
+  font-size: 1.15em;
+}
+/* ----------------------------------------------------------------------------- */
+#players li,
+#coach li {
+  height: 200px;
+  margin-bottom: 80px;
+}
+#players li .player-image,
+#coach li .player-image {
+  height: 200px;
+  width: 100%;
+  margin-bottom: 10px;
+  background-color: #cbcbdd;
+  background-size: cover;
+  background-position: 50% 50%;
+}
+@media (min-width: 768px) {
+  
+}
+#players h3,
+#coach h3 {
+  margin-top: 10px;
+}
+/* ----------------------------------------------------------------------------- */
+#rankings-intro {
+  margin-bottom: 40px;
+}
+#rankings h3 {
+  margin-top: 0;
+}
+#rankings li {
+  margin-bottom: 20px;
+  border-bottom: 1px solid #cf2e2c;
+  padding-bottom: 15px;
+}
+#rankings .row {
+  margin-top: -25px;
+}
+/* ----------------------------------------------------------------------------- */
+#writers {
+  margin: 60px 0;
 }
 /* ----------------------------------------------------------------------------- */
 footer {
   font-family: "source-sans-pro", sans-serif;
   font-style: normal;
   font-weight: 400;
-  padding: 60px;
+  padding: 80px 0 0;
+}
+footer .container {
+  color: #2e2f48;
+  padding: 20px 0 40px;
+}
+footer ul {
+  margin: 0 auto;
 }
 footer ul li {
   float: left;
   margin-right: 20px;
+  font-size: .8em;
+  text-transform: uppercase;
+}
+footer ul li a {
+  color: #2e2f48;
+}
+footer ul li a:hover {
+  color: #cf2e2c;
+}
+footer ul li.credit {
+  float: right;
+  opacity: .5;
+}
+footer ul li.credit:hover {
+  opacity: 1;
 }
 /* ----------------------------------------------------------------------------- */
 /* Small devices (tablets, 768px and up) */
 @media (min-width: 768px) {
+  header .left-head {
+    padding-left: 20px;
+  }
   header .right-head {
     height: 83px;
   }
@@ -6279,9 +6357,6 @@ footer ul li {
 }
 /* Medium devices (desktops, 992px and up) */
 @media (min-width: 992px) {
-  header left-head {
-    padding-left: 20px;
-  }
   header .right-head {
     height: 108px;
   }
@@ -6312,7 +6387,7 @@ footer ul li {
     height: 30px;
     line-height: 29px;
   }
-  #main {
+  #sidebar {
     font-size: 1em;
   }
 }

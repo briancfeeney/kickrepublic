@@ -14,8 +14,12 @@
 <head>
 	<meta charset="utf-8" />
 	<meta name="viewport" content="width=device-width, initial-scale=1.0">
-	<title>{% if title is defined %}{{ title }} - {% endif %}{{ siteName }}</title>
+	<meta name=”description” content=”{{ about.meta_description | striptags }}” />
 	<link rel="home" href="{{ siteUrl }}" />
+	
+	<title>{{ entry.title }} - {{siteName}}</title>
+	<meta name="title" content="{{ entry.title }}" />
+
 	
 	<link rel="stylesheet" type="text/css" href="{{ url('css') }}/kickrepublic.css" />
 	
@@ -57,17 +61,17 @@
 						  <!-- Collect the nav links, forms, and other content for toggling -->
 						  <div class="collapse navbar-collapse navbar-ex1-collapse">
 						    <ul class="nav navbar-nav bottom-nav">
-								<li><a href="{{ url('news') }}" {% if craft.request.firstSegment == 'news' %}class="active"{% endif %}>News</a></li>
-								<li><a href="{{ url('team') }}" {% if craft.request.firstSegment == 'team' %}class="active"{% endif %}>The USMNT</a></li>
-								<li><a href="{{ url('rankings') }}" {% if craft.request.firstSegment == 'team' %}class="active"{% endif %}>KR INTL. Rankings</a></li>
-								<li><a href="{{ url('about') }}" {% if craft.request.firstSegment == 'about' %}class="active"{% endif %}>About</a></li>
+								<li><a href="{{ siteUrl }}/news" {% if craft.request.firstSegment == 'news' %}class="active"{% endif %}>News</a></li>
+								<li><a href="{{ siteUrl }}/team" {% if craft.request.firstSegment == 'team' %}class="active"{% endif %}>The USMNT</a></li>
+								<li><a href="{{ siteUrl }}/rankings" {% if craft.request.firstSegment == 'team' %}class="active"{% endif %}>KR INTL. Rankings</a></li>
+								<li><a href="{{ siteUrl }}/about" {% if craft.request.firstSegment == 'about' %}class="active"{% endif %}>About</a></li>
 						    </ul>
 						  </div><!-- /.navbar-collapse -->
 				
 						<ul class="nav navbar-nav top-nav hidden-xs">
 							<li class="social-link"><a href="http://twitter.com/{{global.twitter}}"><img src="{{ siteUrl }}/images/twitter-white.png" /></a></li>
-							<li class="social-link"><a href="http://facebook.com/{{global.facebook}}"><img src="{{ siteUrl }}/images/facebook-white.png" /></a></li>
-							<li class="social-link"><a href="http://facebook.com/{{global.facebook}}"><img src="{{ siteUrl }}/images/google-white.png" /></a></li>
+							<li class="social-link"><a href="{{global.facebook}}"><img src="{{ siteUrl }}/images/facebook-white.png" /></a></li>
+							<li class="social-link"><a href="{{global.google}}"><img src="{{ siteUrl }}/images/google-white.png" /></a></li>
 							<li class="social-link"><a href="mailto:{{global.email}}"><img src="{{ siteUrl }}/images/email-white.png" /></a></li>
 							<li class="social-link"><a href="{{ siteUrl }}/kickrepublic.rss"><img src="{{ siteUrl }}/images/rss-white.png" /></a></li>
 							<li>
@@ -108,8 +112,8 @@
 	<footer id="footer">
 		<div class="container">
 			<ul class="list-unstyled">
-				<li>Copyright {{ now.year }} {{ craft.request.serverName | ucfirst }}</li>
-				<li>Site by <a href="http://brianfeeney.us">Brian Feeney</a></li>
+				<li>© {{ craft.request.serverName | ucfirst }} {{ now.year }}</li>
+				<li class="credit">Site by <a href="http://brianfeeney.us">Brian Feeney</a></li>
 			</ul>
 		</div>
 	</footer>

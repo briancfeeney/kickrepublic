@@ -14,7 +14,7 @@
 
 {% block content %}
 <div class="row">
-	<div class="col-md-8">
+	<div class="col-sm-9">
 		<section id="news">
 				<article class="news single">
 					<h1>{{ entry.title }}</h1>
@@ -25,10 +25,19 @@
 				
 					<h5>Posted on {{ entry.postDate.format('F d, Y') }} by {{ entry.author }}</h5>
 					{{ entry.body.page(1) }}
+					
+					{% if entry.related_players | length %}
+					<h4 class="related-players">Related Players:
+						{% for related_players in entry.related_players %}
+							<small><a href="{{ related_players.url }}">{{ related_players.title }},</a></small>
+						{% endfor %}
+					</h4>
+					{% endif %}
+					
 				</article>
 		</section>
 	</div>
-	<div class="col-md-3 col-md-offset-1">
+	<div class="col-sm-3">
 		<section id="sidebar" class="hidden-xs">
 			<section>
 				<h4>Featured Posts</h4>

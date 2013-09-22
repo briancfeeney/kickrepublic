@@ -24,8 +24,9 @@ class ElementsController extends BaseController
 		$this->requireAjaxRequest();
 
 		$showSources = craft()->request->getParam('sources');
+		$context = craft()->request->getParam('context');
 		$elementType = $this->_getElementType();
-		$sources = $elementType->getSources();
+		$sources = $elementType->getSources($context);
 
 		if (is_array($showSources))
 		{
@@ -49,7 +50,7 @@ class ElementsController extends BaseController
 	 */
 	public function actionGetElements()
 	{
-		$mode = craft()->request->getParam('mode', 'index');
+		$context = craft()->request->getParam('context');
 		$elementType = $this->_getElementType();
 		$state = craft()->request->getParam('state', array());
 		$disabledElementIds = craft()->request->getParam('disabledElementIds');
@@ -59,7 +60,17 @@ class ElementsController extends BaseController
 
 		if (!empty($state['source']))
 		{
-			$criteria->source = $state['source'];
+			$sources = $elementType->getSources($context);
+			$sourceCriteria = $this->_getSourceCriteria($sources, $state['source']);
+
+			if ($sourceCriteria !== null)
+			{
+				$criteria->setAttributes($sourceCriteria);
+			}
+			else
+			{
+				return false;
+			}
 		}
 
 		if ($search = craft()->request->getParam('search'))
@@ -77,7 +88,7 @@ class ElementsController extends BaseController
 		);
 
 		$elementVars = array(
-			'mode'               => $mode,
+			'context'            => $context,
 			'elementType'        => new ElementTypeVariable($elementType),
 			'disabledElementIds' => $disabledElementIds,
 		);
@@ -150,4 +161,40 @@ class ElementsController extends BaseController
 
 		return $elementType;
 	}
+
+	/**
+	 * Returns the criteria for a given source.
+	 *
+	 * @param array  $sources
+	 * @param string $selectedSource
+	 * @return array|null
+	 */
+	private function _getSourceCriteria($sources, $selectedSource)
+	{
+		if (isset($sources[$selectedSource]))
+		{
+			if (isset($sources[$selectedSource]['criteria']))
+			{
+				return $sources[$selectedSource]['criteria'];
+			}
+			else
+			{
+				return array();
+			}
+		}
+		else
+		{
+			// Look through any nested sources
+			foreach ($sources as $key => $source)
+			{
+				if (!empty($source['nested']) && ($nestedSourceCriteria = $this->_getSourceCriteria($source['nested'], $selectedSource)))
+				{
+					return $nestedSourceCriteria;
+				}
+			}
+		}
+
+		return null;
+	}
+
 }
