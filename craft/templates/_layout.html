@@ -17,6 +17,8 @@
 	<meta name=”description” content=”{{ about.meta_description | striptags }}” />
 	<link rel="home" href="{{ siteUrl }}" />
 	
+	<link rel="icon" type="image/png" href="{{ siteUrl }}/images/favicon.png">
+	
 	<title>{{ entry.title }} - {{siteName}}</title>
 	<meta name="title" content="{{ entry.title }}" />
 
@@ -75,11 +77,11 @@
 							<li class="social-link"><a href="mailto:{{global.email}}"><img src="{{ siteUrl }}/images/email-white.png" /></a></li>
 							<li class="social-link"><a href="{{ siteUrl }}/kickrepublic.rss"><img src="{{ siteUrl }}/images/rss-white.png" /></a></li>
 							<li>
-								<form class="navbar-form navbar-left" role="search">
+								<form class="navbar-form navbar-left" role="search" action="{{ url('search') }}">
 							      <div class="form-group">
-							        <input type="text" class="form-control" placeholder="Search">
+							        <input type="search" name="search" class="form-control" placeholder="Search">
 							      </div>
-							      <button type="submit" class="btn btn-default">Search</button>
+							      <button type="submit" class="btn btn-default" value="go">Search</button>
 							    </form>
 							</li>
 						</ul>
@@ -118,6 +120,18 @@
 		</div>
 	</footer>
 </body>
+
+<script src="{{ url('js') }}/collapse.js"></script>
+<script src="{{ url('js') }}/modal.js"></script>
+<script src="{{ url('js') }}/transition.js"></script>
+
+<script src="{{ url('js') }}/button.js"></script>
+<script src="{{ url('js') }}/dropdown.js"></script>
+<script src="{{ url('js') }}/html5.js"></script>
+
+<script src="{{ url('js') }}/navigation.js"></script>
+<script src="{{ url('js') }}/tab.js"></script>
+<script src="{{ url('js') }}/affix.js"></script>
 
 <script>
   $(document).ready(function(){

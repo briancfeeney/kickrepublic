@@ -1,0 +1,83 @@
+{#
+ # Rankings index template
+ # -------------------
+ #}
+
+{% extends "_layout" %}
+{% set title = "Rankings" %}
+
+{% block content %}
+
+
+<div class="row">
+	<div class="col-sm-9">
+		
+		<section id="search">
+
+			{% set searchTerm = craft.request.getParam('search') %}
+			{% set entries = craft.entries.search(searchTerm).section('news').find() %}
+			
+			<h1>You Searched for “{{ searchTerm }}” <small>({{ entries | length }} results)</small></h1>
+
+			{% if entries %}
+
+			    <ul class="list-unstyled">
+			        {% for entry in entries %}
+			            <li>
+			            	<article>
+								<div class="row">
+									<div class="col-sm-4">
+										{% for image in entry.news_image %}
+										   <img src="{{ image.url }}" height="{{ image.height }}" width="{{ image.width }}" alt="{{ entry.title }}">
+										{% endfor %}
+									</div>
+									<div class="col-sm-8">
+										<h2 class="title"><a href="{{ entry.url }}">{{ entry.title }}</a></h2>
+										<h5>Posted on {{ entry.postDate.format('F d, Y') }} by {{ entry.author }}</h5>
+										{{ entry.news_excerpt }}
+										<a href="{{ entry.url }}" class="read-more">Continue reading</a>
+									</div>
+								</div>
+							</article>
+			            </li>
+			        {% endfor %}
+			    </ul>
+			{% else %}
+			    <p>Your search for “{{ searchTerm }}” didn’t return any results.</p>
+			{% endif %}
+		
+		</section>
+	</div>
+	
+	<div class="col-sm-3">
+		<section id="sidebar" class="hidden-xs">
+			<section>
+				<h4>Featured Posts</h4>
+				<ul class="list-unstyled">
+					{% for post in featured_content.featured_posts %}
+						<li><a href="{{ post.url }}"><h3>{{ post.title }}</h3></a></li>
+				    {% endfor %}
+				</ul>
+			</section>
+			<section>
+				<h4>Featured Players</h4>
+				<ul class="list-unstyled">
+					{% for post in featured_content.featured_players %}
+						<li><a href="{{ post.url }}"><h3>{{ post.title }}</h3></a></li>
+				    {% endfor %}
+				</ul>
+			</section>
+			<section>
+				<h4>KR INTL. Rankings</h4>
+				<ol>
+					{% for row in rankings.ranking|slice(0, 3) %}
+						<li><h3>{{ row.nation }}</h3></li>
+					{% endfor %}
+				</ol>
+				<ul class="list-unstyled"><li><a href="/rankings" class="read-more">See the full rankings</a></li></ul>
+			</section>
+		</section>
+	</div>
+</div>
+	
+{% endblock %}

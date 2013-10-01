@@ -7,12 +7,25 @@
 {% set title = "Players" %}
 
 {% block content %}
-	<h1>Players</h1>
+
+<h1>Players</h1>
 
 	{% for entry in craft.entries.section('players').find() %}
-		<article>
-			<h3><a href="{{ entry.url }}">{{ entry.title }}</a></h3>
-			{{ entry.body }}
-		</article>
+	
+		<div class="col-sm-2">
+			<a href="{{ entry.url }}">
+				<article>
+					
+					{% for image in entry.player_photo %}
+					   <img src="{{ image.url }}" height="{{ image.height }}" width="{{ image.width }}" alt="{{ entry.title }}" class="featured-image">
+					{% endfor %}
+			
+					<h3>{{ entry.title }}</h3>
+		
+				</article>
+			</a>
+		</div>
 	{% endfor %}
+		
+		
 {% endblock %}

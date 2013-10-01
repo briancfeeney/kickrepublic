@@ -36,7 +36,7 @@ h4 {
 	color: @gold;
 	font-size: 1.1em;
 	letter-spacing: 2px;
-	margin-bottom: 20px;
+	margin-bottom: 15px;
 }
 
 h5 {
@@ -222,13 +222,12 @@ nav {
 /* ----------------------------------------------------------------------------- */
 // NEWS
 
-#news {
+#news,
+#search {
 	article {
 		border-bottom: 1px solid @red;
 		margin-bottom: 20px;
 		padding-bottom: 20px;
-		h2 {
-		}
 		img {
 			margin-bottom: 20px;
 		}
@@ -245,6 +244,9 @@ nav {
 		p:first-of-type {
 			font-size: @font-size-large;
 		}
+	}
+	.read-more {
+		text-align: right;
 	}
 }
 
@@ -288,7 +290,7 @@ nav {
 #sidebar {
 	font-size: .85em;
 	section {
-		margin-bottom: 40px;
+		margin-bottom: 30px;
 		border-bottom: 1px solid @red;
 		padding-bottom: 20px;
 	}
@@ -305,7 +307,9 @@ nav {
 		h3 {
 			font-size: 1.15em;
 		}
-		
+	}
+	h4 {
+		margin-top: 0;
 	}
 }
 
@@ -324,6 +328,17 @@ nav {
 			background-color: lighten(@blue, 60%);
 			background-size: cover;
 			background-position: 50% 50%;
+		}
+		.player-no-image {
+			height: 200px;
+			width: 100%;
+			margin-bottom: 10px;
+			background-color: lighten(@blue, 60%);
+			span {
+				color: @white;
+				font-size: 11.5em;
+				margin-left: -2px;
+			}
 		}
 	}
 	@media (min-width: @screen-sm) {
@@ -365,6 +380,19 @@ nav {
 	margin: 60px 0;
 }
 
+
+/* ----------------------------------------------------------------------------- */
+// SEARCH
+
+#search {
+	h1 {
+		margin-bottom: 20px;
+		border-bottom: 1px solid @red;
+		padding-bottom: 40px;
+	}
+}
+
+
 /* ----------------------------------------------------------------------------- */
 // FOOTER
 
@@ -390,7 +418,7 @@ footer {
 			}
 			&.credit {
 				float: right;
-				opacity: .5;
+				opacity: .4;
 				&:hover {
 					opacity: 1;
 				}
@@ -501,3 +529,6 @@ footer {
 @media (min-width: @screen-lg) {
 
 }
+
+
+

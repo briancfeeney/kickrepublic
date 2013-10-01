@@ -5976,7 +5976,7 @@ h4 {
   color: #d1a657;
   font-size: 1.1em;
   letter-spacing: 2px;
-  margin-bottom: 20px;
+  margin-bottom: 15px;
 }
 h5 {
   font-family: "source-sans-pro", sans-serif;
@@ -6181,24 +6181,33 @@ nav .bottom-nav li:last-child a {
   background-color: #4c4d77;
 }
 /* ----------------------------------------------------------------------------- */
-#news article {
+#news article,
+#search article {
   border-bottom: 1px solid #cf2e2c;
   margin-bottom: 20px;
   padding-bottom: 20px;
 }
-#news article img {
+#news article img,
+#search article img {
   margin-bottom: 20px;
 }
-#news .news {
+#news .news,
+#search .news {
   overflow: hidden;
 }
-#news .news .featured-image {
+#news .news .featured-image,
+#search .news .featured-image {
   float: left;
   width: 50%;
   margin: 0 20px 20px 0;
 }
-#news .news.single p:first-of-type {
+#news .news.single p:first-of-type,
+#search .news.single p:first-of-type {
   font-size: 18px;
+}
+#news .read-more,
+#search .read-more {
+  text-align: right;
 }
 .top-news p {
   font-size: 18px;
@@ -6233,7 +6242,7 @@ nav .bottom-nav li:last-child a {
   font-size: .85em;
 }
 #sidebar section {
-  margin-bottom: 40px;
+  margin-bottom: 30px;
   border-bottom: 1px solid #cf2e2c;
   padding-bottom: 20px;
 }
@@ -6253,6 +6262,9 @@ nav .bottom-nav li:last-child a {
 #sidebar li h3 {
   font-size: 1.15em;
 }
+#sidebar h4 {
+  margin-top: 0;
+}
 /* ----------------------------------------------------------------------------- */
 #players li,
 #coach li {
@@ -6267,6 +6279,19 @@ nav .bottom-nav li:last-child a {
   background-color: #cbcbdd;
   background-size: cover;
   background-position: 50% 50%;
+}
+#players li .player-no-image,
+#coach li .player-no-image {
+  height: 200px;
+  width: 100%;
+  margin-bottom: 10px;
+  background-color: #cbcbdd;
+}
+#players li .player-no-image span,
+#coach li .player-no-image span {
+  color: #ffffff;
+  font-size: 11.5em;
+  margin-left: -2px;
 }
 @media (min-width: 768px) {
   
@@ -6293,6 +6318,12 @@ nav .bottom-nav li:last-child a {
 /* ----------------------------------------------------------------------------- */
 #writers {
   margin: 60px 0;
+}
+/* ----------------------------------------------------------------------------- */
+#search h1 {
+  margin-bottom: 20px;
+  border-bottom: 1px solid #cf2e2c;
+  padding-bottom: 40px;
 }
 /* ----------------------------------------------------------------------------- */
 footer {
@@ -6322,7 +6353,7 @@ footer ul li a:hover {
 }
 footer ul li.credit {
   float: right;
-  opacity: .5;
+  opacity: .4;
 }
 footer ul li.credit:hover {
   opacity: 1;

@@ -62,13 +62,13 @@
 										<a href="{{ post.url }}">
 											{% for image in post.player_photo %}
 												
-												{% if image.url %}
+												
 													<div class="player-image" style="background-image: url('{{ image.url }}');"></div>
 												
 												
 												{% else %}
-												    test
-												{% endif %}
+												    
+													<div class="player-no-image"><span class="glyphicon glyphicon-user"></span></div>
 												
 											{% endfor %}
 											<h3>{{ post.title }}</h3>
