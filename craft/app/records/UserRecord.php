@@ -37,7 +37,6 @@ class UserRecord extends BaseRecord
 			'lastName'                   => array(AttributeType::String, 'maxLength' => 100),
 			'email'                      => array(AttributeType::Email, 'required' => true),
 			'password'                   => array(AttributeType::String, 'maxLength' => 255, 'column' => ColumnType::Char),
-			'encType'                    => array(AttributeType::String, 'maxLength' => 10, 'column' => ColumnType::Char),
 			'preferredLocale'            => array(AttributeType::Locale),
 			'admin'                      => array(AttributeType::Bool),
 			'status'                     => array(AttributeType::Enum, 'values' => array('locked', 'suspended', 'pending', 'active', 'archived'), 'default' => 'pending'),
@@ -64,7 +63,7 @@ class UserRecord extends BaseRecord
 			'preferredLocale' => array(static::BELONGS_TO, 'LocaleRecord', 'preferredLocale', 'onDelete' => static::SET_NULL, 'onUpdate' => static::CASCADE),
 		);
 
-		if (Craft::hasPackage(CraftPackage::Users))
+		if (craft()->hasPackage(CraftPackage::Users))
 		{
 			$relations['groups']  = array(static::MANY_MANY, 'UserGroupRecord', 'usergroups_users(userId, groupId)');
 		}
@@ -85,5 +84,21 @@ class UserRecord extends BaseRecord
 			array('columns' => array('verificationCode')),
 			array('columns' => array('uid')),
 		);
+	}
+
+	/**
+	 * @param null $attributes
+	 * @param bool $clearErrors
+	 * @return bool|void
+	 */
+	public function validate($attributes = null, $clearErrors = true)
+	{
+		// Don't allow whitespace in the username.
+		if (preg_match('/\s+/', $this->username))
+		{
+			$this->addError('username', Craft::t('Spaces are not allowed in the username.'));
+		}
+
+		return parent::validate($attributes, false);
 	}
 }

@@ -321,7 +321,7 @@ class DbHelper
 		$maxLength = 64;
 
 		$name = trim($name, '_');
-		$nameLength = strlen($name);
+		$nameLength = mb_strlen($name);
 
 		if ($nameLength > $maxLength)
 		{
@@ -335,17 +335,17 @@ class DbHelper
 			{
 				foreach ($parts as $i => $part)
 				{
-					$newLength = round($maxLetters * strlen($part) / $totalLetters);
-					$parts[$i] = substr($part, 0, $newLength);
+					$newLength = round($maxLetters * mb_strlen($part) / $totalLetters);
+					$parts[$i] = mb_substr($part, 0, $newLength);
 				}
 			}
 
 			$name = implode('_', $parts);
 
 			// Just to be safe
-			if (strlen($name) > $maxLength)
+			if (mb_strlen($name) > $maxLength)
 			{
-				$name = substr($name, 0, $maxLength);
+				$name = mb_substr($name, 0, $maxLength);
 			}
 		}
 
@@ -390,6 +390,21 @@ class DbHelper
 
 		$values = ArrayHelper::stringToArray($values);
 
+		if (!count($values))
+		{
+			return '';
+		}
+
+		if ($values[0] == 'and' || $values[0] == 'or')
+		{
+			$join = $values[0];
+			array_shift($values);
+		}
+		else
+		{
+			$join = 'or';
+		}
+
 		foreach ($values as $value)
 		{
 			$operator = '=';
@@ -397,11 +412,11 @@ class DbHelper
 			foreach (static::$_operators as $testOperator)
 			{
 				// Does the value start with this operator?
-				$length = strlen($testOperator);
+				$length = mb_strlen($testOperator);
 
-				if (strncmp(strtolower($value), $testOperator, $length) == 0)
+				if (strncmp(mb_strtolower($value), $testOperator, $length) == 0)
 				{
-					$value = substr($value, $length);
+					$value = mb_substr($value, $length);
 
 					if ($testOperator == 'not ')
 					{
@@ -441,7 +456,7 @@ class DbHelper
 		}
 		else
 		{
-			array_unshift($conditions, 'or');
+			array_unshift($conditions, $join);
 			return $conditions;
 		}
 	}
@@ -465,7 +480,7 @@ class DbHelper
 		{
 			if (!$date instanceof \DateTime)
 			{
-				$date = DateTime::createFromString($date, Craft::getTimezone());
+				$date = DateTime::createFromString($date, craft()->getTimezone());
 			}
 
 			$param = ':p'.StringHelper::randomString(9);

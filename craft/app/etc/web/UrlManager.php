@@ -106,15 +106,22 @@ class UrlManager extends \CUrlManager
 			// Merge the route variables into the params
 			$this->_routeParams['variables'] = array_merge($this->_routeParams['variables'], $this->_routeVariables);
 
-			// Save the params in $_GET so they can get mapped to the controller action arguments
-			$_GET = array_merge($_GET, $this->_routeParams);
-
 			// Return the controller action
 			return $this->_routeAction;
 		}
 
 		// If we couldn't figure out what to do with the request, throw a 404
 		throw new HttpException(404);
+	}
+
+	/**
+	 * Returns the route params, or null if we haven't parsed the URL yet.
+	 *
+	 * @return array|null
+	 */
+	public function getRouteParams()
+	{
+		return $this->_routeParams;
 	}
 
 	/**
@@ -208,7 +215,7 @@ class UrlManager extends \CUrlManager
 			$this->_matchedElement = false;
 			$this->_matchedElementRoute = false;
 
-			if (Craft::isInstalled() && craft()->request->isSiteRequest())
+			if (craft()->isInstalled() && craft()->request->isSiteRequest())
 			{
 				$query = craft()->db->createCommand()
 					->select('elements.id, elements.type')
@@ -216,7 +223,16 @@ class UrlManager extends \CUrlManager
 					->join('elements_i18n elements_i18n', 'elements_i18n.elementId = elements.id');
 
 				$conditions = array('and', 'elements_i18n.uri = :path', 'elements.enabled = 1', 'elements.archived = 0');
-				$params = array(':path' => $path);
+				$params = array();
+
+				if (!$path)
+				{
+					$params[':path'] = '__home__';
+				}
+				else
+				{
+					$params[':path'] = $path;
+				}
 
 				$localeIds = array_unique(array_merge(
 					array(craft()->language),
@@ -290,7 +306,7 @@ class UrlManager extends \CUrlManager
 				// Merge in the package routes
 				foreach ($this->cpRoutes['pkgRoutes'] as $packageName => $packageRoutes)
 				{
-					if (Craft::hasPackage($packageName))
+					if (craft()->hasPackage($packageName))
 					{
 						$this->cpRoutes = array_merge($this->cpRoutes, $packageRoutes);
 					}

@@ -14,7 +14,8 @@
 <head>
 	<meta charset="utf-8" />
 	<meta name="viewport" content="width=device-width, initial-scale=1.0">
-	<meta name=”description” content=”{{ about.meta_description | striptags }}” />
+	<meta name="description" content="{{ entry.news_excerpt|striptags }}">
+	<meta name="keywords" content="{{ entry.news_keywords }}">
 	<link rel="home" href="{{ siteUrl }}" />
 	
 	<link rel="icon" type="image/png" href="{{ siteUrl }}/images/favicon.png">

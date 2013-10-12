@@ -1,7 +1,7 @@
 {% extends "settings/assets/_layout" %}
 {% set selectedTab = 'sources' %}
 
-{% set docsUrl = 'http://docs.buildwithcraft.com/cp/settings/assets.html' %}
+{% set docsUrl = 'http://buildwithcraft.com/docs/assets' %}
 
 
 {% set content %}
@@ -39,12 +39,20 @@
 
 
 {% set js %}
-	new Craft.AdminTable({
+	var adminTable = new Craft.AdminTable({
 		tableSelector: '#sources',
 		noObjectsSelector: '#nosources',
 		sortable: true,
 		reorderAction: 'assetSources/reorderSources',
-		deleteAction: 'assetSources/deleteSource'
+		deleteAction: 'assetSources/deleteSource',
+		onDeleteObject: function()
+		{
+			// Hide the Assets tab if that was the last one
+			if (adminTable.totalObjects == 0)
+			{
+				$('#nav-assets').remove();
+			}
+		}
 	});
 {% endset %}
 {% includeJs js %}

@@ -71,29 +71,38 @@ class UsersService extends BaseApplicationComponent
 	 */
 	public function getUserByVerificationCodeAndUid($code, $uid)
 	{
-		$date = DateTimeHelper::currentUTCDateTime();
-		$duration = new DateInterval(craft()->config->get('verificationCodeDuration'));
-		$date->sub($duration);
+		$userRecord = UserRecord::model()->findByAttributes(array(
+			'uid' => $uid
+		));
 
-		$userRecord = UserRecord::model()->find(
-			'verificationCodeIssuedDate >:date AND uid=:uid',
-			array(':date' => DateTimeHelper::formatTimeForDb($date->getTimestamp()), ':uid' => $uid)
-		);
-
-		if ($userRecord)
+		if ($userRecord && $userRecord->verificationCodeIssuedDate)
 		{
-			if (craft()->security->checkString($code, $userRecord->verificationCode))
+			$user = UserModel::populateModel($userRecord);
+
+			// Fire an 'onBeforeVerifyUser' event
+			$this->onBeforeVerifyUser(new Event($this, array(
+				'user' => $user
+			)));
+
+			$minCodeIssueDate = DateTimeHelper::currentUTCDateTime();
+			$duration = new DateInterval(craft()->config->get('verificationCodeDuration'));
+			$minCodeIssueDate->sub($duration);
+
+			if (
+				$userRecord->verificationCodeIssuedDate > $minCodeIssueDate &&
+				craft()->security->checkPassword($code, $userRecord->verificationCode)
+			)
 			{
-				return UserModel::populateModel($userRecord);
+				return $user;
 			}
 			else
 			{
-				Craft::log('Found a with UID:'.$uid.', but the verification code given: '.$code.' does not match the hash in the database.', LogLevel::Warning);
+				Craft::log('Found a user with UID:'.$uid.', but the verification code given: '.$code.' has either expired or does not match the hash in the database.', LogLevel::Warning);
 			}
 		}
 		else
 		{
-			Craft::log('Could not find a user with UID:'.$uid.' that has a verification code that is not expired.', LogLevel::Warning);
+			Craft::log('Could not find a user with UID:'.$uid.'.', LogLevel::Warning);
 		}
 
 		return null;
@@ -220,6 +229,7 @@ class UsersService extends BaseApplicationComponent
 		$userRecord->admin                 = $user->admin;
 		$userRecord->passwordResetRequired = $user->passwordResetRequired;
 		$userRecord->preferredLocale       = $user->preferredLocale;
+		$userRecord->status                = $user->status;
 
 		$userRecord->validate();
 		$user->addErrors($userRecord->getErrors());
@@ -284,8 +294,6 @@ class UsersService extends BaseApplicationComponent
 
 			if ($isNewUser && $user->verificationRequired)
 			{
-				craft()->templates->registerTwigAutoloader();
-
 				craft()->email->sendEmailByKey($user, 'account_activation', array(
 					'link' => new \Twig_Markup(craft()->config->getActivateAccountPath($unhashedVerificationCode, $userRecord->uid), craft()->templates->getTwig()->getCharset()),
 				));
@@ -313,7 +321,7 @@ class UsersService extends BaseApplicationComponent
 	 */
 	public function saveProfile(UserModel $user)
 	{
-		Craft::requirePackage(CraftPackage::Users);
+		craft()->requirePackage(CraftPackage::Users);
 
 		$fieldLayout = craft()->fields->getLayoutByType(ElementType::User);
 
@@ -350,8 +358,6 @@ class UsersService extends BaseApplicationComponent
 		$userRecord = $this->_getUserRecordById($user->id);
 		$unhashedVerificationCode = $this->_setVerificationCodeOnUserRecord($userRecord);
 		$userRecord->save();
-
-		craft()->templates->registerTwigAutoloader();
 
 		return craft()->email->sendEmailByKey($user, 'account_activation', array(
 			'link' => new \Twig_Markup(craft()->config->getActivateAccountPath($unhashedVerificationCode, $userRecord->uid), craft()->templates->getTwig()->getCharset()),
@@ -429,10 +435,9 @@ class UsersService extends BaseApplicationComponent
 		$unhashedVerificationCode = $this->_setVerificationCodeOnUserRecord($userRecord);
 		$userRecord->save();
 
-		craft()->templates->registerTwigAutoloader();
-
+		$url = UrlHelper::getActionUrl('users/setpassword', array('code' => $unhashedVerificationCode, 'id' => $userRecord->uid), craft()->request->isSecureConnection() ? 'https' : 'http');
 		return craft()->email->sendEmailByKey($user, 'forgot_password', array(
-			'link' => new \Twig_Markup(craft()->config->getSetPasswordPath($unhashedVerificationCode, $userRecord->uid), craft()->templates->getTwig()->getCharset()),
+			'link' => new \Twig_Markup($url, craft()->templates->getTwig()->getCharset()),
 		));
 	}
 
@@ -589,7 +594,7 @@ class UsersService extends BaseApplicationComponent
 			return false;
 		}
 
-		$transaction = craft()->db->beginTransaction();
+		$transaction = craft()->db->getCurrentTransaction() === null ? craft()->db->beginTransaction() : null;
 		try
 		{
 			// Fire an 'onBeforeDeleteUser' event
@@ -609,7 +614,10 @@ class UsersService extends BaseApplicationComponent
 			// Delete the user
 			$success = craft()->elements->deleteElementById($user->id);
 
-			$transaction->commit();
+			if ($transaction !== null)
+			{
+				$transaction->commit();
+			}
 
 			if ($success)
 			{
@@ -627,7 +635,11 @@ class UsersService extends BaseApplicationComponent
 		}
 		catch (\Exception $e)
 		{
-			$transaction->rollBack();
+			if ($transaction !== null)
+			{
+				$transaction->rollback();
+			}
+
 			throw $e;
 		}
 	}
@@ -743,7 +755,7 @@ class UsersService extends BaseApplicationComponent
 	 */
 	public function validatePassword($hash, $password)
 	{
-		if (craft()->security->checkString($password, $hash))
+		if (craft()->security->checkPassword($password, $hash))
 		{
 			return true;
 		}
@@ -771,6 +783,16 @@ class UsersService extends BaseApplicationComponent
 	public function onSaveUser(Event $event)
 	{
 		$this->raiseEvent('onSaveUser', $event);
+	}
+
+	/**
+	 * Fires an 'onBeforeVerifyUser' event.
+	 *
+	 * @param Event $event
+	 */
+	public function onBeforeVerifyUser(Event $event)
+	{
+		$this->raiseEvent('onBeforeVerifyUser', $event);
 	}
 
 	/**
@@ -901,8 +923,8 @@ class UsersService extends BaseApplicationComponent
 	private function _setVerificationCodeOnUserRecord(UserRecord $userRecord)
 	{
 		$unhashedCode = StringHelper::UUID();
-		$hashedCode = craft()->security->hashString($unhashedCode);
-		$userRecord->verificationCode = $hashedCode['hash'];
+		$hashedCode = craft()->security->hashPassword($unhashedCode);
+		$userRecord->verificationCode = $hashedCode;
 		$userRecord->verificationCodeIssuedDate = DateTimeHelper::currentUTCDateTime();
 
 		return $unhashedCode;
@@ -944,10 +966,9 @@ class UsersService extends BaseApplicationComponent
 
 		if ($passwordModel->validate())
 		{
-			$hashAndType = craft()->security->hashString($user->newPassword);
+			$hash = craft()->security->hashPassword($user->newPassword);
 
-			$userRecord->password = $user->password = $hashAndType['hash'];
-			$userRecord->encType = $user->encType = $hashAndType['encType'];
+			$userRecord->password = $user->password = $hash;
 			$userRecord->status = $user->status = UserStatus::Active;
 			$userRecord->invalidLoginWindowStart = null;
 			$userRecord->invalidLoginCount = $user->invalidLoginCount = null;

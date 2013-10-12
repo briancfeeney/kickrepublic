@@ -78,7 +78,7 @@ class UserSessionService extends \CWebUser
 	public function getUser()
 	{
 		// Does a user appear to be logged in?
-		if (Craft::isInstalled() && $this->getState('__id') !== null)
+		if (craft()->isInstalled() && $this->getState('__id') !== null)
 		{
 			if (!isset($this->_user))
 			{
@@ -316,8 +316,8 @@ class UserSessionService extends \CWebUser
 							{
 								// Save the necessary info to the identity cookie.
 								$sessionToken = StringHelper::UUID();
-								$hashedToken = craft()->security->hashString($sessionToken);
-								$uid = craft()->users->handleSuccessfulLogin($user, $hashedToken['hash']);
+								$hashedToken = craft()->security->hashData(base64_encode(serialize($sessionToken)));
+								$uid = craft()->users->handleSuccessfulLogin($user, $hashedToken);
 								$userAgent = craft()->request->userAgent;
 
 								$data = array(
@@ -471,12 +471,12 @@ class UserSessionService extends \CWebUser
 		$cookie->httpOnly = true;
 		$cookie->expire = time() + $duration;
 
-		if (craft()->request->isSecureConnection)
+		if (craft()->request->isSecureConnection())
 		{
 			$cookie->secure = true;
 		}
 
-		$cookie->value = craft()->getSecurityManager()->hashData(base64_encode(serialize($data)));
+		$cookie->value = craft()->security->hashData(base64_encode(serialize($data)));
 		craft()->getRequest()->getCookies()->add($cookie->name, $cookie);
 	}
 
@@ -488,7 +488,7 @@ class UserSessionService extends \CWebUser
 	{
 		$cookie = craft()->request->getCookie($this->getStateKeyPrefix().$cookieName);
 
-		if ($cookie && !empty($cookie->value) && ($data = craft()->securityManager->validateData($cookie->value)) !== false)
+		if ($cookie && !empty($cookie->value) && ($data = craft()->security->validateData($cookie->value)) !== false)
 		{
 			$data = @unserialize(base64_decode($data));
 			return $data;
@@ -515,7 +515,7 @@ class UserSessionService extends \CWebUser
 			$keys = array_keys($_SESSION);
 			$prefix = $this->getStateKeyPrefix();
 
-			$n = strlen($prefix);
+			$n = mb_strlen($prefix);
 			foreach($keys as $key)
 			{
 				if (!strncmp($key, $prefix, $n))
@@ -553,7 +553,7 @@ class UserSessionService extends \CWebUser
 		$cookie = $cookies->itemAt($this->getStateKeyPrefix());
 
 		// Check the identity cookie and make sure the data hasn't been tampered with.
-		if ($cookie && !empty($cookie->value) && ($data = craft()->securityManager->validateData($cookie->value)) !== false)
+		if ($cookie && !empty($cookie->value) && ($data = craft()->security->validateData($cookie->value)) !== false)
 		{
 			$data = $this->getCookieValue('');
 
@@ -598,7 +598,7 @@ class UserSessionService extends \CWebUser
 		$cookie = craft()->request->getCookies()->itemAt($this->getStateKeyPrefix());
 
 		// Grab the identity cookie and make sure the data hasn't been tampered with.
-		if ($cookie && !empty($cookie->value) && is_string($cookie->value) && ($data = craft()->securityManager->validateData($cookie->value)) !== false)
+		if ($cookie && !empty($cookie->value) && is_string($cookie->value) && ($data = craft()->security->validateData($cookie->value)) !== false)
 		{
 			// Grab the data
 			$data = $this->getCookieValue('');
@@ -622,7 +622,8 @@ class UserSessionService extends \CWebUser
 					$userId = $sessionRow['userId'];
 
 					// Make sure the given session token matches what we have in the db.
-					if (craft()->security->checkString($currentSessionToken, $dbHashedToken))
+					$checkHashedToken= craft()->security->hashData(base64_encode(serialize($currentSessionToken)));
+					if (strcmp($checkHashedToken, $dbHashedToken) === 0)
 					{
 						// It's all good.
 						if($this->beforeLogin($loginName, $states, true))
@@ -633,8 +634,8 @@ class UserSessionService extends \CWebUser
 							{
 								// Generate a new session token for the database and cookie.
 								$newSessionToken = StringHelper::UUID();
-								$hashedNewToken = craft()->security->hashString($newSessionToken);
-								$this->_updateSessionToken($loginName, $dbHashedToken, $hashedNewToken['hash']);
+								$hashedNewToken = craft()->security->hashData(base64_encode(serialize($newSessionToken)));
+								$this->_updateSessionToken($loginName, $dbHashedToken, $hashedNewToken);
 
 								// While we're let's clean up stale sessions.
 								$this->_cleanStaleSessions();
@@ -700,7 +701,7 @@ class UserSessionService extends \CWebUser
 		$cookie = craft()->request->getCookies()->itemAt($this->getStateKeyPrefix());
 
 		// Grab the identity cookie information and make sure the data hasn't been tampered with.
-		if ($cookie && !empty($cookie->value) && is_string($cookie->value) && ($data = craft()->securityManager->validateData($cookie->value)) !== false)
+		if ($cookie && !empty($cookie->value) && is_string($cookie->value) && ($data = craft()->security->validateData($cookie->value)) !== false)
 		{
 			// Grab the data
 			$data = $this->getCookieValue('');

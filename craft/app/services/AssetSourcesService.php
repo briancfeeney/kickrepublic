@@ -101,7 +101,7 @@ class AssetSourcesService extends BaseApplicationComponent
 	 */
 	public function getAllSourceTypes()
 	{
-		if (Craft::hasPackage(CraftPackage::Cloud))
+		if (craft()->hasPackage(CraftPackage::Cloud))
 		{
 			return craft()->components->getComponentsByType(ComponentType::AssetSource);
 		}
@@ -290,7 +290,7 @@ class AssetSourcesService extends BaseApplicationComponent
 	 */
 	public function reorderSources($sourceIds)
 	{
-		$transaction = craft()->db->beginTransaction();
+		$transaction = craft()->db->getCurrentTransaction() === null ? craft()->db->beginTransaction() : null;
 
 		try
 		{
@@ -301,11 +301,18 @@ class AssetSourcesService extends BaseApplicationComponent
 				$sourceRecord->save();
 			}
 
-			$transaction->commit();
+			if ($transaction !== null)
+			{
+				$transaction->commit();
+			}
 		}
 		catch (\Exception $e)
 		{
-			$transaction->rollBack();
+			if ($transaction !== null)
+			{
+				$transaction->rollback();
+			}
+
 			throw $e;
 		}
 
@@ -326,7 +333,7 @@ class AssetSourcesService extends BaseApplicationComponent
 			return false;
 		}
 
-		$transaction = craft()->db->beginTransaction();
+		$transaction = craft()->db->getCurrentTransaction() === null ? craft()->db->beginTransaction() : null;
 		try
 		{
 			// Grab the asset file ids so we can clean the elements table.
@@ -341,13 +348,20 @@ class AssetSourcesService extends BaseApplicationComponent
 			// Nuke the asset source.
 			$affectedRows = craft()->db->createCommand()->delete('assetsources', array('id' => $sourceId));
 
-			$transaction->commit();
+			if ($transaction !== null)
+			{
+				$transaction->commit();
+			}
 
 			return (bool) $affectedRows;
 		}
 		catch (\Exception $e)
 		{
-			$transaction->rollBack();
+			if ($transaction !== null)
+			{
+				$transaction->rollback();
+			}
+
 			throw $e;
 		}
 	}

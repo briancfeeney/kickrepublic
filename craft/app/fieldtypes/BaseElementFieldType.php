@@ -92,10 +92,20 @@ abstract class BaseElementFieldType extends BaseFieldType
 	 */
 	public function getSettingsHtml()
 	{
+		$sources = array();
+
+		foreach ($this->getElementType()->getSources() as $key => $source)
+		{
+			if (!isset($source['heading']))
+			{
+				$sources[] = array('label' => $source['label'], 'value' => $key);
+			}
+		}
+
 		return craft()->templates->render('_components/fieldtypes/elementfieldsettings', array(
 			'allowMultipleSources' => $this->allowMultipleSources,
 			'allowLimit'           => $this->allowLimit,
-			'sources'              => $this->getElementType()->getSources(),
+			'sources'              => $sources,
 			'settings'             => $this->getSettings(),
 			'type'                 => $this->getName()
 		));
@@ -114,6 +124,10 @@ abstract class BaseElementFieldType extends BaseFieldType
 		if (is_array($value))
 		{
 			$elements = craft()->relations->getElementsById($this->elementType, array_filter($value));
+		}
+		else if ($value === '')
+		{
+			$elements = array();
 		}
 		else if (isset($this->element) && $this->element->id)
 		{
@@ -168,6 +182,7 @@ abstract class BaseElementFieldType extends BaseFieldType
 			'jsClass'        => $this->inputJsClass,
 			'elementType'    => new ElementTypeVariable($this->getElementType()),
 			'id'             => $id,
+			'storageKey'     => 'field.'.$this->model->id,
 			'name'           => $name,
 			'elements'       => $elements->all,
 			'sources'        => $sources,
@@ -203,8 +218,12 @@ abstract class BaseElementFieldType extends BaseFieldType
 	public function onAfterElementSave()
 	{
 		$rawValue = $this->element->getRawContent($this->model->handle);
-		$elementIds = is_array($rawValue) ? array_filter($rawValue) : array();
-		craft()->relations->saveRelations($this->model->id, $this->element->id, $elementIds);
+
+		if ($rawValue !== null)
+		{
+			$elementIds = is_array($rawValue) ? array_filter($rawValue) : array();
+			craft()->relations->saveRelations($this->model->id, $this->element->id, $elementIds);
+		}
 	}
 
 	/**
@@ -216,7 +235,7 @@ abstract class BaseElementFieldType extends BaseFieldType
 	protected function getAddButtonLabel()
 	{
 		return Craft::t('Add {type}', array(
-			'type' => strtolower($this->getElementType()->getClassHandle())
+			'type' => mb_strtolower($this->getElementType()->getClassHandle())
 		));
 	}
 

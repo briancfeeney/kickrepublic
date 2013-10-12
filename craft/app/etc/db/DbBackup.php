@@ -26,7 +26,7 @@ class DbBackup
 	 */
 	public function run()
 	{
-		$this->_currentVersion = 'v'.Craft::getVersion().'.'.Craft::getBuild();
+		$this->_currentVersion = 'v'.craft()->getVersion().'.'.craft()->getBuild();
 		$result = $this->_processHeader();
 
 		foreach (craft()->db->getSchema()->getTables() as $tableName => $val)
@@ -37,8 +37,8 @@ class DbBackup
 		$result .= $this->_processConstraints();
 		$result .= $this->_processFooter();
 
-		$fileName = IOHelper::cleanFilename(Craft::getSiteName()).'_'.gmdate('ymd_His').'_'.$this->_currentVersion.'.sql';
-		$filePath = craft()->path->getDbBackupPath().strtolower($fileName);
+		$fileName = IOHelper::cleanFilename(craft()->getSiteName()).'_'.gmdate('ymd_His').'_'.$this->_currentVersion.'.sql';
+		$filePath = craft()->path->getDbBackupPath().mb_strtolower($fileName);
 		IOHelper::writeToFile($filePath, $result);
 
 		return $filePath;
@@ -93,7 +93,7 @@ class DbBackup
 				continue;
 			}
 
-			if ($statement[strlen($statement) - 1] == ';')
+			if ($statement[mb_strlen($statement) - 1] == ';')
 			{
 				if (!$runningStatement)
 				{
@@ -163,7 +163,7 @@ class DbBackup
 			{
 				for ($i = 0; $i < count($value[0]); $i++)
 				{
-					if (strpos($value[0][$i], 'CONSTRAINT') === false)
+					if (mb_strpos($value[0][$i], 'CONSTRAINT') === false)
 					{
 						$sql .= preg_replace('/(FOREIGN[\s]+KEY)/', "\tADD $1", $value[0][$i]);
 					}

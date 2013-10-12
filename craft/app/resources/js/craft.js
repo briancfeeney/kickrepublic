@@ -1,4 +1,4 @@
-/*!
+/**
  * Craft by Pixel & Tonic
  *
  * @package   Craft
@@ -73,6 +73,11 @@ $.extend(Craft, {
 	 */
 	getUrl: function(path, params, baseUrl)
 	{
+		if (typeof path != 'string')
+		{
+			path = '';
+		}
+
 		// Return path if it appears to be an absolute URL.
 		if (path.search('://') != -1 || path.substr(0, 2) == '//')
 		{
@@ -111,13 +116,32 @@ $.extend(Craft, {
 		}
 		else
 		{
-			params = Craft.ltrim(params, '&');
+			params = Craft.trim(params, '&?');
+		}
+
+		// Were there already any query string params in the path?
+		var qpos = path.indexOf('?');
+		if (qpos != -1)
+		{
+			params = path.substr(qpos+1)+(params ? '&'+params : '');
+			path = path.substr(0, qpos);
 		}
 
 		// Put it all together
 		if (baseUrl)
 		{
 			var url = baseUrl;
+
+			if (path)
+			{
+				// Does baseUrl already contain a path?
+				var pathMatch = url.match(/[&\?]p=[^&]+/);
+				if (pathMatch)
+				{
+					url = url.replace(pathMatch[0], pathMatch[0]+'/'+path);
+					path = '';
+				}
+			}
 		}
 		else
 		{
@@ -125,47 +149,57 @@ $.extend(Craft, {
 		}
 
 		// Does the base URL already have a query string?
-		var qsMarker = url.indexOf('?');
-		if (qsMarker != '-1')
+		var qpos = url.indexOf('?');
+		if (qpos != '-1')
 		{
-			// Append params with the existing query string, and chop it off of the base URL
-			var qs = url.substr(qsMarker+1);
-			url = url.substr(0, qsMarker);
-
-			if (qs)
-			{
-				params = qs + (params ? '&'+params : '');
-			}
+			params = url.substr(qpos+1)+(params ? '&'+params : '');
+			url = url.substr(0, qpos);
 		}
 
-		if (!Craft.usePathInfo && path)
+		if (!Craft.omitScriptNameInUrls && path)
 		{
-			// Is the p= param already set?
-			if (params && params.substr(0, 2) == 'p=')
+			if (Craft.usePathInfo)
 			{
-				var endPath = params.indexOf('&');
-				if (endPath != -1)
+				// Make sure that the script name is in the URL
+				if (url.search(Craft.scriptName) == -1)
 				{
-					var basePath = params.substring(2, endPath-1);
-					params = params.substr(endPath+1);
+					url = Craft.rtrim(url, '/') + '/' + Craft.scriptName;
 				}
-				else
-				{
-					var basePath = params.substr(2);
-					params = null;
-				}
-
-				path = basePath + (path ? '/'+path : '');
 			}
+			else
+			{
+				// Move the path into the query string params
 
-			// Now move the path into the params
-			params = 'p='+path + (params ? '&'+params : '');
-			path = null;
+				// Is the p= param already set?
+				if (params && params.substr(0, 2) == 'p=')
+				{
+					var endPath = params.indexOf('&');
+					if (endPath != -1)
+					{
+						var basePath = params.substring(2, endPath);
+						params = params.substr(endPath+1);
+					}
+					else
+					{
+						var basePath = params.substr(2);
+						params = null;
+					}
+
+					// Just in case
+					basePath = Craft.rtrim(basePath);
+
+					path = basePath + (path ? '/'+path : '');
+				}
+
+				// Now move the path into the params
+				params = 'p='+path + (params ? '&'+params : '');
+				path = null;
+			}
 		}
 
 		if (path)
 		{
-			url += '/'+path;
+			url = Craft.rtrim(url, '/') + '/' + path;
 		}
 
 		if (params)
@@ -210,8 +244,7 @@ $.extend(Craft, {
 	 */
 	getResourceUrl: function(path, params)
 	{
-		path = Craft.resourceTrigger+'/'+Craft.trim(path, '/');
-		return Craft.getUrl(path, params);
+		return Craft.getUrl(path, params, Craft.resourceUrl);
 	},
 
 	/**
@@ -223,8 +256,7 @@ $.extend(Craft, {
 	 */
 	getActionUrl: function(path, params)
 	{
-		path = Craft.actionTrigger+'/'+Craft.trim(path, '/');
-		return Craft.getUrl(path, params);
+		return Craft.getUrl(path, params, Craft.actionUrl);
 	},
 
 	/**
@@ -232,28 +264,41 @@ $.extend(Craft, {
 	 *
 	 * @param string action
 	 * @param object|null data
-	 * @param function|null onSuccess
-	 * @param funciton|null onError
+	 * @param function|null callback
+	 * @param object|null options
 	 */
-	postActionRequest: function(action, data, onSuccess, onError)
+	postActionRequest: function(action, data, callback, options)
 	{
-		var url = Craft.getActionUrl(action);
-
-		// Param mapping
+		// Make 'data' optional
 		if (typeof data == 'function')
 		{
-			// (action, onSuccess, onError)
-			onError = onSuccess;
-			onSuccess = data;
-			data = {};
+			options = callback;
+			callback = data;
+			data = undefined;
 		}
 
-		return $.ajax(url, {
-			type: 'POST',
-			data: data,
-			success: onSuccess,
-			error: onError
-		});
+		return $.ajax($.extend({
+			url:      Craft.getActionUrl(action),
+			type:     'POST',
+			data:     data,
+			success:  callback,
+			error:    function(jqXHR, textStatus, errorThrown) {
+				callback(null, textStatus, jqXHR);
+			},
+			complete: function(jqXHR, textStatus) {
+				if (textStatus != 'success')
+				{
+					if (typeof Craft.cp != 'undefined')
+					{
+						Craft.cp.displayError();
+					}
+					else
+					{
+						alert(Craft.t('An unknown error occurred.'));
+					}
+				}
+			}
+		}, options));
 	},
 
 	/**
@@ -667,7 +712,6 @@ $.extend(Craft, {
 		$('.fieldtoggle', $container).fieldtoggle();
 		$('.lightswitch', $container).lightswitch();
 		$('.nicetext', $container).nicetext();
-		$('input.password', $container).passwordinput();
 		$('.pill', $container).pill();
 		$('.menubtn', $container).menubtn();
 	},
@@ -856,22 +900,11 @@ $.extend($.fn, {
 
 	nicetext: function()
 	{
-		/*return this.each(function()
+		return this.each(function()
 		{
 			if (!$.data(this, 'text'))
 			{
-				new Garnish.NiceText(this, {hint: this.getAttribute('placeholder')});
-			}
-		});*/
-	},
-
-	passwordinput: function()
-	{
-		return this.each(function()
-		{
-			if (!$.data(this, 'passwordinput'))
-			{
-				new Garnish.PasswordInput(this);
+				new Garnish.NiceText(this);
 			}
 		});
 	},
@@ -912,8 +945,12 @@ Garnish.$doc.ready(function()
 Craft.BaseElementIndex = Garnish.Base.extend({
 
 	elementType: null,
-	state: null,
-	stateStorageId: null,
+
+	instanceState: null,
+	instanceStateStorageId: null,
+	sourceStates: null,
+	sourceStatesStorageId: null,
+
 	searchTimeout: null,
 	elementSelect: null,
 	sourceSelect: null,
@@ -923,12 +960,15 @@ Craft.BaseElementIndex = Garnish.Base.extend({
 	$scroller: null,
 	$toolbar: null,
 	$search: null,
-	$viewBtns: null,
-	$viewBtn: null,
+	$viewModeBtnTd: null,
+	$viewModeBtnContainer: null,
+	viewModeBtns: null,
+	viewMode: null,
 	$mainSpinner: null,
 	$loadingMoreSpinner: null,
 	$sidebar: null,
 	$sources: null,
+	sourceKey: null,
 	$source: null,
 	$sourceToggles: null,
 	$elements: null,
@@ -941,16 +981,32 @@ Craft.BaseElementIndex = Garnish.Base.extend({
 		this.$container = $container;
 		this.setSettings(settings, Craft.BaseElementIndex.defaults);
 
-		// Set the state object
-		this.state = {};
+		// Set the state objects
+		this.instanceState = {
+			selectedSource: null
+		};
 
-		if (typeof Storage !== 'undefined' && this.settings.id)
+		this.sourceStates = {};
+
+		if (typeof Storage !== 'undefined')
 		{
-			this.stateStorageId = 'Craft.BaseElementIndex.'+this.settings.id;
-
-			if (typeof localStorage[this.stateStorageId] != 'undefined')
+			// Instance states (selected source) are stored by a custom storage key defined in the settings
+			if (this.settings.storageKey)
 			{
-				$.extend(this.state, JSON.parse(localStorage[this.stateStorageId]));
+				this.instanceStateStorageId = 'Craft-'+Craft.siteUid+'.'+this.settings.storageKey;
+
+				if (typeof localStorage[this.instanceStateStorageId] != 'undefined')
+				{
+					$.extend(this.instanceState, JSON.parse(localStorage[this.instanceStateStorageId]));
+				}
+			}
+
+			// Source states (view mode, etc.) are stored by the element type and context
+			this.sourceStatesStorageId = 'Craft-'+Craft.siteUid+'.BaseElementIndex.'+this.elementType+'.'+this.settings.context;
+
+			if (typeof localStorage[this.sourceStatesStorageId] != 'undefined')
+			{
+				$.extend(this.sourceStates, JSON.parse(localStorage[this.sourceStatesStorageId]));
 			}
 		}
 
@@ -958,13 +1014,44 @@ Craft.BaseElementIndex = Garnish.Base.extend({
 		this.$main = this.$container.find('.main');
 		this.$toolbar = this.$container.find('.toolbar:first');
 		this.$search = this.$toolbar.find('.search:first input:first');
-		this.$viewBtns = this.$toolbar.find('.btngroup .btn');
 		this.$mainSpinner = this.$toolbar.find('.spinner:first');
 		this.$loadingMoreSpinner = this.$container.find('.spinner.loadingmore')
 		this.$sidebar = this.$container.find('.sidebar:first');
 		this.$sources = this.$sidebar.find('nav a');
 		this.$sourceToggles = this.$sidebar.find('.toggle');
 		this.$elements = this.$container.find('.elements:first');
+
+		// View Mode buttons
+		this.viewModeBtns = {};
+		this.$viewModeBtnTd = this.$toolbar.find('.viewbtns:first');
+		this.$viewModeBtnContainer = $('<div class="btngroup"/>').appendTo(this.$viewModeBtnTd);
+
+		var viewModes = [
+			{ mode: 'table',     title: Craft.t('Display in a table'),     icon: 'list' },
+			{ mode: 'structure', title: Craft.t('Display hierarchically'), icon: 'structure' },
+			{ mode: 'thumbs',    title: Craft.t('Display as thumbnails'),  icon: 'grid' }
+		];
+
+		for (var i = 0; i < viewModes.length; i++)
+		{
+			var viewMode = viewModes[i],
+				$viewModeBtn = $('<div class="btn" title="'+viewMode.title+'" data-icon="'+viewMode.icon+'" data-view="'+viewMode.mode+'" role="button"/>')
+
+			this.viewModeBtns[viewMode.mode] = $viewModeBtn;
+
+			this.addListener($viewModeBtn, 'click', { mode: viewMode.mode }, function(ev) {
+				this.selectViewMode(ev.data.mode);
+				this.updateElements();
+			});
+		}
+
+		this.viewModeBtns.table.appendTo(this.$viewModeBtnContainer);
+
+		// No source, no party.
+		if (this.$sources.length == 0)
+		{
+			return;
+		}
 
 		this.onAfterHtmlInit();
 
@@ -978,7 +1065,7 @@ Craft.BaseElementIndex = Garnish.Base.extend({
 		}
 
 		// Select the initial source
-		var source = this.getState('source');
+		var source = this.instanceState.selectedSource;
 
 		if (source)
 		{
@@ -1000,28 +1087,6 @@ Craft.BaseElementIndex = Garnish.Base.extend({
 
 		this.selectSource($source);
 
-		// Select the initial view mode
-		var view = this.getState('view');
-
-		if (view)
-		{
-			var $viewBtn = this.$viewBtns.filter('[data-view='+view+']:first');
-		}
-
-		if (!view || !$viewBtn.length)
-		{
-			var $viewBtn = this.$viewBtns.filter('[data-view=table]:first');
-		}
-
-		if ($viewBtn.length)
-		{
-			this.selectView($viewBtn);
-		}
-		else
-		{
-			this.setState('view', 'table');
-		}
-
 		// Load up the elements!
 		this.updateElements();
 
@@ -1036,15 +1101,8 @@ Craft.BaseElementIndex = Garnish.Base.extend({
 		this.sourceSelect = new Garnish.Select(this.$sidebar.find('nav'), this.$sources, {
 			selectedClass:     'sel',
 			multi:             false,
-			waitForDblClick:   false,
 			vertical:          true,
-			onSelectionChange: $.proxy(this, '_onSourceChange')
-		});
-
-		this.addListener(this.$viewBtns, 'click', function(ev)
-		{
-			this.selectView($(ev.currentTarget));
-			this.updateElements();
+			onSelectionChange: $.proxy(this, 'onSourceSelectionChange')
 		});
 
 		this.addListener(this.$search, 'textchange', $.proxy(function()
@@ -1064,7 +1122,7 @@ Craft.BaseElementIndex = Garnish.Base.extend({
 		}
 	},
 
-	_onSourceChange: function ()
+	onSourceSelectionChange: function()
 	{
 		var sourceElement = this.$sources.filter('.sel');
 		if (sourceElement.length == 0)
@@ -1076,32 +1134,70 @@ Craft.BaseElementIndex = Garnish.Base.extend({
 		this.updateElements();
 	},
 
-	getState: function(key)
-	{
-		if (typeof this.state[key] != 'undefined')
-		{
-			return this.state[key];
-		}
-		else
-		{
-			return null;
-		}
-	},
-
-	setState: function(key, value)
+	setInstanceState: function(key, value)
 	{
 		if (typeof key == 'object')
 		{
-			$.extend(this.state, key);
+			$.extend(this.instanceState, key);
 		}
 		else
 		{
-			this.state[key] = value;
+			this.instanceState[key] = value;
 		}
 
-		if (this.stateStorageId)
+		// Store it in localStorage too?
+		if (this.instanceStateStorageId)
 		{
-			localStorage[this.stateStorageId] = JSON.stringify(this.state);
+			localStorage[this.instanceStateStorageId] = JSON.stringify(this.instanceState);
+		}
+	},
+
+	getSourceState: function(source, key, defaultValue)
+	{
+		if (typeof this.sourceStates[source] == 'undefined')
+		{
+			// Set it now so any modifications to it by whoever's calling this will be stored.
+			this.sourceStates[source] = {};
+		}
+
+		if (typeof key == 'undefined')
+		{
+			return this.sourceStates[source];
+		}
+		else if (typeof this.sourceStates[source][key] != 'undefined')
+		{
+			return this.sourceStates[source][key];
+		}
+		else
+		{
+			return (typeof defaultValue != 'undefined' ? defaultValue : null);
+		}
+	},
+
+	getSelectedSourceState: function(key, defaultValue)
+	{
+		return this.getSourceState(this.instanceState.selectedSource, key, defaultValue);
+	},
+
+	setSelecetedSourceState: function(key, value)
+	{
+		var viewState = this.getSelectedSourceState();
+
+		if (typeof key == 'object')
+		{
+			$.extend(viewState, key);
+		}
+		else
+		{
+			viewState[key] = value;
+		}
+
+		this.sourceStates[this.instanceState.selectedSource] = viewState;
+
+		// Store it in localStorage too?
+		if (this.sourceStatesStorageId)
+		{
+			localStorage[this.sourceStatesStorageId] = JSON.stringify(this.sourceStates);
 		}
 	},
 
@@ -1112,7 +1208,8 @@ Craft.BaseElementIndex = Garnish.Base.extend({
 			elementType:        this.elementType,
 			criteria:           this.settings.criteria,
 			disabledElementIds: this.settings.disabledElementIds,
-			state:              this.state,
+			source:             this.instanceState.selectedSource,
+			viewState:          this.getSelectedSourceState(),
 			search:             (this.$search ? this.$search.val() : null)
 		};
 	},
@@ -1122,20 +1219,38 @@ Craft.BaseElementIndex = Garnish.Base.extend({
 		this.$mainSpinner.removeClass('hidden');
 		this.removeListener(this.$scroller, 'scroll');
 
-		if (this.getState('view') == 'table' && this.$table)
+		if (this.getSelectedSourceState('mode') == 'table' && this.$table)
 		{
 			Craft.cp.$collapsibleTables = Craft.cp.$collapsibleTables.not(this.$table);
 		}
 
+		// Can't use structure view for search results
+		if (this.getSelectedSourceState('mode') == 'structure' && this.$search && this.$search.val())
+		{
+			this.selectViewMode('table');
+		}
+
 		var data = this.getControllerData();
 
-		Craft.postActionRequest('elements/getElements', data, $.proxy(function(response)
-		{
+		Craft.postActionRequest('elements/getElements', data, $.proxy(function(response, textStatus) {
+
 			this.$mainSpinner.addClass('hidden');
 
-			this.$elements.html(response.elementContainerHtml);
+			if (textStatus == 'success')
+			{
+				this.setNewElementDataHtml(response, false);
+			}
 
-			if (this.getState('view') == 'table')
+		}, this));
+	},
+
+	setNewElementDataHtml: function(response, append)
+	{
+		if (!append)
+		{
+			this.$elements.html(response.html);
+
+			if (this.getSelectedSourceState('mode') == 'table')
 			{
 				var $headers = this.$elements.find('thead:first th');
 				this.addListener($headers, 'click', 'onSortChange');
@@ -1149,20 +1264,10 @@ Craft.BaseElementIndex = Garnish.Base.extend({
 			{
 				this.$elementContainer = this.$elements.children('ul');
 			}
-
-			this.setNewElementDataHtml(response);
-		}, this));
-	},
-
-	setNewElementDataHtml: function(response, append)
-	{
-		if (append)
-		{
-			this.$elementContainer.append(response.elementDataHtml);
 		}
 		else
 		{
-			this.$elementContainer.html(response.elementDataHtml);
+			this.$elementContainer.append(response.html);
 		}
 
 		$('head').append(response.headHtml);
@@ -1187,22 +1292,112 @@ Craft.BaseElementIndex = Garnish.Base.extend({
 					var data = this.getControllerData();
 					data.offset = this.totalVisible;
 
-					Craft.postActionRequest('elements/getElements', data, $.proxy(function(response)
-					{
+					Craft.postActionRequest('elements/getElements', data, $.proxy(function(response, textStatus) {
+
 						this.$loadingMoreSpinner.addClass('hidden');
 
-						this.setNewElementDataHtml(response, true);
+						if (textStatus == 'success')
+						{
+							this.setNewElementDataHtml(response, true);
+						}
+
 					}, this));
 				}
 			});
 		}
 
-		Craft.cp.updateResponsiveTables();
+		switch (this.getSelectedSourceState('mode'))
+		{
+			case 'table':
+			{
+				Craft.cp.updateResponsiveTables();
+				break;
+			}
+			case 'structure':
+			{
+				var $parents = this.$elementContainer.find('ul').prev('.row'),
+					collapsedElementIds = this.getSelectedSourceState('collapsedElementIds', []);
+
+				for (var i = 0; i < $parents.length; i++)
+				{
+					var $row = $($parents[i]),
+						$li = $row.parent(),
+						$toggle = $('<div class="toggle" title="'+Craft.t('Show/hide children')+'"/>').prependTo($row);
+
+					if ($.inArray($row.data('id'), collapsedElementIds) != -1)
+					{
+						$li.addClass('collapsed');
+					}
+
+					this.initToggle($toggle);
+				}
+
+				if (this.settings.context == 'index')
+				{
+					if (this.$source.data('sortable'))
+					{
+						this.$elementContainer.find('.add').click($.proxy(function(ev) {
+
+							var $btn = $(ev.currentTarget);
+
+							if (!$btn.data('menubtn'))
+							{
+								var elementId = $btn.parent().data('id'),
+									newChildUrl = Craft.getUrl(this.$source.data('new-child-url'), 'parentId='+elementId),
+									$menu = $('<div class="menu"><ul><li><a href="'+newChildUrl+'">'+Craft.t('New child')+'</a></li></ul></div>').insertAfter($btn);
+
+								var menuBtn = new Garnish.MenuBtn($btn);
+								menuBtn.showMenu();
+							}
+
+						}, this))
+
+						this.structureDrag = new Craft.StructureDrag(this,
+							this.$source.data('move-action'),
+							this.$source.data('max-depth')
+						);
+					}
+				}
+			}
+		}
 
 		this.onUpdateElements(append);
 	},
 
-	onUpdateElements: function (append)
+	initToggle: function($toggle)
+	{
+		$toggle.click($.proxy(function(ev) {
+
+			var $li = $(ev.currentTarget).closest('li'),
+				elementId = $li.children('.row').data('id'),
+				collapsedElementIds = this.getSelectedSourceState('collapsedElementIds', []),
+				viewStateKey = $.inArray(elementId, collapsedElementIds);
+
+			if ($li.hasClass('collapsed'))
+			{
+				$li.removeClass('collapsed');
+
+				if (viewStateKey != -1)
+				{
+					collapsedElementIds.splice(viewStateKey, 1);
+				}
+			}
+			else
+			{
+				$li.addClass('collapsed');
+
+				if (viewStateKey == -1)
+				{
+					collapsedElementIds.push(elementId);
+				}
+			}
+
+			this.setSelecetedSourceState('collapsedElementIds', collapsedElementIds);
+
+		}, this));
+	},
+
+	onUpdateElements: function(append)
 	{
 		this.settings.onUpdateElements(append);
 	},
@@ -1212,20 +1407,20 @@ Craft.BaseElementIndex = Garnish.Base.extend({
 		var $th = $(ev.currentTarget),
 			attribute = $th.attr('data-attribute');
 
-		if (this.getState('order') == attribute)
+		if (this.getSelectedSourceState('order') == attribute)
 		{
-			if (this.getState('sort') == 'asc')
+			if (this.getSelectedSourceState('sort') == 'asc')
 			{
-				this.setState('sort', 'desc');
+				this.setSelecetedSourceState('sort', 'desc');
 			}
 			else
 			{
-				this.setState('sort', 'asc');
+				this.setSelecetedSourceState('sort', 'asc');
 			}
 		}
 		else
 		{
-			this.setState({
+			this.setSelecetedSourceState({
 				order: attribute,
 				sort: 'asc'
 			});
@@ -1249,37 +1444,119 @@ Craft.BaseElementIndex = Garnish.Base.extend({
 
 	selectSource: function($source)
 	{
+		if (this.$source == $source)
+		{
+			return;
+		}
+
 		if (this.$source)
 		{
 			this.$source.removeClass('sel');
 		}
 
-		var sourceKey = $source.data('key');
+		this.sourceKey = $source.data('key');
 		this.$source = $source.addClass('sel');
-		this.setState('source', sourceKey);
+		this.setInstanceState('selectedSource', this.sourceKey);
 
-		this.onSelectSource(sourceKey);
+		if (this.$search)
+		{
+			// Clear the search value without triggering the textchange event
+			this.$search.data('textchangeValue', '');
+			this.$search.val('');
+		}
+
+		this.setViewModeForNewSource();
+		this.onSelectSource();
 	},
 
-	onSelectSource: function(sourceKey)
+	setViewModeForNewSource: function()
 	{
-		this.settings.onSelectSource(sourceKey);
+		// Have they already visited this source?
+		var viewMode = this.getSelectedSourceState('mode');
+
+		if (!viewMode || !this.doesSourceHaveViewMode(viewMode))
+		{
+			// Default to structure view if the source has it
+			if (this.doesSourceHaveViewMode('structure'))
+			{
+				viewMode = 'structure';
+			}
+			// Otherwise try to keep using the current view mode
+			else if (this.viewMode && this.doesSourceHaveViewMode(this.viewMode))
+			{
+				viewMode = this.viewMode;
+			}
+			// Fine, use table view
+			else
+			{
+				viewMode = 'table';
+			}
+		}
+
+		this.selectViewMode(viewMode);
+
+		// Should we be showing the buttons?
+		var showViewModeBtns = false;
+
+		for (var viewMode in this.viewModeBtns)
+		{
+			if (viewMode == 'table')
+			{
+				continue;
+			}
+
+			if (this.doesSourceHaveViewMode(viewMode))
+			{
+				this.viewModeBtns[viewMode].appendTo(this.$viewModeBtnContainer);
+				showViewModeBtns = true;
+			}
+			else
+			{
+				this.viewModeBtns[viewMode].detach();
+			}
+		}
+
+		if (showViewModeBtns)
+		{
+			this.$viewModeBtnTd.removeClass('hidden');
+		}
+		else
+		{
+			this.$viewModeBtnTd.addClass('hidden');
+		}
 	},
 
-	onAfterHtmlInit: function ()
+	onSelectSource: function()
+	{
+		this.settings.onSelectSource(this.sourceKey);
+	},
+
+	onAfterHtmlInit: function()
 	{
 		this.settings.onAfterHtmlInit()
 	},
 
-	selectView: function($viewBtn)
+	doesSourceHaveViewMode: function(viewMode)
 	{
-		if (this.$viewBtn)
+		return (viewMode == 'table' || this.$source.data('has-'+viewMode));
+	},
+
+	selectViewMode: function(viewMode)
+	{
+		// Make sure that the current source supports it
+		if (!this.doesSourceHaveViewMode(viewMode))
 		{
-			this.$viewBtn.removeClass('active');
+			viewMode = 'table';
 		}
 
-		this.$viewBtn = $viewBtn.addClass('active');
-		this.setState('view', $viewBtn.data('view'));
+		if (this.viewMode)
+		{
+			this.viewModeBtns[this.viewMode].removeClass('active');
+		}
+
+		this.viewMode = viewMode;
+		this.viewModeBtns[this.viewMode].addClass('active');
+		this.setSelecetedSourceState('mode', this.viewMode);
 	},
 
 	rememberDisabledElementId: function(elementId)
@@ -1330,7 +1607,7 @@ Craft.BaseElementIndex = Garnish.Base.extend({
 
 	getElementById: function(elementId)
 	{
-		return this.$elementContainer.children('[data-id='+elementId+']:first');
+		return this.$elementContainer.find('[data-id='+elementId+']:first');
 	},
 
 	enableElementsById: function(elementIds)
@@ -1373,14 +1650,14 @@ Craft.BaseElementIndex = Garnish.Base.extend({
 		}
 	},
 
-	setElementSelect: function (obj)
+	setElementSelect: function(obj)
 	{
 		this.elementSelect = obj;
 	},
 
-	addCallback: function (currentCallback, newCallback)
+	addCallback: function(currentCallback, newCallback)
 	{
-		return $.proxy(function () {
+		return $.proxy(function() {
 			if (typeof currentCallback == 'function')
 			{
 				currentCallback.apply(this, arguments);
@@ -1389,12 +1666,12 @@ Craft.BaseElementIndex = Garnish.Base.extend({
 		}, this);
 	},
 
-	setIndexBusy: function () {
+	setIndexBusy: function() {
 		this.$mainSpinner.removeClass('hidden');
 		this.isIndexBusy = true;
 	},
 
-	setIndexAvailable: function () {
+	setIndexAvailable: function() {
 		this.$mainSpinner.addClass('hidden');
 		this.isIndexBusy = false;
 	}
@@ -1402,7 +1679,7 @@ Craft.BaseElementIndex = Garnish.Base.extend({
 {
 	defaults: {
 		context: 'index',
-		id: null,
+		storageKey: null,
 		criteria: null,
 		disabledElementIds: [],
 		onUpdateElements: $.noop,
@@ -1425,6 +1702,8 @@ Craft.BaseElementSelectInput = Garnish.Base.extend({
 	sources: null,
 	criteria: null,
 	limit: null,
+	storageKey: null,
+
 	totalElements: 0,
 	elementSelect: null,
 	elementSort: null,
@@ -1435,7 +1714,7 @@ Craft.BaseElementSelectInput = Garnish.Base.extend({
 	$elements: null,
 	$addElementBtn: null,
 
-	init: function(id, name, elementType, sources, criteria, limit)
+	init: function(id, name, elementType, sources, criteria, limit, storageKey)
 	{
 		this.id = id;
 		this.name = name;
@@ -1443,6 +1722,7 @@ Craft.BaseElementSelectInput = Garnish.Base.extend({
 		this.sources = sources;
 		this.criteria = criteria;
 		this.limit = limit;
+		this.storageKey = storageKey;
 
 		this.$container = $('#'+this.id);
 		this.$elementsContainer = this.$container.children('.elements');
@@ -1532,7 +1812,7 @@ Craft.BaseElementSelectInput = Garnish.Base.extend({
 			}
 
 			this.modal = Craft.createElementSelectorModal(this.elementType, {
-				id: this.id,
+				storageKey: (this.storageKey ? 'BaseElementSelectInput.'+this.storageKey : null),
 				sources: this.sources,
 				criteria: this.criteria,
 				multiSelect: true,
@@ -1657,20 +1937,23 @@ Craft.BaseElementSelectorModal = Garnish.Modal.extend({
 				sources:     this.settings.sources
 			};
 
-			Craft.postActionRequest('elements/getModalBody', data, $.proxy(function(response)
-			{
-				this.$body.html(response);
+			Craft.postActionRequest('elements/getModalBody', data, $.proxy(function(response, textStatus) {
 
-				// Initialize the element index
-				this.elementIndex = Craft.createElementIndex(this.elementType, this.$body, {
-					context:            'modal',
-					id:                 this.settings.id,
-					criteria:           this.settings.criteria,
-					disabledElementIds: this.settings.disabledElementIds,
-					onUpdateElements:   $.proxy(this, 'onUpdateElements'),
-					onEnableElements:   $.proxy(this, 'onEnableElements'),
-					onDisableElements:  $.proxy(this, 'onDisableElements')
-				});
+				if (textStatus == 'success')
+				{
+					this.$body.html(response);
+
+					// Initialize the element index
+					this.elementIndex = Craft.createElementIndex(this.elementType, this.$body, {
+						context:            'modal',
+						storageKey:         this.settings.storageKey,
+						criteria:           this.settings.criteria,
+						disabledElementIds: this.settings.disabledElementIds,
+						onUpdateElements:   $.proxy(this, 'onUpdateElements'),
+						onEnableElements:   $.proxy(this, 'onEnableElements'),
+						onDisableElements:  $.proxy(this, 'onDisableElements')
+					});
+				}
 
 			}, this));
 		}
@@ -1700,17 +1983,22 @@ Craft.BaseElementSelectorModal = Garnish.Modal.extend({
 			delete this.elementSelect;
 		}
 
-		var $trs = this.elementIndex.$elementContainer.children(':not(.disabled)');
+		if (this.elementIndex.getSelectedSourceState('mode') == 'structure')
+		{
+			var $items = this.elementIndex.$elementContainer.find('.row:not(.disabled)');
+		}
+		else
+		{
+			var $items = this.elementIndex.$elementContainer.children(':not(.disabled)');
+		}
 
-		this.elementSelect = new Garnish.Select(this.elementIndex.$elementContainer, $trs, {
+		this.elementSelect = new Garnish.Select(this.elementIndex.$elementContainer, $items, {
 			multi: this.settings.multiSelect,
-			vertical: (this.elementIndex.getState('view') == 'table'),
-			waitForDblClick: true,
+			vertical: (this.elementIndex.getSelectedSourceState('mode') != 'thumbs'),
 			onSelectionChange: $.proxy(this, 'onSelectionChange')
 		});
 
         this.elementIndex.setElementSelect(this.elementSelect);
-
     },
 
 	onSelectionChange: function()
@@ -1747,18 +2035,19 @@ Craft.BaseElementSelectorModal = Garnish.Modal.extend({
 		{
 			this.elementSelect.clearMouseUpTimeout();
 
-			var $selectedRows = this.elementSelect.getSelectedItems(),
+			var $selectedItems = this.elementSelect.getSelectedItems(),
 				elements = [];
 
-			for (var i = 0; i < $selectedRows.length; i++)
+			for (var i = 0; i < $selectedItems.length; i++)
 			{
-				var $row = $($selectedRows[i]),
-					$element = $row.find('.element');
+				var $item = $($selectedItems[i]),
+					$element = $item.find('.element:first');
 
 				elements.push({
-					id: $row.data('id'),
-					label: $row.data('label'),
-					status: $row.data('status'),
+					id:       $item.data('id'),
+					label:    $item.data('label'),
+					status:   $item.data('status'),
+					url:      $element.data('url'),
 					hasThumb: $element.hasClass('hasthumb'),
 					$element: $element
 				});
@@ -1769,14 +2058,14 @@ Craft.BaseElementSelectorModal = Garnish.Modal.extend({
 
 			if (this.settings.disableOnSelect)
 			{
-				this.elementIndex.disableElements($selectedRows);
+				this.elementIndex.disableElements($selectedItems);
 			}
 		}
 	}
 },
 {
 	defaults: {
-		id: null,
+		storageKey: null,
 		sources: null,
 		criteria: null,
 		multiSelect: false,
@@ -1795,25 +2084,43 @@ Craft.BaseInputGenerator = Garnish.Base.extend({
 
 	$source: null,
 	$target: null,
+	settings: null,
 
 	listening: null,
+	timeout: null,
 
-	init: function(source, target)
+	init: function(source, target, settings)
 	{
 		this.$source = $(source);
 		this.$target = $(target);
+		this.setSettings(settings);
 
 		this.startListening();
+	},
+
+	setNewSource: function(source)
+	{
+		var listening = this.listening;
+		this.stopListening();
+
+		this.$source = $(source);
+
+		if (listening)
+		{
+			this.startListening();
+		}
 	},
 
 	startListening: function()
 	{
 		if (this.listening)
+		{
 			return;
+		}
 
 		this.listening = true;
 
-		this.addListener(this.$source, 'textchange', 'updateTarget');
+		this.addListener(this.$source, 'textchange', 'onTextChange');
 
 		this.addListener(this.$target, 'focus', function() {
 			this.addListener(this.$target, 'textchange', 'stopListening');
@@ -1834,6 +2141,16 @@ Craft.BaseInputGenerator = Garnish.Base.extend({
 
 		this.removeAllListeners(this.$source);
 		this.removeAllListeners(this.$target);
+	},
+
+	onTextChange: function()
+	{
+		if (this.timeout)
+		{
+			clearTimeout(this.timeout);
+		}
+
+		this.timeout = setTimeout($.proxy(this, 'updateTarget'), 250);
 	},
 
 	updateTarget: function()
@@ -1869,6 +2186,11 @@ Craft.AdminTable = Garnish.Base.extend({
 	{
 		this.setSettings(settings, Craft.AdminTable.defaults);
 
+		if (!this.settings.allowDeleteAll)
+		{
+			this.settings.minObjects = 1;
+		}
+
 		this.$noObjects = $(this.settings.noObjectsSelector);
 		this.$table = $(this.settings.tableSelector);
 		this.$tbody  = this.$table.children('tbody');
@@ -1884,11 +2206,17 @@ Craft.AdminTable = Garnish.Base.extend({
 		this.$deleteBtns = this.$table.find('.delete');
 		this.addListener(this.$deleteBtns, 'click', 'deleteObject');
 
-		this.onDeleteObject();
+		this.updateUI();
 	},
 
 	addRow: function(row)
 	{
+		if (this.settings.maxObjects && this.totalObjects >= this.settings.maxObjects)
+		{
+			// Sorry pal.
+			return;
+		}
+
 		var $row = $(row).appendTo(this.$tbody),
 			$deleteBtn = $row.find('.delete');
 
@@ -1897,28 +2225,12 @@ Craft.AdminTable = Garnish.Base.extend({
 			this.sorter.addItems($row);
 		}
 
+		this.$deleteBtns = this.$deleteBtns.add($deleteBtn);
+
 		this.addListener($deleteBtn, 'click', 'deleteObject');
 		this.totalObjects++;
 
-		if (this.totalObjects == 1)
-		{
-			this.$noObjects.addClass('hidden');
-			this.$table.show();
-		}
-		else if (this.totalObjects == 2)
-		{
-			if (this.settings.sortable)
-			{
-				this.$table.find('.move').removeClass('disabled');
-			}
-
-			if (!this.settings.allowDeleteAll)
-			{
-				this.$deleteBtns.removeClass('disabled');
-			}
-		}
-
-		this.$deleteBtns = this.$deleteBtns.add($deleteBtn);
+		this.updateUI();
 	},
 
 	reorderObjects: function()
@@ -1942,23 +2254,28 @@ Craft.AdminTable = Garnish.Base.extend({
 			ids: JSON.stringify(ids)
 		};
 
-		Craft.postActionRequest(this.settings.reorderAction, data, $.proxy(function(response)
-		{
-			if (response.success)
+		Craft.postActionRequest(this.settings.reorderAction, data, $.proxy(function(response, textStatus) {
+
+			if (textStatus == 'success')
 			{
-				Craft.cp.displayNotice(Craft.t(this.settings.reorderSuccessMessage));
+				if (response.success)
+				{
+					Craft.cp.displayNotice(Craft.t(this.settings.reorderSuccessMessage));
+				}
+				else
+				{
+					Craft.cp.displayError(Craft.t(this.settings.reorderFailMessage));
+				}
 			}
-			else
-			{
-				Craft.cp.displayError(Craft.t(this.settings.reorderFailMessage));
-			}
+
 		}, this));
 	},
 
 	deleteObject: function(event)
 	{
-		if (!this.settings.allowDeleteAll && this.totalObjects == 1)
+		if (this.settings.minObjects && this.totalObjects <= this.settings.minObjects)
 		{
+			// Sorry pal.
 			return;
 		}
 
@@ -1968,20 +2285,25 @@ Craft.AdminTable = Garnish.Base.extend({
 
 		if (this.confirmDeleteObject($row))
 		{
-			Craft.postActionRequest(this.settings.deleteAction, { id: id }, $.proxy(function(response) {
-				if (response.success)
-				{
-					$row.remove();
-					this.totalObjects--;
-					this.onDeleteObject();
-					this.settings.onDeleteObject(id);
+			Craft.postActionRequest(this.settings.deleteAction, { id: id }, $.proxy(function(response, textStatus) {
 
-					Craft.cp.displayNotice(Craft.t(this.settings.deleteSuccessMessage, { name: name }));
-				}
-				else
+				if (textStatus == 'success')
 				{
-					Craft.cp.displayError(Craft.t(this.settings.deleteFailMessage, { name: name }));
+					if (response.success)
+					{
+						$row.remove();
+						this.totalObjects--;
+						this.updateUI();
+						this.onDeleteObject(id);
+
+						Craft.cp.displayNotice(Craft.t(this.settings.deleteSuccessMessage, { name: name }));
+					}
+					else
+					{
+						Craft.cp.displayError(Craft.t(this.settings.deleteFailMessage, { name: name }));
+					}
 				}
+
 			}, this));
 		}
 	},
@@ -1992,21 +2314,61 @@ Craft.AdminTable = Garnish.Base.extend({
 		return confirm(Craft.t(this.settings.confirmDeleteMessage, { name: name }));
 	},
 
-	onDeleteObject: function()
+	onDeleteObject: function(id)
 	{
-		if (this.totalObjects == 1)
-		{
-			this.$table.find('.move').addClass('disabled');
+		this.settings.onDeleteObject(id);
+	},
 
-			if (!this.settings.allowDeleteAll)
-			{
-				this.$deleteBtns.addClass('disabled');
-			}
-		}
-		else if (this.totalObjects == 0)
+	updateUI: function()
+	{
+		// Show the "No Whatever Exists" message if there aren't any
+		if (this.totalObjects == 0)
 		{
 			this.$table.hide();
-			$(this.settings.noObjectsSelector).removeClass('hidden');
+			this.$noObjects.removeClass('hidden');
+		}
+		else
+		{
+			this.$table.show();
+			this.$noObjects.addClass('hidden');
+		}
+
+		// Disable the sort buttons if there's only one row
+		if (this.settings.sortable)
+		{
+			var $moveButtons = this.$table.find('.move');
+
+			if (this.totalObjects == 1)
+			{
+				$moveButtons.addClass('disabled');
+			}
+			else
+			{
+				$moveButtons.removeClass('disabled');
+			}
+		}
+
+		// Disable the delete buttons if we've reached the minimum objects
+		if (this.settings.minObjects && this.totalObjects <= this.settings.minObjects)
+		{
+			this.$deleteBtns.addClass('disabled');
+		}
+		else
+		{
+			this.$deleteBtns.removeClass('disabled');
+		}
+
+		// Hide the New Whatever button if we've reached the maximum objects
+		if (this.settings.newObjectBtnSelector)
+		{
+			if (this.settings.maxObjects && this.totalObjects >= this.settings.maxObjects)
+			{
+				$(this.settings.newObjectBtnSelector).addClass('hidden');
+			}
+			else
+			{
+				$(this.settings.newObjectBtnSelector).removeClass('hidden');
+			}
 		}
 	}
 },
@@ -2014,17 +2376,20 @@ Craft.AdminTable = Garnish.Base.extend({
 	defaults: {
 		tableSelector: null,
 		noObjectsSelector: null,
+		newObjectBtnSelector: null,
 		idAttribute: 'data-id',
 		nameAttribute: 'data-name',
 		sortable: false,
 		allowDeleteAll: true,
+		minObjects: 0,
+		maxObjects: null,
 		reorderAction: null,
 		deleteAction: null,
-		reorderSuccessMessage: 'New order saved.',
-		reorderFailMessage: 'Couldn’t save new order.',
-		confirmDeleteMessage: 'Are you sure you want to delete “{name}”?',
-		deleteSuccessMessage: '“{name}” deleted.',
-		deleteFailMessage: 'Couldn’t delete “{name}”.',
+		reorderSuccessMessage: Craft.t('New order saved.'),
+		reorderFailMessage:    Craft.t('Couldn’t save new order.'),
+		confirmDeleteMessage:  Craft.t('Are you sure you want to delete “{name}”?'),
+		deleteSuccessMessage:  Craft.t('“{name}” deleted.'),
+		deleteFailMessage:     Craft.t('Couldn’t delete “{name}”.'),
 		onDeleteObject: $.noop
 	}
 });
@@ -2518,13 +2883,16 @@ Craft.AssetIndex = Craft.BaseElementIndex.extend({
 						responseArray = [];
 					}
 
-					Craft.postActionRequest('assets/moveFolder', parameterArray[parameterIndex], $.proxy(function(data)
-					{
+					Craft.postActionRequest('assets/moveFolder', parameterArray[parameterIndex], $.proxy(function(data, textStatus) {
+
 						parameterIndex++;
 						this.progressBar.incrementProcessedItemCount(1);
 						this.progressBar.updateProgressBar();
 
-						responseArray.push(data);
+						if (textStatus == 'success')
+						{
+							responseArray.push(data);
+						}
 
 						if (parameterIndex >= parameterArray.length)
 						{
@@ -2534,6 +2902,7 @@ Craft.AssetIndex = Craft.BaseElementIndex.extend({
 						{
 							moveFolder(parameterArray, parameterIndex, callback);
 						}
+
 					}, this));
 				}, this);
 
@@ -2667,12 +3036,15 @@ Craft.AssetIndex = Craft.BaseElementIndex.extend({
 			this.responseArray = [];
 		}
 
-		Craft.postActionRequest('assets/moveFile', parameterArray[parameterIndex], $.proxy(function(data)
-		{
+		Craft.postActionRequest('assets/moveFile', parameterArray[parameterIndex], $.proxy(function(data, textStatus) {
+
 			this.progressBar.incrementProcessedItemCount(1);
 			this.progressBar.updateProgressBar();
 
-			this.responseArray.push(data);
+			if (textStatus == 'success')
+			{
+				this.responseArray.push(data);
+			}
 
 			parameterIndex++;
 
@@ -2684,6 +3056,7 @@ Craft.AssetIndex = Craft.BaseElementIndex.extend({
 			{
 				this._moveFile(parameterArray, parameterIndex, callback);
 			}
+
 		}, this));
 	},
 
@@ -2740,17 +3113,11 @@ Craft.AssetIndex = Craft.BaseElementIndex.extend({
 		this.base();
 	},
 
-	/**
-	 * Select a different source.
-	 *
-	 * @param sourceKey
-	 * @private
-	 */
-	onSelectSource: function(sourceKey)
+	onSelectSource: function()
 	{
-		this.uploader.setParams({folderId: this._getFolderIdFromSourceKey(sourceKey)});
+		this.uploader.setParams({folderId: this._getFolderIdFromSourceKey(this.sourceKey)});
 
-		this.base(sourceKey);
+		this.base();
 	},
 
 	_getFolderIdFromSourceKey: function (sourceKey)
@@ -2831,7 +3198,7 @@ Craft.AssetIndex = Craft.BaseElementIndex.extend({
 		}
 		else
 		{
-			alert(Craft.t('Upload failed for') + ' ' + fileName);
+			alert(Craft.t('Upload failed for {filename}', { filename: fileName }));
 			doReload = false;
 		}
 
@@ -2886,9 +3253,9 @@ Craft.AssetIndex = Craft.BaseElementIndex.extend({
 				userResponse:   parameterArray[parameterIndex].choice
 			};
 
-			Craft.postActionRequest('assets/uploadFile', postData, $.proxy(function(data)
-			{
-				if (typeof data.fileId != "undefined")
+			Craft.postActionRequest('assets/uploadFile', postData, $.proxy(function(data, textStatus) {
+
+				if (textStatus == 'success' && data.fileId)
 				{
 					this._uploadedFileIds.push(data.fileId);
 				}
@@ -2905,6 +3272,7 @@ Craft.AssetIndex = Craft.BaseElementIndex.extend({
 					doFollowup(parameterArray, parameterIndex, callback);
 				}
 			}, this));
+
 		}, this);
 
 		doFollowup(returnData, 0, finalCallback);
@@ -2952,8 +3320,7 @@ Craft.AssetIndex = Craft.BaseElementIndex.extend({
 
 		var elementSelect = new Garnish.Select(this.$elementContainer, $children, {
 			multi: true,
-			vertical: (this.getState('view') == 'table'),
-			waitForDblClick: true,
+			vertical: (this.getSelectedSourceState('mode') == 'table'),
 			onSelectionChange: $.proxy(this, '_onElementSelectionChange')
 		});
 
@@ -2991,7 +3358,7 @@ Craft.AssetIndex = Craft.BaseElementIndex.extend({
 	_editProperties: function (event)
 	{
 		var $target = $(event.currentTarget);
-        if (this.getState('view') == "table")
+        if (this.getSelectedSourceState('mode') == 'table')
         {
             $target = $target.find('.element');
         }
@@ -3017,6 +3384,7 @@ Craft.AssetIndex = Craft.BaseElementIndex.extend({
 		var menuOptions = [{ label: Craft.t('View file'), onClick: $.proxy(this, '_viewFile') }];
 		menuOptions.push({ label: Craft.t('Edit properties'), onClick: $.proxy(this, '_showProperties') });
 		menuOptions.push({ label: Craft.t('Rename file'), onClick: $.proxy(this, '_renameFile') });
+		menuOptions.push({ label: Craft.t('Copy reference tag'), onClick: $.proxy(this, '_copyRefTag') });
 		menuOptions.push('-');
 		menuOptions.push({ label: Craft.t('Delete file'), onClick: $.proxy(this, '_deleteFile') });
 		this._singleFileMenu = new Garnish.ContextMenu($elements, menuOptions, settings);
@@ -3123,6 +3491,15 @@ Craft.AssetIndex = Craft.BaseElementIndex.extend({
 		}
 	},
 
+	_copyRefTag: function(event)
+	{
+		var message = Craft.t('{ctrl}C to copy.', {
+			ctrl: (navigator.appVersion.indexOf('Mac') ? '⌘' : 'Ctrl-')
+		});
+
+		prompt(message, '{asset:'+$(event.currentTarget).data('id')+'}');
+	},
+
 	/**
 	 * Delete a file
 	 */
@@ -3133,7 +3510,7 @@ Craft.AssetIndex = Craft.BaseElementIndex.extend({
 
 		var fileName = $target.attr('data-label');
 
-		if (confirm(Craft.t('Are you sure you want to delete “{file}”?', {file: fileName})))
+		if (confirm(Craft.t('Are you sure you want to delete “{name}”?', { name: fileName })))
 		{
 			if ($target.data('AssetEditor'))
 			{
@@ -3143,6 +3520,7 @@ Craft.AssetIndex = Craft.BaseElementIndex.extend({
 			this.setIndexBusy();
 
 			Craft.postActionRequest('assets/deleteFile', {fileId: fileId}, $.proxy(function(data, textStatus) {
+
 				this.setIndexAvailable();
 
 				if (textStatus == 'success')
@@ -3155,6 +3533,7 @@ Craft.AssetIndex = Craft.BaseElementIndex.extend({
 					this.updateElements();
 
 				}
+
 			}, this));
 		}
 	},
@@ -3176,11 +3555,11 @@ Craft.AssetIndex = Craft.BaseElementIndex.extend({
 			}
 
 			Craft.postActionRequest('assets/deleteFile', postData, $.proxy(function(data, textStatus) {
+
 				this.setIndexAvailable();
 
 				if (textStatus == 'success')
 				{
-
 					if (data.error)
 					{
 						alert(data.error);
@@ -3188,13 +3567,14 @@ Craft.AssetIndex = Craft.BaseElementIndex.extend({
 
 					this.updateElements();
 				}
+
 			}, this));
 		}
 	},
 
 	_getDragHelper: function ($element)
 	{
-		var currentView = this.getState('view');
+		var currentView = this.getSelectedSourceState('mode');
 		switch (currentView)
 		{
 			case 'table':
@@ -3335,15 +3715,15 @@ Craft.AssetIndex = Craft.BaseElementIndex.extend({
 
 			this.setIndexBusy();
 
-			Craft.postActionRequest('assets/createFolder', params, $.proxy(function(data)
-			{
+			Craft.postActionRequest('assets/createFolder', params, $.proxy(function(data, textStatus) {
+
 				this.setIndexAvailable();
 
-				if (data.success)
+				if (textStatus == 'success' && data.success)
 				{
 					this._prepareParentForChildren(parentFolder);
 
-					var subFolder = $('<li><a data-key="folder:' + data.folderId + '">' + data.folderName + '</a></li>');
+					var subFolder = $('<li><a data-key="folder:' + data.folderId + '" data-has-thumbs="' + parentFolder.data('has-thumbs') + '">' + data.folderName + '</a></li>');
 
 					var $a = subFolder.find('a');
 					this._addSubfolder(parentFolder, subFolder);
@@ -3353,10 +3733,11 @@ Craft.AssetIndex = Craft.BaseElementIndex.extend({
 					this.$sources = this.$sources.add($a);
 				}
 
-				if (data.error)
+				if (textStatus == 'success' && data.error)
 				{
 					alert(data.error);
 				}
+
 			}, this));
 		}
 	},
@@ -3365,18 +3746,17 @@ Craft.AssetIndex = Craft.BaseElementIndex.extend({
 	{
 		if (confirm(Craft.t('Really delete folder “{folder}”?', {folder: $.trim(targetFolder.text())})))
 		{
-
 			var params = {
 				folderId: this._getFolderIdFromSourceKey(targetFolder.data('key'))
 			}
 
 			this.setIndexBusy();
 
-			Craft.postActionRequest('assets/deleteFolder', params, $.proxy(function(data)
-			{
+			Craft.postActionRequest('assets/deleteFolder', params, $.proxy(function(data, textStatus) {
+
 				this.setIndexAvailable();
 
-				if (data.success)
+				if (textStatus == 'success' && data.success)
 				{
 					var parentFolder = this._getParentSource(targetFolder);
 
@@ -3389,7 +3769,7 @@ Craft.AssetIndex = Craft.BaseElementIndex.extend({
 
 				}
 
-				if (data.error)
+				if (textStatus == 'success' && data.error)
 				{
 					alert(data.error);
 				}
@@ -3415,19 +3795,20 @@ Craft.AssetIndex = Craft.BaseElementIndex.extend({
 
 			this.setIndexBusy();
 
-			Craft.postActionRequest('assets/renameFolder', params, $.proxy(function(data)
-			{
+			Craft.postActionRequest('assets/renameFolder', params, $.proxy(function(data, textStatus) {
+
 				this.setIndexAvailable();
 
-				if (data.success)
+				if (textStatus == 'success' && data.success)
 				{
 					targetFolder.text(data.newName);
 				}
 
-				if (data.error)
+				if (textStatus == 'success' && data.error)
 				{
 					alert(data.error);
 				}
+
 			}, this), 'json');
 		}
 	},
@@ -3499,9 +3880,9 @@ Craft.AssetSelectInput = Craft.BaseElementSelectInput.extend({
     requestId: 0,
     hud: null,
 
-	init: function(id, name, elementType, sources, criteria, limit)
+	init: function(id, name, elementType, sources, criteria, limit, storageKey)
 	{
-		this.base(id, name, elementType, sources, criteria, limit);
+		this.base(id, name, elementType, sources, criteria, limit, storageKey);
         this._attachHUDEvents();
 	},
 
@@ -3693,9 +4074,38 @@ Craft.EditableTable = Garnish.Base.extend({
 				{
 					rowHtml += '<div class="select small"><select name="'+name+'">';
 
-					for (var optionValue in col.options)
+					var hasOptgroups = false;
+
+					for (var key in col.options)
 					{
-						rowHtml += '<option value="'+optionValue+'"'+(optionValue == value ? ' selected' : '')+'>'+col.options[optionValue]+'</option>';
+						var option = col.options[key];
+
+						if (typeof option.optgroup != 'undefined')
+						{
+							if (hasOptgroups)
+							{
+								rowHtml += '</optgroup>';
+							}
+							else
+							{
+								hasOptgroups = true;
+							}
+
+							rowHtml += '<optgroup label="'+option.optgroup+'">';
+						}
+						else
+						{
+							var optionLabel = (typeof option.label != 'undefined' ? option.label : option),
+								optionValue = (typeof option.value != 'undefined' ? option.value : key),
+								optionDisabled = (typeof option.disabled != 'undefined' ? option.disabled : false);
+
+							rowHtml += '<option value="'+optionValue+'"'+(optionValue == value ? ' selected' : '')+(optionDisabled ? ' disabled' : '')+'>'+optionLabel+'</option>';
+						}
+					}
+
+					if (hasOptgroups)
+					{
+						rowHtml += '</optgroup>';
 					}
 
 					rowHtml += '</select></div>';
@@ -3925,7 +4335,7 @@ Craft.ElementEditor = Garnish.Base.extend({
 
 				this._hideSpinner();
 
-				if (data.requestId != this.requestId) {
+				if (textStatus != 'success' || data.requestId != this.requestId) {
 					return;
 				}
 
@@ -3940,7 +4350,6 @@ Craft.ElementEditor = Garnish.Base.extend({
 
 				Craft.initUiElements($hudHtml);
 				this.addListener($hudHtml.find('form'), 'submit', $.proxy(this, '_saveElementDetails'));
-				this.addListener($hudHtml.find('.btn.submit'), 'click', function (ev) {$(ev.currentTarget).parents('form').submit();});
 				this.addListener($hudHtml.find('.btn.cancel'), 'click', $.proxy(this, 'removeHud'));
 
 
@@ -3958,17 +4367,20 @@ Craft.ElementEditor = Garnish.Base.extend({
 
 			Craft.postActionRequest(this.settings.saveContentAction, params, $.proxy(function(response, textStatus)
 			{
-				if (response.success)
+				this.hud.$body.find('.spinner').addClass('hidden');
+
+				if (textStatus == 'success')
 				{
-					// Update the title
-					this.$trigger.find('.label').text(response.title);
-					this.hud.$body.find('.spinner').hide();
-					this.removeHud();
-				}
-				else
-				{
-					this.hud.$body.find('.spinner').addClass('hidden');
-					Garnish.shake(this.hud.$hud);
+					if (textStatus == 'success' && response.success)
+					{
+						// Update the title
+						this.$trigger.find('.label').text(response.title);
+						this.removeHud();
+					}
+					else
+					{
+						Garnish.shake(this.hud.$hud);
+					}
 				}
 			}, this));
 		},
@@ -4048,10 +4460,14 @@ Craft.EntryUrlFormatGenerator = Craft.BaseInputGenerator.extend({
 		// Get the "words"
 		var words = Craft.filterArray(sourceVal.split(/[^a-z0-9]+/));
 
-		if (words.length)
-			return words.join('-') + '/{slug}';
+		var urlFormat = words.join('-');
 
-		return '';
+		if (urlFormat && this.settings.suffix)
+		{
+			urlFormat += this.settings.suffix;
+		}
+
+		return urlFormat;
 	}
 });
 
@@ -4837,7 +5253,14 @@ Craft.FieldToggle = Garnish.Base.extend({
 		}
 		else
 		{
-			this._$target = $('#'+this.$toggle.attr('data-target'));
+			var targetSelector = this.$toggle.data('target');
+
+			if (!targetSelector.match(/^[#\.]/))
+			{
+				targetSelector = '#'+targetSelector;
+			}
+
+			this._$target = $(targetSelector);
 		}
 	},
 
@@ -4980,7 +5403,6 @@ Craft.Grid = Garnish.Base.extend({
 		{
 			this.totalCols = totalCols;
 			this.refreshCols();
-			this.stretchColHeights();
 			return true;
 		}
 
@@ -5183,20 +5605,8 @@ Craft.Grid = Garnish.Base.extend({
 		}
 
 		return tallestCol;
-	},
-
-	stretchColHeights: function()
-	{
-		return;
-		var minHeight = Garnish.$win.height() - 101,
-			tallestCol = this.getTallestCol(),
-			height = Math.max(minHeight, tallestCol.height());
-
-		for (var i = 0; i < this.cols.length; i++)
-		{
-			this.cols[i].height(height);
-		}
 	}
+
 },
 {
 	defaults: {
@@ -5498,8 +5908,13 @@ Craft.ImageHandler = Garnish.Base.extend({
 			if (confirm(settings.deleteMessage))
 			{
 				$(this).parent().append('<div class="blocking-modal"></div>');
-				Craft.postActionRequest(settings.deleteAction, settings.postParameters, $.proxy(function(response){
-					_this.onImageDelete.apply(_this, [response]);
+				Craft.postActionRequest(settings.deleteAction, settings.postParameters, $.proxy(function(response, textStatus) {
+
+					if (textStatus == 'success')
+					{
+						_this.onImageDelete.apply(_this, [response]);
+					}
+
 				}, this));
 
 			}
@@ -5566,15 +5981,18 @@ Craft.ImageModal = Garnish.Modal.extend({
 
 		params = $.extend(this._postParameters, params);
 
-		Craft.postActionRequest(this._cropAction, params, $.proxy(function(response)
-		{
-			if (response.error)
+		Craft.postActionRequest(this._cropAction, params, $.proxy(function(response, textStatus) {
+
+			if (textStatus == 'success')
 			{
-				alert(response.error);
-			}
-			else
-			{
-				this.imageHandler.onImageSave.apply(this.imageHandler, [response]);
+				if (response.error)
+				{
+					Craft.cp.displayError(response.error);
+				}
+				else
+				{
+					this.imageHandler.onImageSave.apply(this.imageHandler, [response]);
+				}
 			}
 
 			this.hide();
@@ -6092,7 +6510,7 @@ Craft.PromptHandler = Garnish.Base.extend({
     _cancelPrompt: function()
     {
         this._selectPromptChoice('cancel', true);
-    },
+    }
 });
 
 /*
@@ -7541,23 +7959,17 @@ Craft.SlugGenerator = Craft.BaseInputGenerator.extend({
 	generateTargetValue: function(sourceVal)
 	{
 		// Remove HTML tags
-		sourceVal = sourceVal.replace("/<(.*?)>/g", '');
+		sourceVal = sourceVal.replace(/<(.*?)>/g, '');
 
-		// Remove apostrophes
-		sourceVal = sourceVal.replace("/['’]/g", '');
+		// Remove inner-word punctuation
+		sourceVal = sourceVal.replace(/['"‘’“”]/g, '');
 
 		// Make it lowercase
 		sourceVal = sourceVal.toLowerCase();
 
-		// Convert extended ASCII characters to basic ASCII
-		sourceVal = Craft.asciiString(sourceVal);
-
-		// Slug must start and end with alphanumeric characters
-		sourceVal = sourceVal.replace(/^[^a-z0-9]+/, '');
-		sourceVal = sourceVal.replace(/[^a-z0-9]+$/, '');
-
-		// Get the "words"
-		var words = Craft.filterArray(sourceVal.split(/[^a-z0-9]+/));
+		// Get the "words".  Split on anything that is not a unicode letter or number.
+		// Preiods are OK, too.
+		var words = Craft.filterArray(XRegExp.matchChain(sourceVal, [XRegExp('[\\p{L}\\p{N}\\.]+')]));
 
 		if (words.length)
 		{
@@ -7572,13 +7984,433 @@ Craft.SlugGenerator = Craft.BaseInputGenerator.extend({
 
 
 /**
+ * Structure drag class
+ */
+Craft.StructureDrag = Garnish.Drag.extend({
+
+	elementIndex: null,
+	moveAction: null,
+	maxDepth: null,
+	draggeeDepth: null,
+
+	$helperLi: null,
+	$targets: null,
+	_: null,
+	draggeeHeight: null,
+
+	init: function(elementIndex, moveAction, maxDepth)
+	{
+		this.elementIndex = elementIndex;
+		this.moveAction = moveAction;
+		this.maxDepth = maxDepth;
+
+		this.$insertion = $('<li class="draginsertion"/>');
+		this._ = {};
+
+		var $items = this.elementIndex.$elementContainer.find('li');
+
+		this.base($items, {
+			handle: '.element:first, .move:first',
+			helper: $.proxy(this, 'getHelper')
+		});
+	},
+
+	getHelper: function($helper)
+	{
+		this.$helperLi = $helper;
+		var $ul = $('<ul class="structureview draghelper"/>').append($helper);
+		$helper.css('padding-left', this.$draggee.css('padding-left'));
+		$helper.find('.move').removeAttr('title');
+		return $ul;
+	},
+
+	onDragStart: function()
+	{
+		this.$targets = $();
+
+		// Recursively find each of the targets, in the order they appear to be in
+		this.findTargets(this.elementIndex.$elementContainer);
+
+		// How deep does the rabbit hole go?
+		this.draggeeDepth = 0;
+		var $level = this.$draggee;
+		do {
+			this.draggeeDepth++;
+			$level = $level.find('> ul > li');
+		} while($level.length);
+
+		// Collapse the draggee
+		this.draggeeHeight = this.$draggee.height();
+		this.$draggee.animate({
+			height: 0
+		}, 'fast', $.proxy(function() {
+			this.$draggee.addClass('hidden');
+		}, this));
+		this.base();
+
+		this.addListener(Garnish.$doc, 'keydown', function(ev) {
+			if (ev.keyCode == Garnish.ESC_KEY)
+			{
+				this.cancelDrag();
+			}
+		});
+	},
+
+	findTargets: function($ul)
+	{
+		var $lis = $ul.children().not(this.$draggee);
+
+		for (var i = 0; i < $lis.length; i++)
+		{
+			var $li = $($lis[i]);
+			this.$targets = this.$targets.add($li.children('.row'));
+
+			if (!$li.hasClass('collapsed'))
+			{
+				this.findTargets($li.children('ul'));
+			}
+		}
+	},
+
+	onDrag: function()
+	{
+		if (this._.$closestTarget)
+		{
+			this._.$closestTarget.removeClass('draghover');
+			this.$insertion.remove();
+		}
+
+		// First let's find the closest target
+		this._.$closestTarget = null;
+		this._.closestTargetPos = null;
+		this._.closestTargetYDiff = null;
+		this._.closestTargetOffset = null;
+		this._.closestTargetHeight = null;
+
+		for (this._.i = 0; this._.i < this.$targets.length; this._.i++)
+		{
+			this._.$target = $(this.$targets[this._.i]);
+			this._.targetOffset = this._.$target.offset();
+			this._.targetHeight = this._.$target.outerHeight();
+			this._.targetYMidpoint = this._.targetOffset.top + (this._.targetHeight / 2);
+			this._.targetYDiff = Math.abs(this.mouseY - this._.targetYMidpoint);
+
+			if (this._.i == 0 || (this.mouseY >= this._.targetOffset.top + 5 && this._.targetYDiff < this._.closestTargetYDiff))
+			{
+				this._.$closestTarget = this._.$target;
+				this._.closestTargetPos = this._.i;
+				this._.closestTargetYDiff = this._.targetYDiff;
+				this._.closestTargetOffset = this._.targetOffset;
+				this._.closestTargetHeight = this._.targetHeight;
+			}
+			else
+			{
+				// Getting colder
+				break;
+			}
+		}
+
+		if (!this._.$closestTarget)
+		{
+			return;
+		}
+
+		// Are we hovering above the first row?
+		if (this._.closestTargetPos == 0 && this.mouseY < this._.closestTargetOffset.top + 5)
+		{
+			this.$insertion.prependTo(this.elementIndex.$elementContainer);
+		}
+		else
+		{
+			this._.$closestTargetLi = this._.$closestTarget.parent();
+			this._.closestTargetDepth = this._.$closestTargetLi.data('depth');
+
+			// Is there a next row?
+			if (this._.closestTargetPos < this.$targets.length - 1)
+			{
+				this._.$nextTargetLi = $(this.$targets[this._.closestTargetPos+1]).parent();
+				this._.nextTargetDepth = this._.$nextTargetLi.data('depth');
+			}
+			else
+			{
+				this._.$nextTargetLi = null;
+				this._.nextTargetDepth = null;
+			}
+
+			// Are we hovering between this row and the next one?
+			this._.hoveringBetweenRows = (this.mouseY >= this._.closestTargetOffset.top + this._.closestTargetHeight - 5);
+
+			/**
+			 * Scenario 1: Both rows have the same depth.
+			 *
+			 *     * Row 1
+			 *     ----------------------
+			 *     * Row 2
+			 */
+
+			if (this._.$nextTargetLi && this._.nextTargetDepth == this._.closestTargetDepth)
+			{
+				if (this._.hoveringBetweenRows)
+				{
+					if (!this.maxDepth || this.maxDepth >= (this._.closestTargetDepth + this.draggeeDepth - 1))
+					{
+						// Position the insertion after the closest target
+						this.$insertion.insertAfter(this._.$closestTargetLi);
+					}
+
+				}
+				else
+				{
+					if (!this.maxDepth || this.maxDepth >= (this._.closestTargetDepth + this.draggeeDepth))
+					{
+						this._.$closestTarget.addClass('draghover');
+					}
+				}
+			}
+
+			/**
+			 * Scenario 2: Next row is a child of this one.
+			 *
+			 *     * Row 1
+			 *     ----------------------
+			 *         * Row 2
+			 */
+
+			else if (this._.$nextTargetLi && this._.nextTargetDepth > this._.closestTargetDepth)
+			{
+				if (!this.maxDepth || this.maxDepth >= (this._.nextTargetDepth + this.draggeeDepth - 1))
+				{
+					if (this._.hoveringBetweenRows)
+					{
+						// Position the insertion as the first child of the closest target
+						this.$insertion.insertBefore(this._.$nextTargetLi);
+					}
+					else
+					{
+						this._.$closestTarget.addClass('draghover');
+						this.$insertion.appendTo(this._.$closestTargetLi.children('ul'));
+					}
+				}
+			}
+
+			/**
+			 * Scenario 3: Next row is a child of a parent node, or there is no next row.
+			 *
+			 *         * Row 1
+			 *     ----------------------
+			 *     * Row 2
+			 */
+
+			else
+			{
+				if (this._.hoveringBetweenRows)
+				{
+					// Determine which <li> to position the insertion after
+					this._.draggeeX = this.mouseX - this.targetItemMouseDiffX;
+					this._.$parentLis = this._.$closestTarget.parentsUntil(this.elementIndex.$elementContainer, 'li');
+					this._.$closestParentLi = null;
+					this._.closestParentLiXDiff = null;
+					this._.closestParentDepth = null;
+
+					for (this._.i = 0; this._.i < this._.$parentLis.length; this._.i++)
+					{
+						this._.$parentLi = $(this._.$parentLis[this._.i]);
+						this._.parentLiXDiff = Math.abs(this._.$parentLi.offset().left - this._.draggeeX);
+						this._.parentDepth = this._.$parentLi.data('depth');
+
+						if ((!this.maxDepth || this.maxDepth >= (this._.parentDepth + this.draggeeDepth - 1)) && (
+							!this._.$closestParentLi || (
+								this._.parentLiXDiff < this._.closestParentLiXDiff &&
+								(!this._.$nextTargetLi || this._.parentDepth >= this._.nextTargetDepth)
+							)
+						))
+						{
+							this._.$closestParentLi = this._.$parentLi;
+							this._.closestParentLiXDiff = this._.parentLiXDiff;
+							this._.closestParentDepth = this._.parentDepth;
+						}
+					}
+
+					if (this._.$closestParentLi)
+					{
+						this.$insertion.insertAfter(this._.$closestParentLi);
+					}
+				}
+				else
+				{
+					if (!this.maxDepth || this.maxDepth >= (this._.closestTargetDepth + this.draggeeDepth))
+					{
+						this._.$closestTarget.addClass('draghover');
+					}
+				}
+			}
+		}
+	},
+
+	cancelDrag: function()
+	{
+		this.$insertion.remove();
+
+		if (this._.$closestTarget)
+		{
+			this._.$closestTarget.removeClass('draghover');
+		}
+
+		this.onMouseUp();
+	},
+
+	onDragStop: function()
+	{
+		// Are we repositioning the draggee?
+		if (this._.$closestTarget && (this.$insertion.parent().length || this._.$closestTarget.hasClass('draghover')))
+		{
+			// Are we about to leave the draggee's original parent childless?
+			if (!this.$draggee.siblings().length)
+			{
+				var $draggeeParent = this.$draggee.parent();
+			}
+			else
+			{
+				var $draggeeParent = null;
+			}
+
+			if (this.$insertion.parent().length)
+			{
+				// Make sure the insertion isn't right next to the draggee
+				var $closestSiblings = this.$insertion.next().add(this.$insertion.prev());
+
+				if ($.inArray(this.$draggee[0], $closestSiblings) == -1)
+				{
+					this.$insertion.replaceWith(this.$draggee);
+					var moved = true;
+				}
+				else
+				{
+					this.$insertion.remove();
+					var moved = false;
+				}
+			}
+			else
+			{
+				var $ul = this._.$closestTargetLi.children('ul');
+
+				// Make sure this is a different parent than the draggee's
+				if (!$draggeeParent || !$ul.length || $ul[0] != $draggeeParent[0])
+				{
+					if (!$ul.length)
+					{
+						var $toggle = $('<div class="toggle" title="'+Craft.t('Show/hide children')+'"/>').prependTo(this._.$closestTarget);
+						this.elementIndex.initToggle($toggle);
+
+						$ul = $('<ul>').appendTo(this._.$closestTargetLi);
+					}
+					else if (this._.$closestTargetLi.hasClass('collapsed'))
+					{
+						this._.$closestTarget.children('.toggle').trigger('click');
+					}
+
+					this.$draggee.appendTo($ul);
+					var moved = true;
+				}
+				else
+				{
+					var moved = false;
+				}
+			}
+
+			// Remove the class either way
+			this._.$closestTarget.removeClass('draghover');
+
+			if (moved)
+			{
+				// Now deal with the now-childless parent
+				if ($draggeeParent)
+				{
+					$draggeeParent.siblings('.row').children('.toggle').remove();
+					$draggeeParent.remove();
+				}
+
+				// Has the depth changed?
+				var newDepth = this.$draggee.parentsUntil(this.elementIndex.$elementContainer, 'li').length + 1;
+
+				if (newDepth != this.$draggee.data('depth'))
+				{
+					// Correct the helper's padding if moving to/from depth 1
+					if (this.$draggee.data('depth') == 1)
+					{
+						this.$helperLi.animate({
+							'padding-left': 38
+						}, 'fast');
+					}
+					else if (newDepth == 1)
+					{
+						this.$helperLi.animate({
+							'padding-left': 8
+						}, 'fast');
+					}
+
+					this.setDepth(this.$draggee, newDepth);
+				}
+
+				// Make it real
+				var data = {
+					id:       this.$draggee.children('.row').data('id'),
+					prevId:   this.$draggee.prev().children('.row').data('id'),
+					parentId: this.$draggee.parent('ul').parent('li').children('.row').data('id')
+				};
+
+				Craft.postActionRequest(this.moveAction, data, function(response, textStatus) {
+
+					if (textStatus == 'success')
+					{
+						Craft.cp.displayNotice(Craft.t('New order saved.'));
+					}
+
+				});
+			}
+		}
+
+		// Animate things back into place
+		this.$draggee.removeClass('hidden').animate({
+			height: this.draggeeHeight
+		}, 'fast', $.proxy(function() {
+			this.$draggee.css('height', 'auto');
+		}, this));
+
+		this.returnHelpersToDraggees();
+
+		this.base();
+	},
+
+	setDepth: function($li, depth)
+	{
+		$li.data('depth', depth);
+
+		var indent = 8 + (depth - 1) * 35;
+		this.$draggee.children('.row').css({
+			'margin-left':  '-'+indent+'px',
+			'padding-left': indent+'px'
+		});
+
+		var $childLis = $li.children('ul').children();
+
+		for (var i = 0; i < $childLis.length; i++)
+		{
+			this.setDepth($($childLis[i]), depth+1);
+		}
+	}
+
+});
+
+
+/**
  * Tag select input
  */
 Craft.TagSelectInput = Craft.BaseElementSelectInput.extend({
 
 	id: null,
 	name: null,
-	source: null,
+	tagSetId: null,
 	elementId: null,
 	elementSort: null,
 	searchTimeout: null,
@@ -7590,11 +8422,11 @@ Craft.TagSelectInput = Craft.BaseElementSelectInput.extend({
 	$addTagInput: null,
 	$spinner: null,
 
-	init: function(id, name, source, elementId, hasFields)
+	init: function(id, name, tagSetId, elementId, hasFields)
 	{
 		this.id = id;
 		this.name = name;
-		this.source = source;
+		this.tagSetId = tagSetId;
 		this.elementId = elementId;
 
 		this.$container = $('#'+this.id);
@@ -7665,10 +8497,10 @@ Craft.TagSelectInput = Craft.BaseElementSelectInput.extend({
 			}, this), 1);
 		});
 
-        if (hasFields)
-        {
-            this._attachHUDEvents();
-        }
+		if (hasFields)
+		{
+			this._attachHUDEvents();
+		}
 	},
 
 	searchForTags: function()
@@ -7703,40 +8535,44 @@ Craft.TagSelectInput = Craft.BaseElementSelectInput.extend({
 
 			var data = {
 				search:     this.$addTagInput.val(),
-				source:     this.source,
-				excludeIds: excludeIds,
+				tagSetId:   this.tagSetId,
+				excludeIds: excludeIds
 			};
 
-			Craft.postActionRequest('tags/searchForTags', data, $.proxy(function(response)
-			{
-				var $menu = $('<div class="menu tagmenu"/>').appendTo(Garnish.$bod),
-					$ul = $('<ul/>').appendTo($menu);
-
-				if (!response.exactMatch)
-				{
-					var $li = $('<li/>').appendTo($ul);
-					$('<a class="hover"/>').appendTo($li).text(data.search);
-				}
-
-				for (var i = 0; i < response.tags.length; i++)
-				{
-					var $li = $('<li/>').appendTo($ul),
-						$a = $('<a/>').appendTo($li).text(response.tags[i].name).data('id', response.tags[i].id);
-
-					if (response.exactMatch && i == 0)
-					{
-						$a.addClass('hover');
-					}
-				}
-
-				this.searchMenu = new Garnish.Menu($menu, {
-					attachToElement: this.$addTagInput,
-					onOptionSelect: $.proxy(this, 'selectTag')
-				});
-
-				this.searchMenu.show();
+			Craft.postActionRequest('tags/searchForTags', data, $.proxy(function(response, textStatus) {
 
 				this.$spinner.addClass('hidden');
+
+				if (textStatus == 'success')
+				{
+					var $menu = $('<div class="menu tagmenu"/>').appendTo(Garnish.$bod),
+						$ul = $('<ul/>').appendTo($menu);
+
+					if (!response.exactMatch)
+					{
+						var $li = $('<li/>').appendTo($ul);
+						$('<a class="hover"/>').appendTo($li).text(data.search);
+					}
+
+					for (var i = 0; i < response.tags.length; i++)
+					{
+						var $li = $('<li/>').appendTo($ul),
+							$a = $('<a/>').appendTo($li).text(response.tags[i].name).data('id', response.tags[i].id);
+
+						if (response.exactMatch && i == 0)
+						{
+							$a.addClass('hover');
+						}
+					}
+
+					this.searchMenu = new Garnish.Menu($menu, {
+						attachToElement: this.$addTagInput,
+						onOptionSelect: $.proxy(this, 'selectTag')
+					});
+
+					this.searchMenu.show();
+				}
+
 			}, this));
 		}
 		else
@@ -7788,28 +8624,28 @@ Craft.TagSelectInput = Craft.BaseElementSelectInput.extend({
 		this.searchMenu = null;
 	},
 
-    _attachHUDEvents: function ()
-    {
-        this.removeListener(this.$elements, 'dlbclick');
-        this.addListener(this.$elements, 'dblclick', $.proxy(this, '_editProperties'));
-    },
+	_attachHUDEvents: function ()
+	{
+		this.removeListener(this.$elements, 'dlbclick');
+		this.addListener(this.$elements, 'dblclick', $.proxy(this, '_editProperties'));
+	},
 
-    _editProperties: function (event)
-    {
-        var $target = $(event.currentTarget);
-        if (!$target.data('ElementEditor'))
-        {
-            var settings = {
-                elementId: $target.attr('data-id'),
-                $trigger: $target,
-                loadContentAction: 'tags/editTagContent',
-                saveContentAction: 'tags/saveTagContent'
-            };
-            $target.data('ElementEditor', new Craft.ElementEditor(settings));
-        }
+	_editProperties: function (event)
+	{
+		var $target = $(event.currentTarget);
+		if (!$target.data('ElementEditor'))
+		{
+			var settings = {
+				elementId: $target.attr('data-id'),
+				$trigger: $target,
+				loadContentAction: 'tags/editTagContent',
+				saveContentAction: 'tags/saveTagContent'
+			};
+			$target.data('ElementEditor', new Craft.ElementEditor(settings));
+		}
 
-        $target.data('ElementEditor').show();
-    }
+		$target.data('ElementEditor').show();
+	}
 
 });
 

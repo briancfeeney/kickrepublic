@@ -32,7 +32,7 @@
 					{% if entry.related_players | length %}
 					<h4 class="related-players">Related Players:
 						{% for related_players in entry.related_players %}
-							<small><a href="{{ related_players.url }}">{{ related_players.title }},</a></small>
+							<small><a href="{{ related_players.url }}">{{ related_players.title }}</a>,</small>
 						{% endfor %}
 					</h4>
 					{% endif %}

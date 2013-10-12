@@ -1,4 +1,4 @@
-/*!
+/**
  * Craft by Pixel & Tonic
  *
  * @package   Craft
@@ -19,6 +19,7 @@ var LoginForm = Garnish.Base.extend({
 	$passwordInput: null,
 	$forgotPasswordLink: null,
 	$rememberMeCheckbox: null,
+	$sslIcon: null,
 	$submitBtn: null,
 	$spinner: null,
 	$error: null,
@@ -34,27 +35,73 @@ var LoginForm = Garnish.Base.extend({
 		this.$passwordPaneItem = this.$loginFields.children();
 		this.$passwordInput = $('#password');
 		this.$forgotPasswordLink = $('#forgot-password');
+		this.$sslIcon = $('#ssl-icon');
 		this.$submitBtn = $('#submit');
 		this.$spinner = $('#spinner');
 		this.$rememberMeCheckbox = $('#rememberMe');
 
-		this.addListener(this.$loginNameInput, 'keypress,keyup,change,blur', 'onInputChange');
-		this.addListener(this.$passwordInput, 'keypress,keyup,change,blur', 'onInputChange');
-		this.addListener(this.$forgotPasswordLink, 'activate', 'onForgetPassword');
-		this.addListener(this.$submitBtn, 'activate', 'onSubmit');
+		new Garnish.PasswordInput(this.$passwordInput, {
+			onToggleInput: $.proxy(function($newPasswordInput) {
+				this.removeListener(this.$passwordInput, 'textchange');
+				this.$passwordInput = $newPasswordInput;
+				this.addListener(this.$passwordInput, 'textchange', 'onInputChange');
+			}, this)
+		});
+
+		this.addListener(this.$loginNameInput, 'textchange', 'onInputChange');
+		this.addListener(this.$passwordInput, 'textchange', 'onInputChange');
+		this.addListener(this.$forgotPasswordLink, 'click', 'onForgetPassword');
 		this.addListener(this.$form, 'submit', 'onSubmit');
+
+		// Super hacky!
+		this.addListener(this.$sslIcon, 'mouseover', function() {
+			if (this.$sslIcon.hasClass('disabled'))
+			{
+				return;
+			}
+
+			this.$submitBtn.addClass('hover');
+		});
+		this.addListener(this.$sslIcon, 'mouseout', function() {
+			if (this.$sslIcon.hasClass('disabled'))
+			{
+				return;
+			}
+
+			this.$submitBtn.removeClass('hover');
+		});
+		this.addListener(this.$sslIcon, 'mousedown', function() {
+			if (this.$sslIcon.hasClass('disabled'))
+			{
+				return;
+			}
+
+			this.$submitBtn.addClass('active');
+
+			this.addListener(Garnish.$doc, 'mouseup', function() {
+				this.$submitBtn.removeClass('active');
+				this.removeListener(Garnish.$doc, 'mouseup');
+			});
+		});
+		this.addListener(this.$sslIcon, 'click', function() {
+			this.$submitBtn.click();
+		});
 	},
 
 	validate: function()
 	{
 		if (this.$loginNameInput.val() && (this.forgotPassword || this.$passwordInput.val().length >= 6))
 		{
+			this.$sslIcon.enable();
 			this.$submitBtn.enable();
 			return true;
 		}
-
-		this.$submitBtn.disable();
-		return false;
+		else
+		{
+			this.$sslIcon.disable();
+			this.$submitBtn.disable();
+			return false;
+		}
 	},
 
 	onInputChange: function()
@@ -95,18 +142,22 @@ var LoginForm = Garnish.Base.extend({
 			loginName: this.$loginNameInput.val()
 		};
 
-		Craft.postActionRequest('users/forgotPassword', data, $.proxy(function(response)
-		{
-			if (typeof response.success != 'undefined' && response.success)
+		Craft.postActionRequest('users/forgotPassword', data, $.proxy(function(response, textStatus) {
+
+			if (textStatus == 'success')
 			{
-				new MessageSentModal();
-			}
-			else
-			{
-				this.showError(response.error);
+				if (response.success)
+				{
+					new MessageSentModal();
+				}
+				else
+				{
+					this.showError(response.error);
+				}
 			}
 
 			this.onSubmitResponse();
+
 		}, this));
 	},
 
@@ -118,20 +169,28 @@ var LoginForm = Garnish.Base.extend({
 			rememberMe: (this.$rememberMeCheckbox.prop('checked') ? 'y' : '')
 		};
 
-		Craft.postActionRequest('users/login', data, $.proxy(function(response)
-		{
-			if (typeof response.success != 'undefined' && response.success)
+		Craft.postActionRequest('users/login', data, $.proxy(function(response, textStatus) {
+
+			if (textStatus == 'success')
 			{
-				window.location.href = Craft.getUrl(window.returnUrl);
+				if (response.success)
+				{
+					window.location.href = Craft.getUrl(window.returnUrl);
+				}
+				else
+				{
+					Garnish.shake(this.$form);
+					this.onSubmitResponse();
+
+					// Add the error message
+					this.showError(response.error);
+				}
 			}
 			else
 			{
-				Garnish.shake(this.$form);
 				this.onSubmitResponse();
-
-				// Add the error message
-				this.showError(response.error);
 			}
+
 		}, this));
 
 		return false;
@@ -147,7 +206,9 @@ var LoginForm = Garnish.Base.extend({
 	showError: function(error)
 	{
 		if (!error)
+		{
 			error = Craft.t('An unknown error occurred.');
+		}
 
 		this.$error = $('<p class="error" style="display:none">'+error+'</p>').appendTo(this.$form);
 		this.$error.fadeIn();
@@ -170,9 +231,10 @@ var LoginForm = Garnish.Base.extend({
 		this.$form.animate({marginTop: newFormTopMargin}, 'fast');
 		this.$loginFields.animate({height: 0}, 'fast');
 
-		this.$submitBtn.find('span').html(Craft.t('Reset Password'));
+		this.$submitBtn.addClass('reset-password');
+		this.$submitBtn.attr('value', Craft.t('Reset Password'));
 		this.$submitBtn.enable();
-		this.$submitBtn.removeAttr('data-icon');
+		this.$sslIcon.remove();
 
 		this.forgotPassword = true;
 		this.validate();

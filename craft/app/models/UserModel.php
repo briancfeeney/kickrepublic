@@ -35,13 +35,12 @@ class UserModel extends BaseElementModel
 	protected function defineAttributes()
 	{
 		return array_merge(parent::defineAttributes(), array(
-			'username'               => AttributeType::String,
+			'username'               => array(AttributeType::String, 'maxLength' => 100, 'required' => true),
 			'photo'                  => AttributeType::String,
 			'firstName'              => AttributeType::String,
 			'lastName'               => AttributeType::String,
 			'email'                  => AttributeType::Email,
 			'password'               => AttributeType::String,
-			'encType'                => AttributeType::String,
 			'preferredLocale'        => AttributeType::Locale,
 			'admin'                  => AttributeType::Bool,
 			'status'                 => AttributeType::Enum,
@@ -58,6 +57,16 @@ class UserModel extends BaseElementModel
 	}
 
 	/**
+	 * Returns the reference string to this element.
+	 *
+	 * @return string|null
+	 */
+	public function getRef()
+	{
+		return $this->username;
+	}
+
+	/**
 	 * Returns the user's groups.
 	 *
 	 * @param string|null $indexBy
@@ -65,7 +74,7 @@ class UserModel extends BaseElementModel
 	 */
 	public function getGroups($indexBy = null)
 	{
-		if (Craft::hasPackage(CraftPackage::Users))
+		if (craft()->hasPackage(CraftPackage::Users))
 		{
 			return craft()->userGroups->getGroupsByUserId($this->id, $indexBy);
 		}
@@ -83,7 +92,7 @@ class UserModel extends BaseElementModel
 	 */
 	public function isInGroup($group)
 	{
-		if (Craft::hasPackage(CraftPackage::Users))
+		if (craft()->hasPackage(CraftPackage::Users))
 		{
 			if (is_object($group) && $group instanceof UserGroupModel)
 			{
@@ -179,6 +188,23 @@ class UserModel extends BaseElementModel
 	}
 
 	/**
+	 * Returns the URL to the thumbnail for this user for a given size.
+	 *
+	 * @param int $size
+	 * @return false|null|string
+	 */
+	public function getThumbUrl($size = 100)
+	{
+		$url = $this->getPhotoUrl($size);
+		if (!$url)
+		{
+			$url = UrlHelper::getResourceUrl('defaultuserphoto/'.$size);
+		}
+
+		return $url;
+	}
+
+	/**
 	 * Returns whether this is the current logged-in user.
 	 *
 	 * @return bool
@@ -206,7 +232,7 @@ class UserModel extends BaseElementModel
 	 */
 	public function can($permission)
 	{
-		if (Craft::hasPackage(CraftPackage::Users))
+		if (craft()->hasPackage(CraftPackage::Users))
 		{
 			if ($this->admin)
 			{
@@ -287,7 +313,7 @@ class UserModel extends BaseElementModel
 	 */
 	public function getCpEditUrl()
 	{
-		if (Craft::hasPackage(CraftPackage::Users))
+		if (craft()->hasPackage(CraftPackage::Users))
 		{
 			return UrlHelper::getCpUrl('users/'.$this->id);
 		}

@@ -8,24 +8,30 @@
 
 {% block content %}
 
-<h1>Players</h1>
+<h1>USMNT Players</h1>
 
-	{% for entry in craft.entries.section('players').find() %}
-	
-		<div class="col-sm-2">
-			<a href="{{ entry.url }}">
-				<article>
-					
-					{% for image in entry.player_photo %}
-					   <img src="{{ image.url }}" height="{{ image.height }}" width="{{ image.width }}" alt="{{ entry.title }}" class="featured-image">
-					{% endfor %}
-			
-					<h3>{{ entry.title }}</h3>
-		
-				</article>
-			</a>
+<section id="players">
+
+	<ul class="list-unstyled">
+		<div class="row">
+	       {% for entry in craft.entries.section('players').find() %}
+			<div class="col-md-2 col-sm-3 col-xs-4">
+	           <li>
+					<a href="{{ entry.url }}">
+						{% for image in entry.player_photo %}		
+								<div class="player-image" style="background-image: url('{{ image.url }}');"></div>
+							{% else %}		    
+								<div class="player-no-image"><span class="glyphicon glyphicon-user"></span></div>
+						{% endfor %}
+						<h3>{{ entry.title }}</h3>
+					</a>
+				</li>
+			</div>
+	       {% endfor %}
 		</div>
-	{% endfor %}
+	</ul>
+	
+</section>
 		
 		
 {% endblock %}

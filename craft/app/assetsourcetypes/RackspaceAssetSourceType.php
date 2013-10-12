@@ -11,7 +11,7 @@ namespace Craft;
  * @link      http://buildwithcraft.com
  */
 
-Craft::requirePackage(CraftPackage::Cloud);
+craft()->requirePackage(CraftPackage::Cloud);
 
 /**
  * Rackspace source type class
@@ -150,7 +150,7 @@ class RackspaceAssetSourceType extends BaseAssetSourceType
 		foreach ($fileList as $file)
 		{
 			// Strip the prefix, so we don't index the parent folders
-			$file->name = substr($file->name, strlen($prefix));
+			$file->name = mb_substr($file->name, mb_strlen($prefix));
 
 			if (!preg_match(AssetsHelper::IndexSkipItemsPattern, $file->name))
 			{
@@ -589,7 +589,7 @@ class RackspaceAssetSourceType extends BaseAssetSourceType
 
 		foreach ($filesToMove as $file)
 		{
-			$filePath = substr($file->name, strlen($this->_getPathPrefix().$folder->fullPath));
+			$filePath = mb_substr($file->name, mb_strlen($this->_getPathPrefix().$folder->fullPath));
 
 			$sourceUri = $this->_prepareRequestURI($this->getSettings()->container, $file->name);
 			$targetUri = $this->_prepareRequestURI($this->getSettings()->container, $newFullPath.$filePath);
@@ -909,7 +909,7 @@ class RackspaceAssetSourceType extends BaseAssetSourceType
 						$newHeaders = array();
 						foreach ($headers as $header)
 						{
-							if (strpos($header, 'X-Auth-Token') === false)
+							if (mb_strpos($header, 'X-Auth-Token') === false)
 							{
 								$newHeaders[] = $header;
 							}
@@ -990,7 +990,7 @@ class RackspaceAssetSourceType extends BaseAssetSourceType
 	 */
 	private static function _extractRequestResponse($response)
 	{
-		return rtrim(substr($response, strpos($response, "\r\n\r\n") + 4));
+		return rtrim(mb_substr($response, mb_strpos($response, "\r\n\r\n") + 4));
 	}
 
 	/**
@@ -1132,4 +1132,15 @@ class RackspaceAssetSourceType extends BaseAssetSourceType
 	{
 		return rawurlencode($container).(!empty($uri) ? '/'.rawurlencode($uri) : '');
 	}
+
+	/**
+	 * Return true if the source is a remote source.
+	 *
+	 * @return bool
+	 */
+	public function isRemote()
+	{
+		return true;
+	}
+
 }

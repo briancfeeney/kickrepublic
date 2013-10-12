@@ -39,7 +39,7 @@ class IOHelper
 		{
 			$folder = static::getFolderName($path);
 			$files = static::getFolderContents($folder, false);
-			$lcaseFileName = strtolower($path);
+			$lcaseFileName = mb_strtolower($path);
 
 			if (is_array($files) && count($files) > 0)
 			{
@@ -49,7 +49,7 @@ class IOHelper
 
 					if (is_file($file))
 					{
-						if (strtolower($file) === $lcaseFileName)
+						if (mb_strtolower($file) === $lcaseFileName)
 						{
 							return $file;
 						}
@@ -82,7 +82,7 @@ class IOHelper
 
 			if ($caseInsensitive)
 			{
-				return strtolower(static::getFolderName($path)) === strtolower($path);
+				return mb_strtolower(static::getFolderName($path)) === mb_strtolower($path);
 			}
 		}
 
@@ -257,7 +257,7 @@ class IOHelper
 	public static function getExtension($path, $default = null)
 	{
 		$path = static::normalizePathSeparators($path);
-		$extension = strtolower(pathinfo($path, PATHINFO_EXTENSION));
+		$extension = mb_strtolower(pathinfo($path, PATHINFO_EXTENSION));
 
 		if ($extension)
 		{
@@ -366,7 +366,7 @@ class IOHelper
 		if ($path !== '/')
 		{
 			// Use is_dir here to prevent an endless recursive loop
-			if (is_dir($path))
+			if (@is_dir($path))
 			{
 				$path = rtrim($path, '/').'/';
 			}
@@ -486,7 +486,7 @@ class IOHelper
 
 		if (static::fileExists($path) || static::folderExists($path))
 		{
-			return substr(sprintf('%o', fileperms($path)), -4);
+			return mb_substr(sprintf('%o', fileperms($path)), -4);
 		}
 
 		return false;
@@ -763,7 +763,7 @@ class IOHelper
 
 		if (static::fileExists($path) || static::folderExists($path))
 		{
-			$success = chown($path, $owner);
+			$success = @chown($path, $owner);
 
 			if ($success && static::folderExists($path) && $recursive)
 			{
@@ -773,7 +773,7 @@ class IOHelper
 				{
 					$path = static::normalizePathSeparators($path);
 
-					if (!chown($path, $owner))
+					if (!@chown($path, $owner))
 					{
 						$success = false;
 					}
@@ -817,7 +817,7 @@ class IOHelper
 
 		if (static::fileExists($path) || static::folderExists($path))
 		{
-			$success = chgrp($path, $group);
+			$success = @chgrp($path, $group);
 
 			if ($success && static::folderExists($path) && $recursive)
 			{
@@ -827,7 +827,7 @@ class IOHelper
 				{
 					$path = static::normalizePathSeparators($path);
 
-					if (!chgrp($path, $group))
+					if (!@chgrp($path, $group))
 					{
 						$success = false;
 					}
@@ -864,7 +864,7 @@ class IOHelper
 
 		if (static::fileExists($path) || static::folderExists($path))
 		{
-			if (chmod($path, $permissions))
+			if (@chmod($path, $permissions))
 			{
 				return true;
 			}
@@ -944,6 +944,13 @@ class IOHelper
 			{
 				$itemDest = $destination.str_replace($path, '', $item);
 
+				$destFolder = static::getFolderName($itemDest);
+
+				if (!static::folderExists($destFolder))
+				{
+					static::createFolder($destFolder, craft()->config->get('defaultFolderPermissions'));
+				}
+
 				if (static::fileExists($item))
 				{
 					if (!copy($item, $itemDest))
@@ -959,6 +966,7 @@ class IOHelper
 					}
 				}
 			}
+
 			if ($validate)
 			{
 				if (static::getFolderSize($path) !== static::getFolderSize($destination))
@@ -1401,7 +1409,7 @@ class IOHelper
 	 */
 	public static function getFileKind($extension)
 	{
-		$extension = strtolower($extension);
+		$extension = mb_strtolower($extension);
 		$fileKinds = static::getFileKinds();
 		foreach ($fileKinds as $kind => $extensions)
 		{

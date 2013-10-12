@@ -31,9 +31,13 @@ class Et
 	private $_endpoint;
 	private $_timeout;
 	private $_model;
-	private $_options = array();
+	private $_allowRedirects = true;
+	private $_userAgent;
+	private $_destinationFileName;
 
 	/**
+	 * The maximum number of seconds to allow for an entire transfer to take place before timing out.  Set 0 to wait indefinitely.
+	 *
 	 * @return int
 	 */
 	public function getTimeout()
@@ -42,47 +46,55 @@ class Et
 	}
 
 	/**
-	 * @param $followRedirects
+	 * The maximum number of seconds to wait while trying to connect. Set to 0 to wait indefinitely.
+	 *
+	 * @return int
 	 */
-	public function setFollowRedirects($followRedirects)
+	public function getConnectTimeout()
 	{
-		$this->_options['follow_redirects'] = $followRedirects;
+		return $this->_connectTimeout;
 	}
 
 	/**
-	 * @param $maxRedirects
+	 * Whether or not to follow redirects on the request.  Defaults to true.
+	 *
+	 * @param $allowRedirects
+	 * @return void
 	 */
-	public function setMaxRedirects($maxRedirects)
+	public function setAllowRedirects($allowRedirects)
 	{
-		$this->_options['redirects'] = $maxRedirects;
+		$this->_allowRedirects = $allowRedirects;
 	}
 
 	/**
-	 * @param $blocking
+	 * @return bool
 	 */
-	public function setBlocking($blocking)
+	public function getAllowRedirects()
 	{
-		$this->_options['blocking'] = $blocking;
+		return $this->_allowRedirects;
 	}
 
 	/**
 	 * @param $destinationFileName
+	 * @return void
 	 */
 	public function setDestinationFileName($destinationFileName)
 	{
-		$this->_options['filename'] = $destinationFileName;
+		$this->_destinationFileName = $destinationFileName;
 	}
 
 	/**
 	 * @param     $endpoint
 	 * @param int $timeout
+	 * @param int $connectTimeout
 	 */
-	function __construct($endpoint, $timeout = 30)
+	function __construct($endpoint, $timeout = 30, $connectTimeout = 2)
 	{
 		$endpoint .= craft()->config->get('endpointSuffix');
 
 		$this->_endpoint = $endpoint;
 		$this->_timeout = $timeout;
+		$this->_connectTimeout = $connectTimeout;
 
 		$this->_model = new EtModel(array(
 			'licenseKey'        => $this->_getLicenseKey(),
@@ -90,15 +102,13 @@ class Et
 			'requestIp'         => craft()->request->getIpAddress(),
 			'requestTime'       => DateTimeHelper::currentTimeStamp(),
 			'requestPort'       => craft()->request->getPort(),
-			'installedPackages' => Craft::getPackages(),
+			'installedPackages' => craft()->getPackages(),
 			'localBuild'        => CRAFT_BUILD,
 			'localVersion'      => CRAFT_VERSION,
 			'userEmail'         => craft()->userSession->getUser()->email,
 			'track'             => CRAFT_TRACK,
 		));
-
-		$this->_options['useragent'] = 'craft-requests/'.\Requests::VERSION;
-		$this->_options['timeout']   = $this->_timeout;
+		$this->_userAgent = 'Craft/'.craft()->getVersion().'.'.craft()->getBuild();
 	}
 
 	/**
@@ -136,9 +146,22 @@ class Et
 			if (!craft()->fileCache->get('etConnectFailure'))
 			{
 				$data = JsonHelper::encode($this->_model->getAttributes(null, true));
-				$response = \Requests::post($this->_endpoint, array(), $data, $this->_options);
 
-				if ($response->success)
+				$client = new \Guzzle\Http\Client();
+				$client->setUserAgent($this->_userAgent, true);
+
+				$options = array(
+					'timeout'         => $this->getTimeout(),
+					'connect_timeout' => $this->getConnectTimeout(),
+					'allow_redirects' => $this->getAllowRedirects(),
+				);
+
+				$request = $client->post($this->_endpoint, $options);
+
+				$request->setBody($data, 'application/json');
+				$response = $request->send();
+
+				if ($response->isSuccessful())
 				{
 					// Clear the connection failure cached item if it exists.
 					if (craft()->fileCache->get('etConnectFailure'))
@@ -146,24 +169,23 @@ class Et
 						craft()->fileCache->delete('etConnectFailure');
 					}
 
-					if (isset($this->_options['filename']))
+					if ($this->_destinationFileName)
 					{
-						$fileName = IOHelper::getFileName($this->_options['filename'], false);
+						$body = $response->getBody();
 
-						// If the file name is a UUID, we know it was temporarily set and they want to use the name of the file that was on the sending server.
-						if (StringHelper::isUUID($fileName))
-						{
-							$contentDisposition = $response->headers->offsetGet('content-disposition');
-							preg_match("/\"(.*)\"/us", $contentDisposition, $matches);
-							$fileName = $matches[1];
+						// Make sure we're at the beginning of the stream.
+						$body->rewind();
 
-							IOHelper::rename($this->_options['filename'], IOHelper::getFolderName($this->_options['filename']).$fileName);
-						}
+						// Write it out to the file
+						IOHelper::writeToFile($this->_destinationFileName, $body->getStream(), true);
 
-						return $fileName;
+						// Close the stream.
+						$body->close();
+
+						return IOHelper::getFileName($this->_destinationFileName);
 					}
 
-					$etModel = craft()->et->decodeEtModel($response->body);
+					$etModel = craft()->et->decodeEtModel($response->getBody());
 
 					if ($etModel)
 					{
@@ -200,11 +222,16 @@ class Et
 							craft()->fileCache->set('licensedDomain', $etModel->licensedDomain);
 						}
 
+						if ($etModel->licenseKeyStatus == LicenseKeyStatus::MismatchedDomain)
+						{
+							craft()->fileCache->set('licensedDomain', $etModel->licensedDomain);
+						}
+
 						return $etModel;
 					}
 					else
 					{
-						Craft::log('Error in calling '.$this->_endpoint.' Response: '.$response->body, LogLevel::Warning);
+						Craft::log('Error in calling '.$this->_endpoint.' Response: '.$response->getBody(), LogLevel::Warning);
 
 						if (craft()->fileCache->get('etConnectFailure'))
 						{
@@ -215,7 +242,7 @@ class Et
 				}
 				else
 				{
-					Craft::log('Error in calling '.$this->_endpoint.' Response: '.$response->body, LogLevel::Warning);
+					Craft::log('Error in calling '.$this->_endpoint.' Response: '.$response->getBody(), LogLevel::Warning);
 
 					if (craft()->fileCache->get('etConnectFailure'))
 					{

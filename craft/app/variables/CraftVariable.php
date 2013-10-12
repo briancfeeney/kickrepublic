@@ -34,7 +34,7 @@ class CraftVariable
 			// Variables should already be imported by the plugin service, but let's double check.
 			if (!class_exists($className))
 			{
-				Craft::import('plugins.'.strtolower($pluginName).'.variables.'.$pluginName.'Variable');
+				Craft::import('plugins.'.mb_strtolower($pluginName).'.variables.'.$pluginName.'Variable');
 			}
 
 			return new $className;
@@ -76,7 +76,7 @@ class CraftVariable
 	 */
 	public function getPackages()
 	{
-		return Craft::getPackages();
+		return craft()->getPackages();
 	}
 
 	/**
@@ -87,7 +87,7 @@ class CraftVariable
 	 */
 	public function hasPackage($packageName)
 	{
-		return Craft::hasPackage($packageName);
+		return craft()->hasPackage($packageName);
 	}
 
 	// -------------------------------------------
@@ -156,7 +156,7 @@ class CraftVariable
 	 */
 	public function emailMessages()
 	{
-		if (Craft::hasPackage(CraftPackage::Rebrand))
+		if (craft()->hasPackage(CraftPackage::Rebrand))
 		{
 			return new EmailMessagesVariable();
 		}
@@ -184,7 +184,7 @@ class CraftVariable
 	 */
 	public function entryRevisions()
 	{
-		if (Craft::hasPackage(CraftPackage::PublishPro))
+		if (craft()->hasPackage(CraftPackage::PublishPro))
 		{
 			return new EntryRevisionsVariable();
 		}
@@ -227,7 +227,7 @@ class CraftVariable
 	 */
 	public function rebrand()
 	{
-		if (Craft::hasPackage(CraftPackage::Rebrand))
+		if (craft()->hasPackage(CraftPackage::Rebrand))
 		{
 			if (!isset($this->_rebrandVariable))
 			{
@@ -293,7 +293,7 @@ class CraftVariable
 	 */
 	public function users($criteria = null)
 	{
-		if (Craft::hasPackage(CraftPackage::Users))
+		if (craft()->hasPackage(CraftPackage::Users))
 		{
 			return craft()->elements->getCriteria(ElementType::User, $criteria);
 		}
@@ -304,7 +304,7 @@ class CraftVariable
 	 */
 	public function userGroups()
 	{
-		if (Craft::hasPackage(CraftPackage::Users))
+		if (craft()->hasPackage(CraftPackage::Users))
 		{
 			return new UserGroupsVariable();
 		}
@@ -315,7 +315,7 @@ class CraftVariable
 	 */
 	public function userPermissions()
 	{
-		if (Craft::hasPackage(CraftPackage::Users))
+		if (craft()->hasPackage(CraftPackage::Users))
 		{
 			return new UserPermissionsVariable();
 		}

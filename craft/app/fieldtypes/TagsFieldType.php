@@ -52,18 +52,26 @@ class TagsFieldType extends BaseElementFieldType
 			$elements = new RelationFieldData();
 		}
 
-		$fieldVariable = new FieldsVariable();
 		$elementVariable = new ElementTypeVariable($this->getElementType());
 
-		return craft()->templates->render('_components/fieldtypes/Tags/input', array(
-			'elementType'    => $elementVariable,
-			'id'             => $id,
-			'name'           => $name,
-			'elements'       => $elements->all,
-			'source'         => $this->getSettings()->source,
-			'elementId'      => (!empty($this->element->id) ? $this->element->id : null),
-			'fieldCount'     => count($fieldVariable->getLayoutByType(ElementType::Tag)->getFields()),
-		));
+		$tagSet = $this->_getTagSet();
+
+		if ($tagSet)
+		{
+			return craft()->templates->render('_components/fieldtypes/Tags/input', array(
+				'elementType' => $elementVariable,
+				'id'          => $id,
+				'name'        => $name,
+				'elements'    => $elements->all,
+				'tagSetId'    => $this->_getTagSetId(),
+				'elementId'   => (!empty($this->element->id) ? $this->element->id : null),
+				'hasFields'   => (bool) $tagSet->getFieldLayout()->getFields(),
+			));
+		}
+		else
+		{
+			return '<p class="error">'.Craft::t('This field is not set to a valid source.').'</p>';
+		}
 	}
 
 	/**
@@ -79,41 +87,59 @@ class TagsFieldType extends BaseElementFieldType
 		}
 
 		$rawValue = $this->element->getRawContent($this->model->handle);
-		$tagIds = is_array($rawValue) ? array_filter($rawValue) : array();
 
-		foreach ($tagIds as $i => $tagId)
+		if ($rawValue !== null)
 		{
-			if (strncmp($tagId, 'new:', 4) == 0)
+			$tagIds = is_array($rawValue) ? array_filter($rawValue) : array();
+
+			foreach ($tagIds as $i => $tagId)
 			{
-				$name = substr($tagId, 4);
-
-				// Last-minute check
-				$criteria = craft()->elements->getCriteria(Elementtype::Tag, array(
-					'tagsetId' => $tagSetId,
-					'search'   => 'name:'.$name
-				));
-
-				$ids = $criteria->ids();
-
-				if ($ids)
+				if (strncmp($tagId, 'new:', 4) == 0)
 				{
-					$tagIds[$i] = $ids[0];
-				}
-				else
-				{
-					$tag = new TagModel();
-					$tag->setId = $tagSetId;
-					$tag->name = $name;
+					$name = mb_substr($tagId, 4);
 
-					if (craft()->tags->saveTag($tag))
+					// Last-minute check
+					$criteria = craft()->elements->getCriteria(ElementType::Tag);
+					$criteria->setId = $tagSetId;
+					$criteria->search = 'name:'.$name;
+					$ids = $criteria->ids();
+
+					if ($ids)
 					{
-						$tagIds[$i] = $tag->id;
+						$tagIds[$i] = $ids[0];
+					}
+					else
+					{
+						$tag = new TagModel();
+						$tag->setId = $tagSetId;
+						$tag->name = $name;
+
+						if (craft()->tags->saveTag($tag))
+						{
+							$tagIds[$i] = $tag->id;
+						}
 					}
 				}
 			}
-		}
 
-		craft()->relations->saveRelations($this->model->id, $this->element->id, $tagIds);
+			craft()->relations->saveRelations($this->model->id, $this->element->id, $tagIds);
+		}
+	}
+
+	/**
+	 * Returns the tag set associated with this field.
+	 *
+	 * @access private
+	 * @return TagSetModel|null
+	 */
+	private function _getTagSet()
+	{
+		$tagSetId = $this->_getTagSetId();
+
+		if ($tagSetId)
+		{
+			return craft()->tags->getTagSetById($tagSetId);
+		}
 	}
 
 	/**
@@ -130,7 +156,7 @@ class TagsFieldType extends BaseElementFieldType
 
 			if (strncmp($source, 'tagset:', 7) == 0)
 			{
-				$this->_tagSetId = (int) substr($source, 7);
+				$this->_tagSetId = (int) mb_substr($source, 7);
 			}
 			else
 			{

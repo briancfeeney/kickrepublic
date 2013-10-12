@@ -17,6 +17,35 @@ namespace Craft;
 class UrlHelper
 {
 	/**
+	 * Returns a URL with a specific protocol.
+	 *
+	 * @param string $url
+	 * @param string $protocol
+	 * @return string
+	 */
+	public static function getUrlWithProtocol($url, $protocol)
+	{
+		if (!$url || !$protocol)
+		{
+			return $url;
+		}
+
+		// Is the site URL protocol relative?
+		if (strncmp('//', $url, 2) === 0)
+		{
+			return $protocol.':'.$url;
+		}
+
+		// Is it root relative?
+		if (strncmp('/', $url, 1) === 0)
+		{
+			return craft()->request->getHostInfo($protocol).$url;
+		}
+
+		return preg_replace('/^https?:/', $protocol.':', $url);
+	}
+
+	/**
 	 * Returns either a CP or a site URL, depending on the request type.
 	 *
 	 * @static
@@ -29,7 +58,7 @@ class UrlHelper
 	public static function getUrl($path = '', $params = null, $protocol = '', $mustShowScriptName = false)
 	{
 		// Return $path if it appears to be an absolute URL.
-		if (strpos($path, '://') !== false || strncmp($path, '//', 2) == 0)
+		if (mb_strpos($path, '://') !== false || strncmp($path, '//', 2) == 0)
 		{
 			return $path;
 		}
@@ -67,7 +96,7 @@ class UrlHelper
 	public static function getCpUrl($path = '', $params = null, $protocol = '')
 	{
 		$path = trim($path, '/');
-		$path = craft()->config->get('cpTrigger').'/'.$path;
+		$path = craft()->config->get('cpTrigger').($path ? '/'.$path : '');
 
 		return static::_getUrl($path, $params, $protocol, true, false);
 	}
@@ -99,7 +128,7 @@ class UrlHelper
 	public static function getResourceUrl($path = '', $params = null, $protocol = '')
 	{
 		$path = $origPath = trim($path, '/');
-		$path = craft()->config->get('resourceTrigger').'/'.$path;
+		$path = craft()->config->getResourceTrigger().'/'.$path;
 
 		// Add timestamp to the resource URL for caching, if Craft is not operating in dev mode
 		if ($origPath && !craft()->config->get('devMode'))
@@ -174,37 +203,74 @@ class UrlHelper
 		}
 		else
 		{
-			$params = ltrim($params, '&?');
+			$params = trim($params, '&?');
 		}
+
+		// Were there already any query string params in the path?
+		if (($qpos = strpos($path, '?')) !== false)
+		{
+			$params = substr($path, $qpos+1).($params ? '&'.$params : '');
+			$path = substr($path, 0, $qpos);
+		}
+
+		$showScriptName = ($mustShowScriptName || !craft()->config->omitScriptNameInUrls());
 
 		if ($dynamicBaseUrl)
 		{
-			$baseUrl = craft()->request->getHostInfo($protocol).craft()->urlManager->getBaseUrl();
+			$baseUrl = craft()->request->getHostInfo($protocol);
 
-			if (!$mustShowScriptName && craft()->config->omitScriptNameInUrls())
+			if ($showScriptName)
 			{
-				$baseUrl = substr($baseUrl, 0, strrpos($baseUrl, '/'));
+				$baseUrl .= craft()->request->getScriptUrl();
+			}
+			else
+			{
+				$baseUrl .= craft()->request->getBaseUrl();
 			}
 		}
 		else
 		{
-			$baseUrl = Craft::getSiteUrl($protocol);
+			$baseUrl = craft()->getSiteUrl($protocol);
 
-			if ($mustShowScriptName || !craft()->config->omitScriptNameInUrls())
+			// Should we be adding that script name in?
+			if ($showScriptName)
 			{
-				$baseUrl .= strrchr(craft()->urlManager->getBaseUrl(), '/');
+				$baseUrl .= craft()->request->getScriptName();
 			}
 		}
 
 		// Put it all together
-		if (craft()->config->usePathInfo())
+		if (!$showScriptName || craft()->config->usePathInfo())
 		{
-			return $baseUrl.($path ? '/'.$path : '').($params ? '?'.$params : '').$anchor;
+			if ($path)
+			{
+				$url = rtrim($baseUrl, '/').'/'.$path;
+			}
+			else
+			{
+				$url = $baseUrl;
+			}
 		}
 		else
 		{
-			$pathParam = craft()->urlManager->pathParam;
-			return $baseUrl.($path || $params ? '?'.($path ? $pathParam.'='.$path : '').($path && $params ? '&' : '').$params : '').$anchor;
+			$url = $baseUrl;
+
+			if ($path)
+			{
+				$params = craft()->urlManager->pathParam.'='.$path.($params ? '&'.$params : '');
+			}
 		}
+
+		if ($params)
+		{
+			$url .= '?'.$params;
+		}
+
+		if ($anchor)
+		{
+			$url .= $anchor;
+		}
+
+		return $url;
 	}
 }

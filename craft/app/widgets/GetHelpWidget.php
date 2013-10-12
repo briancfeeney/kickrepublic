@@ -37,9 +37,9 @@ class GetHelpWidget extends BaseWidget
 	}
 
 	/**
-	 * Gets the widget's body HTML.
+	 * Returns the widget's body HTML.
 	 *
-	 * @return string
+	 * @return string|false
 	 */
 	public function getBodyHtml()
 	{
@@ -48,17 +48,17 @@ class GetHelpWidget extends BaseWidget
 		craft()->templates->includeJs($js);
 
 		craft()->templates->includeJsResource('js/GetHelpWidget.js');
-		craft()->templates->includeTranslations('Message sent successfully.');
+		craft()->templates->includeTranslations('Message sent successfully.', 'Couldn’t send support request.');
 
 
 		$message = "Enter your message here.\n\n" .
 			"------------------------------\n\n" .
 			'Craft version: ' .
 			Craft::t('{version} build {build}', array(
-				'version' => Craft::getVersion(),
-				'build'   => Craft::getBuild()
+				'version' => craft()->getVersion(),
+				'build'   => craft()->getBuild()
 			))."\n" .
-			'Packages: '.implode(', ', Craft::getPackages());
+			'Packages: '.implode(', ', craft()->getPackages());
 
 		$plugins = craft()->plugins->getPlugins();
 

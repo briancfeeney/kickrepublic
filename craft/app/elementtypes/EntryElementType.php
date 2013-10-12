@@ -74,10 +74,21 @@ class EntryElementType extends BaseElementType
 		}
 
 		$sectionIds = array();
+		$singleSectionIds = array();
+		$sectionsByType = array();
 
 		foreach ($sections as $section)
 		{
 			$sectionIds[] = $section->id;
+
+			if ($section->type == SectionType::Single)
+			{
+				$singleSectionIds[] = $section->id;
+			}
+			else
+			{
+				$sectionsByType[$section->type][] = $section;
+			}
 		}
 
 		$sources = array(
@@ -87,16 +98,45 @@ class EntryElementType extends BaseElementType
 			)
 		);
 
-		if (Craft::hasPackage(CraftPackage::PublishPro))
+		if ($singleSectionIds)
 		{
-			foreach ($sections as $section)
-			{
-				$key = 'section:'.$section->id;
+			$sources['singles'] = array(
+				'label'    => Craft::t('Singles'),
+				'criteria' => array('sectionId' => $singleSectionIds)
+			);
+		}
 
-				$sources[$key] = array(
-					'label'    => $section->name,
-					'criteria' => array('sectionId' => $section->id)
-				);
+		$sectionTypes = array(
+			SectionType::Channel => Craft::t('Channels'),
+			SectionType::Structure => Craft::t('Structures')
+		);
+
+		foreach ($sectionTypes as $type => $heading)
+		{
+			if (!empty($sectionsByType[$type]))
+			{
+				$sources[] = array('heading' => $heading);
+
+				foreach ($sectionsByType[$type] as $section)
+				{
+					$key = 'section:'.$section->id;
+
+					$sources[$key] = array(
+						'label'        => $section->name,
+						'hasStructure' => ($type == SectionType::Structure),
+						'data'         => array('type' => $type),
+						'criteria'     => array('sectionId' => $section->id)
+					);
+
+					if ($type == SectionType::Structure)
+					{
+						$sources[$key]['hasStructure'] = true;
+						$sources[$key]['sortable'] = craft()->userSession->checkPermission('publishEntries:'.$section->id);
+						$sources[$key]['moveAction'] = 'entries/moveEntry';
+						$sources[$key]['maxDepth'] = $section->maxDepth;
+						$sources[$key]['newChildUrl'] = 'entries/'.$section->handle.'/new';
+					}
+				}
 			}
 		}
 
@@ -123,44 +163,26 @@ class EntryElementType extends BaseElementType
 	{
 		$attributes = array();
 
-		if (Craft::hasPackage(CraftPackage::PublishPro))
+		if ($source && preg_match('/^section:(\d+)$/', $source, $match))
 		{
-			if ($source && preg_match('/^section:(\d+)$/', $source, $match))
-			{
-				$section = craft()->sections->getSectionById($match[1]);
-			}
-		}
-		else if (!$source)
-		{
-			$sections = craft()->sections->getAllSections();
-
-			if ($sections)
-			{
-				$section = $sections[0];
-			}
-		}
-
-		if (!empty($section))
-		{
-			$titleLabel = Craft::t($section->titleLabel);
-		}
-		else
-		{
-			$titleLabel = Craft::t('Title');
+			$section = craft()->sections->getSectionById($match[1]);
 		}
 
 		$attributes = array(
-			array('label' => $titleLabel,      'attribute' => 'title'),
-			array('label' => Craft::t('Slug'), 'attribute' => 'slug', 'link' => true),
+			array('label' => Craft::t('Title'), 'attribute' => 'title'),
+			array('label' => Craft::t('URI'), 'attribute' => 'uri'),
 		);
 
-		if (empty($section))
+		if ($source != 'singles')
 		{
-			$attributes[] = array('label' => Craft::t('Section'), 'attribute' => 'sectionId', 'display' => '{section}');
-		}
+			if (empty($section))
+			{
+				$attributes[] = array('label' => Craft::t('Section'), 'attribute' => 'sectionId', 'display' => '{section}');
+			}
 
-		$attributes[] = array('label' => Craft::t('Post Date'), 'attribute' => 'postDate', 'display' => '{postDate.localeDate}');
-		$attributes[] = array('label' => Craft::t('Expiry Date'), 'attribute' => 'expiryDate', 'display' => '{expiryDate.localeDate}');
+			$attributes[] = array('label' => Craft::t('Post Date'), 'attribute' => 'postDate', 'display' => '{postDate.localeDate}');
+			$attributes[] = array('label' => Craft::t('Expiry Date'), 'attribute' => 'expiryDate', 'display' => '{expiryDate.localeDate}');
+		}
 
 		return $attributes;
 	}
@@ -173,18 +195,26 @@ class EntryElementType extends BaseElementType
 	public function defineCriteriaAttributes()
 	{
 		return array(
-			'slug'          => AttributeType::String,
-			'sectionId'     => AttributeType::Number,
-			'authorId'      => AttributeType::Number,
-			'authorGroupId' => AttributeType::Number,
-			'authorGroup'   => AttributeType::String,
-			'section'       => AttributeType::Mixed,
-			'editable'      => AttributeType::Bool,
-			'postDate'      => AttributeType::Mixed,
-			'after'         => AttributeType::Mixed,
-			'before'        => AttributeType::Mixed,
-			'status'        => array(AttributeType::String, 'default' => EntryModel::LIVE),
-			'order'         => array(AttributeType::String, 'default' => 'postDate desc'),
+			'type'            => AttributeType::Mixed,
+			'slug'            => AttributeType::String,
+			'sectionId'       => AttributeType::Number,
+			'authorId'        => AttributeType::Number,
+			'authorGroupId'   => AttributeType::Number,
+			'authorGroup'     => AttributeType::String,
+			'section'         => AttributeType::Mixed,
+			'editable'        => AttributeType::Bool,
+			'postDate'        => AttributeType::Mixed,
+			'after'           => AttributeType::Mixed,
+			'before'          => AttributeType::Mixed,
+			'status'          => array(AttributeType::String, 'default' => EntryModel::LIVE),
+			'order'           => array(AttributeType::String, 'default' => 'lft, postDate desc'),
+			'ancestorOf'      => AttributeType::Mixed,
+			'ancestorDist'    => AttributeType::Number,
+			'descendantOf'    => AttributeType::Mixed,
+			'descendantDist'  => AttributeType::Number,
+			'prevSiblingOf'   => AttributeType::Mixed,
+			'nextSiblingOf'   => AttributeType::Mixed,
+			'depth'           => AttributeType::Number,
 		);
 	}
 
@@ -239,10 +269,102 @@ class EntryElementType extends BaseElementType
 	public function modifyElementsQuery(DbCommand $query, ElementCriteriaModel $criteria)
 	{
 		$query
-			->addSelect('entries.sectionId, entries.authorId, entries.postDate, entries.expiryDate, entries_i18n.slug')
+			->addSelect('entries.sectionId, entries.typeId, entries.authorId, entries.root, entries.lft, entries.rgt, entries.depth, entries.postDate, entries.expiryDate, entries_i18n.slug')
 			->join('entries entries', 'entries.id = elements.id')
 			->join('entries_i18n entries_i18n', 'entries_i18n.entryId = elements.id')
+			->andWhere(array('or', 'entries.lft IS NULL', 'entries.lft != 1'))
 			->andWhere('entries_i18n.locale = elements_i18n.locale');
+
+		$joinedSections = false;
+
+		if ($criteria->ref)
+		{
+			$refs = ArrayHelper::stringToArray($criteria->ref);
+			$conditionals = array();
+
+			foreach ($refs as $ref)
+			{
+				$parts = array_filter(explode('/', $ref));
+
+				if ($parts)
+				{
+					if (count($parts) == 1)
+					{
+						$conditionals[] = DbHelper::parseParam('entries_i18n.slug', $parts[0], $query->params);
+					}
+					else
+					{
+						if (!$joinedSections)
+						{
+							$query->join('sections sections', 'entries.sectionId = sections.id');
+							$joinedSections = true;
+						}
+
+						$conditionals[] = array('and',
+							DbHelper::parseParam('sections.handle', $parts[0], $query->params),
+							DbHelper::parseParam('entries_i18n.slug', $parts[1], $query->params)
+						);
+					}
+				}
+			}
+
+			if ($conditionals)
+			{
+				if (count($conditionals) == 1)
+				{
+					$query->andWhere($conditionals[0]);
+				}
+				else
+				{
+					array_unshift($conditionals, 'or');
+					$query->andWhere($conditionals);
+				}
+			}
+		}
+
+		if ($criteria->type)
+		{
+			$typeIds = array();
+
+			if (!is_array($criteria->type))
+			{
+				$criteria->type = array($criteria->type);
+			}
+
+			foreach ($criteria->type as $type)
+			{
+				if (is_numeric($type))
+				{
+					$typeIds[] = $type;
+				}
+				else if (is_string($type))
+				{
+					$types = craft()->sections->getEntryTypesByHandle($type);
+
+					if ($types)
+					{
+						foreach ($types as $type)
+						{
+							$typeIds[] = $type->id;
+						}
+					}
+					else
+					{
+						return false;
+					}
+				}
+				else if ($type instanceof EntryTypeModel)
+				{
+					$typeIds[] = $type->id;
+				}
+				else
+				{
+					return false;
+				}
+			}
+
+			$query->andWhere(DbHelper::parseParam('entries.typeId', $typeIds, $query->params));
+		}
 
 		if ($criteria->slug)
 		{
@@ -295,21 +417,137 @@ class EntryElementType extends BaseElementType
 			}
 		}
 
-		if (Craft::hasPackage(CraftPackage::PublishPro))
+		if ($criteria->sectionId)
 		{
-			if ($criteria->sectionId)
-			{
-				$query->andWhere(DbHelper::parseParam('entries.sectionId', $criteria->sectionId, $query->params));
-			}
+			$query->andWhere(DbHelper::parseParam('entries.sectionId', $criteria->sectionId, $query->params));
+		}
 
-			if ($criteria->section)
+		if ($criteria->section)
+		{
+			if (!$joinedSections)
 			{
 				$query->join('sections sections', 'entries.sectionId = sections.id');
-				$query->andWhere(DbHelper::parseParam('sections.handle', $criteria->section, $query->params));
+				$joinedSections = true;
+			}
+
+			$query->andWhere(DbHelper::parseParam('sections.handle', $criteria->section, $query->params));
+		}
+
+		if (craft()->hasPackage(CraftPackage::PublishPro))
+		{
+			if ($criteria->ancestorOf)
+			{
+				if (!$criteria->ancestorOf instanceof EntryModel)
+				{
+					$criteria->ancestorOf = craft()->entries->getEntryById($criteria->ancestorOf);
+				}
+
+				if ($criteria->ancestorOf)
+				{
+					$query->andWhere(
+						array('and',
+							'entries.lft < :ancestorOf_lft',
+							'entries.rgt > :ancestorOf_rgt',
+							'entries.sectionId = :ancestorOf_sectionId'
+						),
+						array(
+							':ancestorOf_lft'       => $criteria->ancestorOf->lft,
+							':ancestorOf_rgt'       => $criteria->ancestorOf->rgt,
+							':ancestorOf_sectionId' => $criteria->ancestorOf->sectionId
+						)
+					);
+
+					if ($criteria->ancestorDist)
+					{
+						$query->andWhere('entries.depth >= :depth',
+							array(':depth' => $criteria->ancestorOf->depth - $criteria->ancestorDist)
+						);
+					}
+				}
+			}
+
+			if ($criteria->descendantOf)
+			{
+				if (!$criteria->descendantOf instanceof EntryModel)
+				{
+					$criteria->descendantOf = craft()->entries->getEntryById($criteria->descendantOf);
+				}
+
+				if ($criteria->descendantOf)
+				{
+					$query->andWhere(
+						array('and',
+							'entries.lft > :descendantOf_lft',
+							'entries.rgt < :descendantOf_rgt',
+							'entries.sectionId = :descendantOf_sectionId'
+						),
+						array(
+							':descendantOf_lft'       => $criteria->descendantOf->lft,
+							':descendantOf_rgt'       => $criteria->descendantOf->rgt,
+							':descendantOf_sectionId' => $criteria->descendantOf->sectionId
+						)
+					);
+
+					if ($criteria->descendantDist)
+					{
+						$query->andWhere('entries.depth <= :depth',
+							array(':depth' => $criteria->descendantOf->depth + $criteria->descendantDist)
+						);
+					}
+				}
+			}
+
+			if ($criteria->prevSiblingOf)
+			{
+				if (!$criteria->prevSiblingOf instanceof EntryModel)
+				{
+					$criteria->prevSiblingOf = craft()->entries->getEntryById($criteria->prevSiblingOf);
+				}
+
+				if ($criteria->prevSiblingOf)
+				{
+					$query->andWhere(
+						array('and',
+							'entries.rgt = :prevSiblingOf_rgt',
+							'entries.sectionId = :prevSiblingOf_sectionId'
+						),
+						array(
+							':prevSiblingOf_rgt'       => $criteria->prevSiblingOf->lft - 1,
+							':prevSiblingOf_sectionId' => $criteria->prevSiblingOf->sectionId
+						)
+					);
+				}
+			}
+
+			if ($criteria->nextSiblingOf)
+			{
+				if (!$criteria->nextSiblingOf instanceof EntryModel)
+				{
+					$criteria->nextSiblingOf = craft()->entries->getEntryById($criteria->nextSiblingOf);
+				}
+
+				if ($criteria->nextSiblingOf)
+				{
+					$query->andWhere(
+						array('and',
+							'entries.lft = :nextSiblingOf_lft',
+							'entries.sectionId = :nextSiblingOf_sectionId'
+						),
+						array(
+							':nextSiblingOf_lft'       => $criteria->nextSiblingOf->rgt + 1,
+							':nextSiblingOf_sectionId' => $criteria->nextSiblingOf->sectionId
+						)
+					);
+				}
+			}
+
+			if ($criteria->depth)
+			{
+				$query->andWhere(DbHelper::parseParam('entries.depth', $criteria->depth, $query->params));
 			}
 		}
 
-		if (Craft::hasPackage(CraftPackage::Users))
+		if (craft()->hasPackage(CraftPackage::Users))
 		{
 			if ($criteria->authorId)
 			{

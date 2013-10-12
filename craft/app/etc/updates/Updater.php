@@ -43,6 +43,15 @@ class Updater
 	}
 
 	/**
+	 * @return array
+	 */
+	public function getUpdateFileInfo()
+	{
+		$md5 = craft()->et->getUpdateFileInfo();
+		return array('md5' => $md5);
+	}
+
+	/**
 	 * Performs environmental requirement checks before running an update.
 	 *
 	 * @throws Exception
@@ -53,17 +62,18 @@ class Updater
 	}
 
 	/**
-	 * @return array
+	 * @param $md5
 	 * @throws Exception
+	 * @return array
 	 */
-	public function processDownload()
+	public function processDownload($md5)
 	{
 		Craft::log('Starting to process the update download.', LogLevel::Info, true);
 		$tempPath = craft()->path->getTempPath();
 
 		// Download the package from ET.
 		Craft::log('Downloading patch file to '.$tempPath, LogLevel::Info, true);
-		if (($fileName = craft()->et->downloadUpdate($tempPath)) !== false)
+		if (($fileName = craft()->et->downloadUpdate($tempPath, $md5)) !== false)
 		{
 			$downloadFilePath = $tempPath.$fileName;
 		}
@@ -76,7 +86,7 @@ class Updater
 
 		// Validate the downloaded update against ET.
 		Craft::log('Validating downloaded update.', LogLevel::Info, true);
-		if (!$this->_validateUpdate($downloadFilePath))
+		if (!$this->_validateUpdate($downloadFilePath, $md5))
 		{
 			throw new Exception(Craft::t('There was a problem validating the downloaded package.'));
 		}
@@ -127,14 +137,14 @@ class Updater
 
 		// Put the site into maintenance mode.
 		Craft::log('Putting the site into maintenance mode.', LogLevel::Info, true);
-		Craft::enableMaintenanceMode();
+		craft()->enableMaintenanceMode();
 
 		// Update the files.
 		Craft::log('Performing file update.', LogLevel::Info, true);
 		if (!UpdateHelper::doFileUpdate(UpdateHelper::getManifestData($unzipFolder), $unzipFolder))
 		{
 			Craft::log('Taking the site out of maintenance mode.', LogLevel::Info, true);
-			Craft::disableMaintenanceMode();
+			craft()->disableMaintenanceMode();
 
 			throw new Exception(Craft::t('There was a problem updating your files.'));
 		}
@@ -159,7 +169,7 @@ class Updater
 				}
 
 				Craft::log('Taking the site out of maintenance mode.', LogLevel::Info, true);
-				Craft::disableMaintenanceMode();
+				craft()->disableMaintenanceMode();
 
 				throw new Exception(Craft::t('There was a problem backing up your database.'));
 			}
@@ -177,7 +187,7 @@ class Updater
 			}
 
 			Craft::log('Taking the site out of maintenance mode.', LogLevel::Info, true);
-			Craft::disableMaintenanceMode();
+			craft()->disableMaintenanceMode();
 
 			throw new Exception(Craft::t('There was a problem backing up your database.'));
 		}
@@ -200,7 +210,7 @@ class Updater
 				craft()->updates->rollbackUpdate($uid, $dbBackupPath);
 
 				Craft::log('Taking the site out of maintenance mode.', LogLevel::Info, true);
-				Craft::disableMaintenanceMode();
+				craft()->disableMaintenanceMode();
 
 				throw new Exception(Craft::t('There was a problem updating your database.'));
 			}
@@ -225,14 +235,14 @@ class Updater
 
 			// Take the site out of maintenance mode.
 			Craft::log('Taking the site out of maintenance mode.', LogLevel::Info, true);
-			Craft::disableMaintenanceMode();
+			craft()->disableMaintenanceMode();
 		}
 		catch (\Exception $e)
 		{
 			craft()->updates->rollbackUpdate($uid, $dbBackupPath);
 
 			Craft::log('Taking the site out of maintenance mode.', LogLevel::Info, true);
-			Craft::disableMaintenanceMode();
+			craft()->disableMaintenanceMode();
 
 			throw new Exception(Craft::t('There was a problem updating your database.'));
 		}
@@ -248,11 +258,9 @@ class Updater
 		// If uid !== false, then it's an auto-update.
 		if ($uid !== false)
 		{
-			$unzipFolder = UpdateHelper::getUnzipFolderFromUID($uid);
-
 			// Clean-up any leftover files.
 			Craft::log('Cleaning up temp files after update.', LogLevel::Info, true);
-			$this->_cleanTempFiles($unzipFolder);
+			$this->_cleanTempFiles();
 		}
 
 		// Clear the updates cache.
@@ -269,10 +277,12 @@ class Updater
 	/**
 	 * Remove any temp files and/or folders that might have been created.
 	 */
-	private function _cleanTempFiles($unzipFolder)
+	private function _cleanTempFiles()
 	{
+		$appPath = craft()->path->getAppPath();
+
 		// Get rid of all the .bak files/folders.
-		$baks = IOHelper::getFolderContents(craft()->path->getAppPath(), true, ".*\.bak$");
+		$baks = IOHelper::getFolderContents($appPath, true, ".*\.bak$");
 
 		foreach ($baks as $bak)
 		{
@@ -280,7 +290,7 @@ class Updater
 			{
 				if (IOHelper::isWritable($bak))
 				{
-					Craft::log('Deleting .bak file: '.$bak, LogLevel::Info, true);
+					Craft::log('Deleting file: '.$bak, LogLevel::Info, true);
 					IOHelper::deleteFile($bak, true);
 				}
 			}
@@ -298,87 +308,21 @@ class Updater
 			}
 		}
 
-		// Now delete any files/folders that were marked for deletion in the manifest file.
-		$manifestData = UpdateHelper::getManifestData($unzipFolder);
-
-		if ($manifestData)
-		{
-			foreach ($manifestData as $row)
-			{
-				if (UpdateHelper::isManifestVersionInfoLine($row))
-				{
-					continue;
-				}
-
-				$rowData = explode(';', $row);
-
-				$folder = false;
-				if (UpdateHelper::isManifestLineAFolder($rowData[0]))
-				{
-					$folder = true;
-					$tempFilePath = UpdateHelper::cleanManifestFolderLine($rowData[0]);
-				}
-				else
-				{
-					$tempFilePath = $rowData[0];
-				}
-
-				$fullPath = '';
-
-				switch (trim($rowData[1]))
-				{
-					// If the file/folder was set to be deleted, there is no backup and we go ahead and remove it now.
-					case PatchManifestFileAction::Remove:
-					{
-						if ($tempFilePath == '')
-						{
-							$fullPath = IOHelper::normalizePathSeparators(craft()->path->getAppPath());
-						}
-						else
-						{
-							$fullPath = IOHelper::normalizePathSeparators(craft()->path->getAppPath().$tempFilePath);
-						}
-
-						break;
-					}
-				}
-
-				// Delete any files/folders we backed up.
-				if ($folder)
-				{
-					if (($folder = IOHelper::getFolder($fullPath)) !== false)
-					{
-						Craft::log('Deleting folder: '.$folder->getRealPath(), LogLevel::Info, true);
-						$folder->delete();
-					}
-				}
-				else
-				{
-					if (($file = IOHelper::getFile($fullPath)) !== false)
-					{
-						Craft::log('Deleting file: '.$file->getRealPath(), LogLevel::Info, true);
-						$file->delete();
-					}
-				}
-			}
-		}
-
 		// Clear the temp folder.
 		IOHelper::clearFolder(craft()->path->getTempPath(), true);
 	}
 
 	/**
-	 * Validates that the downloaded file MD5 matches the name of the file (which is the MD5 from the server)
+	 * Validates that the downloaded file MD5 the MD5 of the file from Elliott
 	 *
 	 * @access private
 	 * @param $downloadFilePath
+	 * @param $sourceMD5
 	 * @return bool
 	 */
-	private function _validateUpdate($downloadFilePath)
+	private function _validateUpdate($downloadFilePath, $sourceMD5)
 	{
 		Craft::log('Validating MD5 for '.$downloadFilePath, LogLevel::Info, true);
-		$sourceMD5 = IOHelper::getFileName($downloadFilePath, false);
-
 		$localMD5 = IOHelper::getFileMD5($downloadFilePath);
 
 		if ($localMD5 === $sourceMD5)

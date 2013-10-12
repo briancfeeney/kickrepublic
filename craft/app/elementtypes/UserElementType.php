@@ -46,19 +46,21 @@ class UserElementType extends BaseElementType
 	{
 		$sources = array(
 			'*' => array(
-				'label' => Craft::t('All users')
+				'label' => Craft::t('All users'),
+				'hasThumbs' => true
 			)
 		);
 
-		if (Craft::hasPackage(CraftPackage::Users))
+		if (craft()->hasPackage(CraftPackage::Users))
 		{
 			foreach (craft()->userGroups->getAllGroups() as $group)
 			{
 				$key = 'group:'.$group->id;
 
 				$sources[$key] = array(
-					'label'    => $group->name,
-					'criteria' => array('groupId' => $group->id)
+					'label'     => $group->name,
+					'criteria'  => array('groupId' => $group->id),
+					'hasThumbs' => true
 				);
 			}
 		}

@@ -10,7 +10,7 @@
 
 
 <div class="row">
-	<div class="col-sm-8 col-sm-offset-2">
+	<div class="col-sm-10 col-sm-offset-1">
 		
 		<h1>International Ranking</h1>
 		
@@ -19,23 +19,23 @@
 		</section>
 
 		<section id="rankings">
-			<ol>
+			<ul class="list-unstyled">
 			{% for row in rankings.ranking %}
 				<li>
 						<div class="row">
-							<!-- <div class="col-sm-1">
-															{{ count }}
-														</div> -->
+							<div class="col-sm-1">
+								<h4>{{ loop.index }}</h4>
+							</div>
 							<div class="col-sm-4">
 								<h3>{{ row.nation }}</h3>
 							</div>
-							<div class="col-sm-8">
+							<div class="col-sm-7">
 								<p>{{ row.nation_info }}</p>
 							</div>
 						</div>
 				</li>
 			{% endfor %}
-			</ol>
+			</ul>
 		</section>
 	</div>
 </div>

@@ -51,6 +51,16 @@ class HttpRequestVariable
 	}
 
 	/**
+	 * Returns the script name used to access Craft.
+	 *
+	 * @return string
+	 */
+	public function getScriptName()
+	{
+		return craft()->request->getScriptName();
+	}
+
+	/**
 	 * Returns the request's URI.
 	 *
 	 * @return mixed
@@ -151,6 +161,17 @@ class HttpRequestVariable
 	public function getPost($name, $default = null)
 	{
 		return craft()->request->getPost($name, $default);
+	}
+
+	/**
+	 * Returns a \CHttpCookie if it exists, otherwise, null.
+	 *
+	 * @param $name
+	 * @return \CHttpCookie|null
+	 */
+	public function getCookie($name)
+	{
+		return craft()->request->getCookie($name);
 	}
 
 	/**

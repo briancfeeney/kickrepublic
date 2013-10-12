@@ -19,7 +19,7 @@ namespace Craft;
 class SectionModel extends BaseModel
 {
 	private $_locales;
-	private $_fieldLayout;
+	private $_entryTypes;
 
 	/**
 	 * Use the translated section name as the string representation.
@@ -38,14 +38,24 @@ class SectionModel extends BaseModel
 	protected function defineAttributes()
 	{
 		return array(
-			'id'            => AttributeType::Number,
-			'name'          => AttributeType::String,
-			'handle'        => AttributeType::String,
-			'titleLabel'    => array(AttributeType::String, 'default' => Craft::t('Title')),
-			'hasUrls'       => AttributeType::Bool,
-			'template'      => AttributeType::String,
-			'fieldLayoutId' => AttributeType::Number,
+			'id'       => AttributeType::Number,
+			'name'     => AttributeType::String,
+			'handle'   => AttributeType::String,
+			'type'     => array(AttributeType::Enum, 'values' => array(SectionType::Single, SectionType::Channel, SectionType::Structure)),
+			'hasUrls'  => array(AttributeType::Bool, 'default' => true),
+			'template' => AttributeType::String,
+			'maxDepth' => AttributeType::Number,
 		);
+	}
+
+	/**
+	 * Returns whether this is the homepage section.
+	 *
+	 * @return bool
+	 */
+	public function isHomepage()
+	{
+		return ($this->type == SectionType::Single && $this->urlFormat == '__home__');
 	}
 
 	/**
@@ -99,36 +109,66 @@ class SectionModel extends BaseModel
 	}
 
 	/**
-	 * Returns the section's field layout.
+	 * Returns the section's entry types.
 	 *
-	 * @return FieldLayoutModel
+	 * @param string|null $indexBy
+	 * @return array
 	 */
-	public function getFieldLayout()
+	public function getEntryTypes($indexBy = null)
 	{
-		if (!isset($this->_fieldLayout))
+		if (!isset($this->_entryTypes))
 		{
-			if ($this->fieldLayoutId)
+			if ($this->id)
 			{
-				$this->_fieldLayout = craft()->fields->getLayoutById($this->fieldLayoutId);
+				$this->_entryTypes = craft()->sections->getEntryTypesBySectionId($this->id);
 			}
-
-			if (empty($this->_fieldLayout))
+			else
 			{
-				$this->_fieldLayout = new FieldLayoutModel();
-				$this->_fieldLayout->type = ElementType::Entry;
+				$this->_entryTypes = array();
 			}
 		}
 
-		return $this->_fieldLayout;
+		if (!$indexBy)
+		{
+			return $this->_entryTypes;
+		}
+		else
+		{
+			$entryTypes = array();
+
+			foreach ($this->_entryTypes as $entryType)
+			{
+				$entryTypes[$entryType->$indexBy] = $entryType;
+			}
+
+			return $entryTypes;
+		}
 	}
 
 	/**
-	 * Sets the section's field layout.
+	 * Returns the section's URL format (or URL) for the current locale.
 	 *
-	 * @param FieldLayoutModel $fieldLayout
+	 * @return string|null
 	 */
-	public function setFieldLayout(FieldLayoutModel $fieldLayout)
+	public function getUrlFormat()
 	{
-		$this->_fieldLayout = $fieldLayout;
+		$locales = $this->getLocales();
+
+		if ($locales)
+		{
+			$localeIds = array_keys($locales);
+
+			// Does this section target the current locale?
+			if (in_array(craft()->language, $localeIds))
+			{
+				$localeId = craft()->language;
+			}
+			else
+			{
+				$localeId = $localeIds[0];
+			}
+
+			return $locales[$localeId]->urlFormat;
+		}
 	}
 }

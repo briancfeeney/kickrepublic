@@ -1,4 +1,4 @@
-/*!
+/**
  * Craft by Pixel & Tonic
  *
  * @package   Craft
@@ -44,10 +44,10 @@ Craft.Locales = Garnish.Base.extend({
 		this.adminTable = new Craft.AdminTable({
 			tableSelector: '#locales',
 			sortable: true,
-			allowDeleteAll: false,
+			minObjects: 1,
 			reorderAction: 'localization/reorderLocales',
 			deleteAction: 'localization/deleteLocale',
-			confirmDeleteMessage: 'Are you sure you want to delete “{name}” and all its associated content?',
+			confirmDeleteMessage: Craft.t('Are you sure you want to delete “{name}” and all its associated content?'),
 			onDeleteObject: $.proxy(function(id) {
 				var index = $.inArray(id, this.selectedLocales);
 				if (index != -1)
@@ -255,28 +255,31 @@ Craft.Locales = Garnish.Base.extend({
 
 		var id = $activeLocale.attr('data-id');
 
-		Craft.postActionRequest('localization/addLocale', { id: id }, $.proxy(function(response) {
+		Craft.postActionRequest('localization/addLocale', { id: id }, $.proxy(function(response, textStatus) {
 
-			if (response.success)
+			if (textStatus == 'success')
 			{
-				var $tr = $('<tr data-id="'+id+'" data-name="'+this.locales[id].name+'">' +
-								'<th scope="row" data-title="'+Craft.t('Name')+'" width="40%">'+this.locales[id].name+'</th>' +
-								'<td data-title="'+Craft.t('Locale ID')+'">'+id+'</td>' +
-								'<td class="thin"><a class="move icon" title="'+Craft.t('Reorder')+'"></a></td>' +
-								'<td class="thin"><a class="delete icon" title="'+Craft.t('Delete')+'"></a></td>' +
-							'</tr>');
+				if (response.success)
+				{
+					var $tr = $('<tr data-id="'+id+'" data-name="'+this.locales[id].name+'">' +
+									'<th scope="row" data-title="'+Craft.t('Name')+'" width="40%">'+this.locales[id].name+'</th>' +
+									'<td data-title="'+Craft.t('Locale ID')+'">'+id+'</td>' +
+									'<td class="thin"><a class="move icon" title="'+Craft.t('Reorder')+'"></a></td>' +
+									'<td class="thin"><a class="delete icon" title="'+Craft.t('Delete')+'"></a></td>' +
+								'</tr>');
 
-				this.adminTable.addRow($tr);
+					this.adminTable.addRow($tr);
 
-				this.selectedLocales.push(id);
-				this.$addLocaleInput.val('').trigger('keydown');
-				this.checkInputVal();
+					this.selectedLocales.push(id);
+					this.$addLocaleInput.val('').trigger('keydown');
+					this.checkInputVal();
 
-				Craft.cp.displayNotice(Craft.t('New locale added.'));
-			}
-			else
-			{
-				Craft.cp.displayError(Craft.t('Unable to add the new locale.'));
+					Craft.cp.displayNotice(Craft.t('New locale added.'));
+				}
+				else
+				{
+					Craft.cp.displayError(Craft.t('Unable to add the new locale.'));
+				}
 			}
 
 		}, this))

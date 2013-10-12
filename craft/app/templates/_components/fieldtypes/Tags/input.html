@@ -1,3 +1,7 @@
+{% if name is defined and name %}
+	<input type="hidden" name="{{ name }}" value="">
+{% endif -%}
+
 {% set elements = (elements is defined ? elements : []) -%}
 {% set criteria = (criteria is defined and criteria ? criteria : null) -%}
 {% from "_includes/forms" import text %}
@@ -22,9 +26,9 @@
 	new Craft.TagSelectInput(
 		"{{ id|e('js') }}",
 		"{{ name|e('js') }}",
-		"{{ source|e('js') }}",
+		{{ tagSetId }},
 		{{ elementId ? elementId : 'null' }},
-		{{ fieldCount }}
+		{{ hasFields ? 'true' : 'false' }}
 	);
 {% endset %}
 

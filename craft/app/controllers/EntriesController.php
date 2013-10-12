@@ -24,105 +24,75 @@ class EntriesController extends BaseController
 	 */
 	public function actionEditEntry(array $variables = array())
 	{
-		$variables['section'] = craft()->sections->getSectionByHandle($variables['sectionHandle']);
+		$this->_prepEditEntryVariables($variables);
 
-		if (!$variables['section'])
+		if (craft()->hasPackage(CraftPackage::PublishPro) && $variables['section']->type == SectionType::Structure)
 		{
-			throw new HttpException(404);
-		}
+			// Override the parent?
+			$parentId = craft()->request->getParam('parentId');
 
-		$variables['permissionSuffix'] = ':'.$variables['section']->id;
-
-		// Make sure the user is allowed to edit entries in this section
-		craft()->userSession->requirePermission('editEntries'.$variables['permissionSuffix']);
-
-		if (Craft::hasPackage(CraftPackage::Localize))
-		{
-			// Figure out which locales the user is allowed to edit in this section
-			$sectionLocaleIds = array_keys($variables['section']->getLocales());
-			$editableLocaleIds = craft()->i18n->getEditableLocaleIds();
-			$editableSectionLocaleIds = array_intersect($sectionLocaleIds, $editableLocaleIds);
-
-			if (!$editableSectionLocaleIds)
+			if ($parentId)
 			{
-				throw new HttpException(404);
-			}
+				$parent = craft()->entries->getEntryById($parentId);
 
-			if (empty($variables['localeId']))
-			{
-				$variables['localeId'] = craft()->language;
-
-				if (!in_array($variables['localeId'], $editableSectionLocaleIds))
+				if ($parent)
 				{
-					$variables['localeId'] = $editableSectionLocaleIds[0];
+					$ancestors = $parent->getAncestors();
+					$ancestors[] = $parent;
+					$variables['entry']->setAncestors($ancestors);
 				}
 			}
-			else if (!in_array($variables['localeId'], $editableSectionLocaleIds))
+
+			// Get all the possible parent options
+			$parentOptionCriteria = craft()->elements->getCriteria(ElementType::Entry);
+			$parentOptionCriteria->sectionId = $variables['section']->id;
+			$parentOptionCriteria->status = null;
+
+			if ($variables['section']->maxDepth)
 			{
-				throw new HttpException(404);
+				$parentOptionCriteria->depth = '< '.$variables['section']->maxDepth;
 			}
-		}
 
-		if (empty($variables['entry']))
-		{
-			if (!empty($variables['entryId']))
+			if ($variables['entry']->id)
 			{
-				if (!empty($variables['draftId']))
-				{
-					$variables['entry'] = craft()->entryRevisions->getDraftById($variables['draftId']);
-				}
-				else if (!empty($variables['versionId']))
-				{
-					$variables['entry'] = craft()->entryRevisions->getVersionById($variables['versionId']);
-				}
-				else
-				{
-					$criteria = craft()->elements->getCriteria(ElementType::Entry);
-					$criteria->id = $variables['entryId'];
-					$criteria->status = null;
+				$idParam = array('and', 'not '.$variables['entry']->id);
 
-					if (Craft::hasPackage(CraftPackage::Localize))
-					{
-						$criteria->locale = $variables['localeId'];
-					}
+				$descendantCriteria = craft()->elements->getCriteria(ElementType::Entry);
+				$descendantCriteria->status = null;
+				$descendantCriteria->descendantOf($variables['entry']);
+				$descendantIds = $descendantCriteria->ids();
 
-					$variables['entry'] = $criteria->first();
+				foreach ($descendantIds as $id)
+				{
+					$idParam[] = 'not '.$id;
 				}
 
-				if (!$variables['entry'])
-				{
-					throw new HttpException(404);
-				}
+				$parentOptionCriteria->id = $idParam;
 			}
-			else
-			{
-				$variables['entry'] = new EntryModel();
-				$variables['entry']->sectionId = $variables['section']->id;
-				$variables['entry']->authorId = craft()->userSession->getUser()->id;
-				$variables['entry']->enabled = true;
-			}
-		}
 
-		// More permission enforcement
-		if (!$variables['entry']->id)
-		{
-			craft()->userSession->requirePermission('createEntries'.$variables['permissionSuffix']);
-		}
-		else if ($variables['entry']->authorId != craft()->userSession->getUser()->id)
-		{
-			craft()->userSession->requirePermission('editPeerEntries'.$variables['permissionSuffix']);
-		}
+			$parentOptions = $parentOptionCriteria->find();
 
-		if ($variables['entry']->id && $variables['entry']->getClassHandle() == 'EntryDraft')
-		{
-			if ($variables['entry']->creatorId != craft()->userSession->getUser()->id)
+			$variables['parentOptions'] = array(array(
+				'label' => '', 'value' => '0'
+			));
+
+			foreach ($parentOptions as $parentOption)
 			{
-				craft()->userSession->requirePermission('editPeerEntryDrafts'.$variables['permissionSuffix']);
+				$label = '';
+
+				for ($i = 1; $i < $parentOption->depth; $i++)
+				{
+					$label .= '    ';
+				}
+
+				$label .= $parentOption->title;
+
+				$variables['parentOptions'][] = array('label' => $label, 'value' => $parentOption->id);
 			}
 		}
 
 		// Page title w/ revision label
-		if (Craft::hasPackage(CraftPackage::PublishPro))
+		if (craft()->hasPackage(CraftPackage::PublishPro))
 		{
 			switch ($variables['entry']->getClassHandle())
 			{
@@ -153,7 +123,7 @@ class EntriesController extends BaseController
 		{
 			$variables['title'] = $variables['entry']->title;
 
-			if (Craft::hasPackage(CraftPackage::PublishPro) && $variables['entry']->getClassHandle() != 'Entry')
+			if (craft()->hasPackage(CraftPackage::PublishPro) && $variables['entry']->getClassHandle() != 'Entry')
 			{
 				$variables['title'] .= ' <span class="hidden">('.$variables['revisionLabel'].')</span>';
 			}
@@ -164,46 +134,42 @@ class EntriesController extends BaseController
 			array('label' => Craft::t('Entries'), 'url' => UrlHelper::getUrl('entries'))
 		);
 
-		if (Craft::hasPackage(CraftPackage::PublishPro))
+		if ($variables['section']->type == SectionType::Single)
 		{
-			// Not really necessary, but it's nice to see that section name...
-			$variables['crumbs'][] = array('label' => $variables['section']->name, 'url' => UrlHelper::getUrl('entries'));
+			$variables['crumbs'][] = array('label' => 'Singles', 'url' => UrlHelper::getUrl('entries'));
 		}
-
-
-		// Tabs
-		$variables['tabs'] = array();
-
-		foreach ($variables['section']->getFieldLayout()->getTabs() as $index => $tab)
+		else
 		{
-			// Do any of the fields on this tab have errors?
-			$hasErrors = false;
+			$variables['crumbs'][] = array('label' => $variables['section']->name, 'url' => UrlHelper::getUrl('entries'));
 
-			if ($variables['entry']->hasErrors())
+			if ($variables['section']->type == SectionType::Structure)
 			{
-				foreach ($tab->getFields() as $field)
+				foreach ($variables['entry']->getAncestors() as $ancestor)
 				{
-					if ($variables['entry']->getErrors($field->getField()->handle))
-					{
-						$hasErrors = true;
-						break;
-					}
+					$variables['crumbs'][] = array('label' => $ancestor->title, 'url' => $ancestor->getCpEditUrl());
 				}
 			}
-
-			$variables['tabs'][] = array(
-				'label' => $tab->name,
-				'url'   => '#tab'.($index+1),
-				'class' => ($hasErrors ? 'error' : null)
-			);
 		}
 
-		// Settings tab
-		$hasErrors = ($variables['entry']->hasErrors() && (
-			$variables['entry']->getErrors('slug') ||
-			$variables['entry']->getErrors('postDate') ||
-			$variables['entry']->getErrors('expiryDate')
-		));
+		// Multiple entry types?
+		$entryTypes = $variables['section']->getEntryTypes();
+
+		if (count($entryTypes) > 1)
+		{
+			$variables['showEntryTypes'] = true;
+
+			foreach ($entryTypes as $entryType)
+			{
+				$variables['entryTypeOptions'][] = array('label' => Craft::t($entryType->name), 'value' => $entryType->id);
+			}
+
+			craft()->templates->includeJsResource('js/EntryTypeSwitcher.js');
+			craft()->templates->includeJs('new Craft.EntryTypeSwitcher();');
+		}
+		else
+		{
+			$variables['showEntryTypes'] = false;
+		}
 
 		// Enable preview mode?
 		$variables['showPreviewBtn'] = false;
@@ -233,15 +199,37 @@ class EntriesController extends BaseController
 			}
 		}
 
-		$variables['tabs'][] = array(
-			'label' => Craft::t('Settings'),
-			'url'   => '#entry-settings',
-			'class' => ($hasErrors ? 'error' : null)
-		);
-
 		// Render the template!
 		craft()->templates->includeCssResource('css/entry.css');
 		$this->renderTemplate('entries/_edit', $variables);
+	}
+
+	public function actionSwitchEntryType()
+	{
+		$this->requirePostRequest();
+		$this->requireAjaxRequest();
+
+		$variables['sectionId'] = craft()->request->getRequiredPost('sectionId');
+		$variables['entry'] = $this->_populateEntryModel();
+		$variables['showEntryTypes'] = true;
+
+		$this->_prepEditEntryVariables($variables);
+
+		$tabsHtml = '<ul>';
+
+		foreach ($variables['tabs'] as $tabId => $tab)
+		{
+			$tabsHtml .= '<li><a id="tab-'.$tabId.'" class="tab'.(isset($tab['class']) ? ' '.$tab['class'] : '').'" href="'.$tab['url'].'">'.$tab['label'].'</a></li>';
+		}
+
+		$tabsHtml .= '</ul>';
+
+		$this->returnJson(array(
+			'tabsHtml'   => $tabsHtml,
+			'fieldsHtml' => craft()->templates->render('entries/_fields', $variables),
+			'headHtml'   => craft()->templates->getHeadHtml(),
+			'footHtml'   => craft()->templates->getFootHtml(),
+		));
 	}
 
 	/**
@@ -309,7 +297,7 @@ class EntriesController extends BaseController
 				craft()->userSession->setNotice(Craft::t('Entry saved.'));
 
 				// TODO: Remove for 2.0
-				if (isset($_POST['redirect']) && strpos($_POST['redirect'], '{entryId}') !== false)
+				if (isset($_POST['redirect']) && mb_strpos($_POST['redirect'], '{entryId}') !== false)
 				{
 					Craft::log('The {entryId} token within the ‘redirect’ param on entries/saveEntry requests has been deprecated. Use {id} instead.', LogLevel::Warning);
 					$_POST['redirect'] = str_replace('{entryId}', '{id}', $_POST['redirect']);
@@ -339,6 +327,53 @@ class EntriesController extends BaseController
 	}
 
 	/**
+	 * Moves an entry in a structured section.
+	 *
+	 * @throws Exception
+	 */
+	public function actionMoveEntry()
+	{
+		craft()->requirePackage(CraftPackage::PublishPro);
+
+		$this->requirePostRequest();
+		$this->requireAjaxRequest();
+
+		$entryId       = craft()->request->getRequiredPost('id');
+		$parentEntryId = craft()->request->getPost('parentId');
+		$prevEntryId   = craft()->request->getPost('prevId');
+
+		$entry       = craft()->entries->getEntryById($entryId);
+		$parentEntry =
+
+
+		// Make sure they have permission to be doing this
+		craft()->userSession->requirePermission('publishEntries:'.$entry->sectionId);
+
+		if ($prevEntryId)
+		{
+			$prevEntry = craft()->entries->getEntryById($prevEntryId);
+			$success = craft()->entries->moveEntryAfter($entry, $prevEntry);
+		}
+		else
+		{
+			if ($parentEntryId)
+			{
+				$parentEntry = craft()->entries->getEntryById($parentEntryId);
+			}
+			else
+			{
+				$parentEntry = null;
+			}
+
+			$success = craft()->entries->moveEntryUnder($entry, $parentEntry, true);
+		}
+
+		$this->returnJson(array(
+			'success' => $success
+		));
+	}
+
+	/**
 	 * Deletes an entry.
 	 */
 	public function actionDeleteEntry()
@@ -354,6 +389,181 @@ class EntriesController extends BaseController
 		craft()->elements->deleteElementById($entryId);
 
 		$this->redirectToPostedUrl();
+	}
+
+	/**
+	 * Preps entry edit variables.
+	 *
+	 * @access private
+	 * @param array &$variables
+	 */
+	private function _prepEditEntryVariables(&$variables)
+	{
+		if (!empty($variables['sectionHandle']))
+		{
+			$variables['section'] = craft()->sections->getSectionByHandle($variables['sectionHandle']);
+		}
+		else if (!empty($variables['sectionId']))
+		{
+			$variables['section'] = craft()->sections->getSectionById($variables['sectionId']);
+		}
+
+		if (empty($variables['section']))
+		{
+			throw new HttpException(404);
+		}
+
+		$variables['permissionSuffix'] = ':'.$variables['section']->id;
+
+		// Make sure the user is allowed to edit entries in this section
+		craft()->userSession->requirePermission('editEntries'.$variables['permissionSuffix']);
+
+		if (craft()->hasPackage(CraftPackage::Localize))
+		{
+			// Figure out which locales the user is allowed to edit in this section
+			$sectionLocaleIds = array_keys($variables['section']->getLocales());
+			$editableLocaleIds = craft()->i18n->getEditableLocaleIds();
+			$editableSectionLocaleIds = array_intersect($sectionLocaleIds, $editableLocaleIds);
+
+			if (!$editableSectionLocaleIds)
+			{
+				throw new HttpException(404);
+			}
+
+			if (empty($variables['localeId']))
+			{
+				$variables['localeId'] = craft()->language;
+
+				if (!in_array($variables['localeId'], $editableSectionLocaleIds))
+				{
+					$variables['localeId'] = $editableSectionLocaleIds[0];
+				}
+			}
+			else if (!in_array($variables['localeId'], $editableSectionLocaleIds))
+			{
+				throw new HttpException(404);
+			}
+		}
+
+		// Now let's set up the actual entry
+		if (empty($variables['entry']))
+		{
+			if (!empty($variables['entryId']))
+			{
+				if (!empty($variables['draftId']))
+				{
+					$variables['entry'] = craft()->entryRevisions->getDraftById($variables['draftId']);
+				}
+				else if (!empty($variables['versionId']))
+				{
+					$variables['entry'] = craft()->entryRevisions->getVersionById($variables['versionId']);
+				}
+				else
+				{
+					$criteria = craft()->elements->getCriteria(ElementType::Entry);
+					$criteria->id = $variables['entryId'];
+					$criteria->status = null;
+
+					if (craft()->hasPackage(CraftPackage::Localize))
+					{
+						$criteria->locale = $variables['localeId'];
+					}
+
+					$variables['entry'] = $criteria->first();
+				}
+
+				if (!$variables['entry'])
+				{
+					throw new HttpException(404);
+				}
+			}
+			else
+			{
+				$variables['entry'] = new EntryModel();
+				$variables['entry']->sectionId = $variables['section']->id;
+				$variables['entry']->authorId = craft()->userSession->getUser()->id;
+				$variables['entry']->enabled = true;
+			}
+		}
+
+		// More permission enforcement
+		if (!$variables['entry']->id)
+		{
+			craft()->userSession->requirePermission('createEntries'.$variables['permissionSuffix']);
+		}
+		else if ($variables['entry']->authorId != craft()->userSession->getUser()->id)
+		{
+			craft()->userSession->requirePermission('editPeerEntries'.$variables['permissionSuffix']);
+		}
+
+		if ($variables['entry']->id && $variables['entry']->getClassHandle() == 'EntryDraft')
+		{
+			if ($variables['entry']->creatorId != craft()->userSession->getUser()->id)
+			{
+				craft()->userSession->requirePermission('editPeerEntryDrafts'.$variables['permissionSuffix']);
+			}
+		}
+
+		// Entry type
+
+		// Override the entry type?
+		$typeId = craft()->request->getParam('typeId');
+
+		if ($typeId)
+		{
+			$variables['entry']->typeId = $typeId;
+		}
+
+		// Save the entry type locally
+		$variables['entryType'] = $variables['entry']->getType();
+
+		if (!$variables['entryType'])
+		{
+			throw new Exception(Craft::t('No entry types are available for this entry.'));
+		}
+
+		// Tabs
+		$variables['tabs'] = array();
+
+		foreach ($variables['entryType']->getFieldLayout()->getTabs() as $index => $tab)
+		{
+			// Do any of the fields on this tab have errors?
+			$hasErrors = false;
+
+			if ($variables['entry']->hasErrors())
+			{
+				foreach ($tab->getFields() as $field)
+				{
+					if ($variables['entry']->getErrors($field->getField()->handle))
+					{
+						$hasErrors = true;
+						break;
+					}
+				}
+			}
+
+			$variables['tabs'][] = array(
+				'label' => $tab->name,
+				'url'   => '#tab'.($index+1),
+				'class' => ($hasErrors ? 'error' : null)
+			);
+		}
+
+		// Settings tab
+		if ($variables['section']->type != SectionType::Single)
+		{
+			$hasErrors = ($variables['entry']->hasErrors() && (
+				$variables['entry']->getErrors('slug') ||
+				$variables['entry']->getErrors('postDate') ||
+				$variables['entry']->getErrors('expiryDate')
+			));
+
+			$variables['tabs'][] = array(
+				'label' => Craft::t('Settings'),
+				'url'   => '#entry-settings',
+				'class' => ($hasErrors ? 'error' : null)
+			);
+		}
 	}
 
 	/**
@@ -383,19 +593,22 @@ class EntriesController extends BaseController
 			$entry = new EntryModel();
 		}
 
-		$entry->sectionId  = craft()->request->getRequiredPost('sectionId');
-		$entry->locale     = craft()->request->getPost('locale', craft()->i18n->getPrimarySiteLocaleId());
-		$entry->id         = craft()->request->getPost('entryId');
-		$entry->authorId   = craft()->request->getPost('author', craft()->userSession->getUser()->id);
-		$entry->slug       = craft()->request->getPost('slug');
-		$entry->postDate   = (($postDate   = craft()->request->getPost('postDate'))   ? DateTime::createFromString($postDate,   craft()->timezone) : null);
+		// Set the entry attributes, defaulting to the existing values for whatever is missing from the post data
+		$entry->sectionId  = craft()->request->getPost('sectionId', $entry->sectionId);
+		$entry->typeId     = craft()->request->getPost('typeId',    $entry->typeId);
+		$entry->locale     = craft()->request->getPost('locale',    $entry->locale);
+		$entry->authorId   = craft()->request->getPost('author',    ($entry->authorId ? $entry->authorId : craft()->userSession->getUser()->id));
+		$entry->slug       = craft()->request->getPost('slug',      $entry->slug);
+		$entry->postDate   = (($postDate   = craft()->request->getPost('postDate'))   ? DateTime::createFromString($postDate,   craft()->timezone) : $entry->postDate);
 		$entry->expiryDate = (($expiryDate = craft()->request->getPost('expiryDate')) ? DateTime::createFromString($expiryDate, craft()->timezone) : null);
-		$entry->enabled    = (bool)craft()->request->getPost('enabled');
+		$entry->enabled    = (bool) craft()->request->getPost('enabled', $entry->enabled);
 
-		$entry->getContent()->title = craft()->request->getPost('title');
+		$entry->getContent()->title = craft()->request->getPost('title', $entry->title);
 
 		$fields = craft()->request->getPost('fields');
 		$entry->getContent()->setAttributes($fields);
+
+		$entry->parentId = craft()->request->getPost('parentId');
 
 		return $entry;
 	}

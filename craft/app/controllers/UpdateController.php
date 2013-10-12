@@ -168,7 +168,8 @@ class UpdateController extends BaseController
 		}
 		else
 		{
-			$this->returnJson(array('success' => true, 'nextStatus' => Craft::t('Downloading Update…'), 'nextAction' => 'update/processDownload'));
+			$data['md5'] = $return['md5'];
+			$this->returnJson(array('success' => true, 'nextStatus' => Craft::t('Downloading Update…'), 'nextAction' => 'update/processDownload', 'data' => $data));
 		}
 
 	}
@@ -184,7 +185,9 @@ class UpdateController extends BaseController
 		$this->requirePostRequest();
 		$this->requireAjaxRequest();
 
-		$return = craft()->updates->processUpdateDownload();
+		$data = craft()->request->getRequiredPost('data');
+
+		$return = craft()->updates->processUpdateDownload($data['md5']);
 		if (!$return['success'])
 		{
 			$this->returnJson(array('error' => $return['message']));
@@ -359,7 +362,7 @@ class UpdateController extends BaseController
 			$this->returnJson(array('error' => $return['message']));
 		}
 
-		if ($oldVersion && version_compare($oldVersion, '1.1', '<'))
+		if ($oldVersion && version_compare($oldVersion, craft()->getVersion(), '<'))
 		{
 			$returnUrl = UrlHelper::getUrl('whats-new');
 		}

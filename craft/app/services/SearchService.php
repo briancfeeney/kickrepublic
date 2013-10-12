@@ -232,7 +232,7 @@ class SearchService extends BaseApplicationComponent
 	 */
 	private function _indexElementKeywords($elementId, $attribute, $fieldId, $localeId, $dirtyKeywords)
 	{
-		$attribute = strtolower($attribute);
+		$attribute = mb_strtolower($attribute);
 
 		if (!$localeId)
 		{
@@ -254,17 +254,12 @@ class SearchService extends BaseApplicationComponent
 		{
 			// Add padding around keywords
 			$cleanKeywords = $this->_addPadding($cleanKeywords);
+		}
 
-			// Insert/update the row in searchindex
-			craft()->db->createCommand()->insertOrUpdate('searchindex', $keyColumns, array(
-				'keywords'  => $cleanKeywords
-			), false);
-		}
-		else
-		{
-			// Delete the searchindex row if it exists
-			craft()->db->createCommand()->delete('searchindex', $keyColumns);
-		}
+		// Insert/update the row in searchindex
+		craft()->db->createCommand()->insertOrUpdate('searchindex', $keyColumns, array(
+			'keywords' => $cleanKeywords
+		), false);
 	}
 
 	/**
@@ -306,10 +301,10 @@ class SearchService extends BaseApplicationComponent
 	 * Calculate score for a row/term combination.
 	 *
 	 * @access private
-	 * @param object $term    The SearchQueryTerm to score.
-	 * @param array  $row     The result row to score against.
-	 * @param float  $weight  Optional weight for this term.
-	 * @return float  The total score for this term/row combination.
+	 * @param  object    $term    The SearchQueryTerm to score.
+	 * @param  array     $row     The result row to score against.
+	 * @param  float|int $weight  Optional weight for this term.
+	 * @return float              The total score for this term/row combination.
 	 */
 	private function _scoreTerm($term, $row, $weight = 1)
 	{
@@ -330,7 +325,7 @@ class SearchService extends BaseApplicationComponent
 		$wordCount = count(array_filter(explode(' ', $haystack)));
 
 		// Get number of matches
-		$score = substr_count($haystack, $keywords);
+		$score = mb_substr_count($haystack, $keywords);
 
 		// Exact match
 		if (trim($keywords) == trim($haystack))
@@ -356,7 +351,7 @@ class SearchService extends BaseApplicationComponent
 	 * Get the complete where clause for current tokens
 	 *
 	 * @access private
-	 * @return string
+	 * @return string|false
 	 */
 	private function _getWhereClause()
 	{
@@ -365,13 +360,27 @@ class SearchService extends BaseApplicationComponent
 		// Add the regular terms to the WHERE clause
 		if ($this->_terms)
 		{
-			$where[] = $this->_processTokens($this->_terms);
+			$condition = $this->_processTokens($this->_terms);
+
+			if ($condition === false)
+			{
+				return false;
+			}
+
+			$where[] = $condition;
 		}
 
 		// Add each group to the where clause
 		foreach ($this->_groups as $group)
 		{
-			$where[] = $this->_processTokens($group, false);
+			$condition = $this->_processTokens($group, false);
+
+			if ($condition === false)
+			{
+				return false;
+			}
+
+			$where[] = $condition;
 		}
 
 		// And combine everything with AND
@@ -384,6 +393,7 @@ class SearchService extends BaseApplicationComponent
 	 * @access private
 	 * @param array $tokens
 	 * @param string $glue
+	 * @return string|false
 	 */
 	private function _processTokens($tokens = array(), $inclusive = true)
 	{
@@ -395,6 +405,11 @@ class SearchService extends BaseApplicationComponent
 		{
 			// Get SQL and/or keywords
 			list($sql, $keywords) = $this->_getSqlFromTerm($obj);
+
+			if ($sql === false)
+			{
+				return false;
+			}
 
 			// If we have SQL, just add that
 			if ($sql)
@@ -493,7 +508,7 @@ class SearchService extends BaseApplicationComponent
 					}
 
 					// Add quotes for exact match
-					if (strpos($keywords, ' ') != false)
+					if (mb_strpos($keywords, ' ') != false)
 					{
 						$keywords = '"'.$keywords.'"';
 					}
@@ -617,7 +632,7 @@ class SearchService extends BaseApplicationComponent
 		// Then loop through terms and return false it doesn't match up
 		foreach ($words as $word)
 		{
-			if (strlen($word) < static::_getMinWordLength() || in_array($word, $ftStopWords))
+			if (mb_strlen($word) < static::_getMinWordLength() || in_array($word, $ftStopWords))
 			{
 				return false;
 			}
@@ -682,15 +697,24 @@ class SearchService extends BaseApplicationComponent
 	 *
 	 * @access private
 	 * @param string $where
-	 * @return string
+	 * @return string|false
 	 */
 	private function _sqlSubSelect($where)
 	{
-		return sprintf("%s IN (SELECT %s FROM %s WHERE %s)",
-			craft()->db->quoteColumnName('elementId'),
-			craft()->db->quoteColumnName('elementId'),
-			craft()->db->quoteTableName(DbHelper::addTablePrefix('searchindex')),
-			$where
-		);
+		// FULLTEXT indexes are not used in queries with subselects, so let's do this as its own query.
+		$elementIds = craft()->db->createCommand()
+			->select('elementId')
+			->from('searchindex')
+			->where($where)
+			->queryColumn();
+
+		if ($elementIds)
+		{
+			return craft()->db->quoteColumnName('elementId').' IN ('.implode(', ', $elementIds).')';
+		}
+		else
+		{
+			return false;
+		}
 	}
 }

@@ -11,7 +11,7 @@ namespace Craft;
  * @link      http://buildwithcraft.com
  */
 
-Craft::requirePackage(CraftPackage::Users);
+craft()->requirePackage(CraftPackage::Users);
 
 /**
  *
@@ -80,7 +80,7 @@ class UserPermissionsService extends BaseApplicationComponent
 
 		// Locales
 
-		if (Craft::hasPackage(CraftPackage::Localize))
+		if (craft()->hasPackage(CraftPackage::Localize))
 		{
 			$label = Craft::t('Locales');
 			$locales = craft()->i18n->getSiteLocales();
@@ -182,7 +182,7 @@ class UserPermissionsService extends BaseApplicationComponent
 	public function doesGroupHavePermission($groupId, $checkPermission)
 	{
 		$allPermissions = $this->getPermissionsByGroupId($groupId);
-		$checkPermission = strtolower($checkPermission);
+		$checkPermission = mb_strtolower($checkPermission);
 
 		return in_array($checkPermission, $allPermissions);
 	}
@@ -255,7 +255,7 @@ class UserPermissionsService extends BaseApplicationComponent
 	public function doesUserHavePermission($userId, $checkPermission)
 	{
 		$allPermissions = $this->getPermissionsByUserId($userId);
-		$checkPermission = strtolower($checkPermission);
+		$checkPermission = mb_strtolower($checkPermission);
 
 		return in_array($checkPermission, $allPermissions);
 	}
@@ -324,7 +324,7 @@ class UserPermissionsService extends BaseApplicationComponent
 
 		);
 
-		if (Craft::hasPackage(CraftPackage::Users))
+		if (craft()->hasPackage(CraftPackage::Users))
 		{
 			$permissions["editEntries{$suffix}"]['nested']["editPeerEntries{$suffix}"] = array(
 				'label' => Craft::t('Edit other authors’ entries'),
@@ -335,7 +335,7 @@ class UserPermissionsService extends BaseApplicationComponent
 				)
 			);
 
-			if (Craft::hasPackage(CraftPackage::PublishPro))
+			if (craft()->hasPackage(CraftPackage::PublishPro))
 			{
 				$permissions["editEntries{$suffix}"]['nested']["editPeerEntries{$suffix}"]['nested']["editPeerEntryDrafts{$suffix}"] = array(
 					'label' => Craft::t('Edit other authors’ drafts'),
@@ -452,7 +452,7 @@ class UserPermissionsService extends BaseApplicationComponent
 	private function _getPermissionRecordByName($permissionName)
 	{
 		// Permission names are always stored in lowercase
-		$permissionName = strtolower($permissionName);
+		$permissionName = mb_strtolower($permissionName);
 
 		$permissionRecord = UserPermissionRecord::model()->findByAttributes(array(
 			'name' => $permissionName

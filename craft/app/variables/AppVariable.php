@@ -23,7 +23,7 @@ class AppVariable
 	 */
 	public function getVersion()
 	{
-		return Craft::getVersion();
+		return craft()->getVersion();
 	}
 
 	/**
@@ -33,7 +33,7 @@ class AppVariable
 	 */
 	public function getBuild()
 	{
-		return Craft::getBuild();
+		return craft()->getBuild();
 	}
 
 	/**
@@ -43,7 +43,7 @@ class AppVariable
 	 */
 	public function getReleaseDate()
 	{
-		return Craft::getReleasedate();
+		return craft()->getReleaseDate();
 	}
 
 	/**
@@ -53,7 +53,7 @@ class AppVariable
 	 */
 	public function getSiteName()
 	{
-		return Craft::getSiteName();
+		return craft()->getSiteName();
 	}
 
 	/**
@@ -63,7 +63,17 @@ class AppVariable
 	 */
 	public function getSiteUrl()
 	{
-		return Craft::getSiteUrl();
+		return craft()->getSiteUrl();
+	}
+
+	/**
+	 * Returns the site UID.
+	 *
+	 * @return string
+	 */
+	public function getSiteUid()
+	{
+		return craft()->getSiteUid();
 	}
 
 	/**
@@ -83,7 +93,37 @@ class AppVariable
 	 */
 	public function isSystemOn()
 	{
-		return Craft::isSystemOn();
+		return craft()->isSystemOn();
+	}
+
+	/**
+	 * Returns whether the update info is cached.
+	 *
+	 * @return bool
+	 */
+	public function isUpdateInfoCached()
+	{
+		return craft()->updates->isUpdateInfoCached();
+	}
+
+	/**
+	 * Returns how many updates are available.
+	 *
+	 * @return int
+	 */
+	public function getTotalAvailableUpdates()
+	{
+		return craft()->updates->getTotalAvailableUpdates();
+	}
+
+	/**
+	 * Returns whether a critical update is available.
+	 *
+	 * @return bool
+	 */
+	public function isCriticalUpdateAvailable()
+	{
+		return craft()->updates->isCriticalUpdateAvailable();
 	}
 
 	/**

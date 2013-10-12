@@ -18,11 +18,11 @@ class EtService extends BaseApplicationComponent
 {
 	const Ping              = 'https://elliott.buildwithcraft.com/actions/elliott/app/ping';
 	const CheckForUpdates   = 'https://elliott.buildwithcraft.com/actions/elliott/app/checkForUpdates';
-	const DownloadUpdate    = 'https://elliott.buildwithcraft.com/actions/elliott/app/downloadUpdate';
 	const TransferLicense   = 'https://elliott.buildwithcraft.com/actions/elliott/app/transferLicenseToCurrentDomain';
 	const GetPackageInfo    = 'https://elliott.buildwithcraft.com/actions/elliott/app/getPackageInfo';
 	const PurchasePackage   = 'https://elliott.buildwithcraft.com/actions/elliott/app/purchasePackage';
 	const StartPackageTrial = 'https://elliott.buildwithcraft.com/actions/elliott/app/startPackageTrial';
+	const GetUpdateFileInfo = 'https://elliott.buildwithcraft.com/actions/elliott/app/getUpdateFileInfo';
 
 	/**
 	 * @return EtModel|null
@@ -54,18 +54,37 @@ class EtService extends BaseApplicationComponent
 	}
 
 	/**
+	 * @return \Craft\EtModel|null
+	 */
+	public function getUpdateFileInfo()
+	{
+		$et = new Et(static::GetUpdateFileInfo);
+		$etResponse = $et->phoneHome();
+
+		if ($etResponse)
+		{
+			return $etResponse->data;
+		}
+	}
+
+	/**
 	 * @param $downloadPath
+	 * @param $md5
 	 * @return bool
 	 */
-	public function downloadUpdate($downloadPath)
+	public function downloadUpdate($downloadPath, $md5)
 	{
-		$et = new Et(static::DownloadUpdate, 240);
-
 		if (IOHelper::folderExists($downloadPath))
 		{
-			$downloadPath .= StringHelper::UUID().'.zip';
+			$downloadPath .= $md5.'.zip';
 		}
 
+		$updateModel = craft()->updates->getUpdates();
+		$buildVersion = $updateModel->app->latestVersion.'.'.$updateModel->app->latestBuild;
+
+		$path = 'http://download.buildwithcraft.com/craft/'.$updateModel->app->latestVersion.'/'.$buildVersion.'/Patch/'.$updateModel->app->localBuild.'/'.$md5.'.zip';
+
+		$et = new Et($path, 240);
 		$et->setDestinationFileName($downloadPath);
 
 		if (($fileName = $et->phoneHome()) !== null)
@@ -148,9 +167,9 @@ class EtService extends BaseApplicationComponent
 			if (!empty($etResponse->data['success']))
 			{
 				// Success! Let's get this sucker installed.
-				if (!Craft::hasPackage($model->package))
+				if (!craft()->hasPackage($model->package))
 				{
-					Craft::installPackage($model->package);
+					craft()->installPackage($model->package);
 				}
 
 				return true;
@@ -209,9 +228,9 @@ class EtService extends BaseApplicationComponent
 		if (!empty($etResponse->data['success']))
 		{
 			// Install the package.
-			if (!Craft::hasPackage($model->packageHandle))
+			if (!craft()->hasPackage($model->packageHandle))
 			{
-				Craft::installPackage($model->packageHandle);
+				craft()->installPackage($model->packageHandle);
 			}
 
 			return true;

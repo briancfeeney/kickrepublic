@@ -40,8 +40,7 @@ class ElementsController extends BaseController
 		}
 
 		$this->renderTemplate('_elements/modalbody', array(
-			'sources'   => $sources,
-			'hasThumbs' => $elementType->hasThumbs()
+			'sources'   => $sources
 		));
 	}
 
@@ -52,24 +51,31 @@ class ElementsController extends BaseController
 	{
 		$context = craft()->request->getParam('context');
 		$elementType = $this->_getElementType();
-		$state = craft()->request->getParam('state', array());
-		$disabledElementIds = craft()->request->getParam('disabledElementIds');
+		$sourceKey = craft()->request->getParam('source');
+		$viewState = craft()->request->getParam('viewState');
+		$disabledElementIds = craft()->request->getParam('disabledElementIds', array());
+
+		if (empty($viewState['mode']))
+		{
+			$viewState['mode'] = 'table';
+		}
 
 		$baseCriteria = craft()->request->getPost('criteria');
 		$criteria = craft()->elements->getCriteria($elementType->getClassHandle(), $baseCriteria);
 
-		if (!empty($state['source']))
+		if ($sourceKey)
 		{
 			$sources = $elementType->getSources($context);
-			$sourceCriteria = $this->_getSourceCriteria($sources, $state['source']);
+			$source = $this->_findSource($sources, $sourceKey);
 
-			if ($sourceCriteria !== null)
-			{
-				$criteria->setAttributes($sourceCriteria);
-			}
-			else
+			if (!$source)
 			{
 				return false;
+			}
+
+			if (!empty($source['criteria']))
+			{
+				$criteria->setAttributes($source['criteria']);
 			}
 		}
 
@@ -83,62 +89,76 @@ class ElementsController extends BaseController
 			$criteria->offset = $offset;
 		}
 
-		$containerVars = array(
-			'state' => $state
+		$variables = array(
+			'viewState'           => $viewState,
+			'context'             => $context,
+			'elementType'         => new ElementTypeVariable($elementType),
+			'source'              => (isset($source) ? $source : null),
+			'disabledElementIds'  => $disabledElementIds,
 		);
 
-		$elementVars = array(
-			'context'            => $context,
-			'elementType'        => new ElementTypeVariable($elementType),
-			'disabledElementIds' => $disabledElementIds,
-		);
-
-		if ($state['view'] == 'table')
+		switch ($viewState['mode'])
 		{
-			// Make sure the attribute is actually allowed
-			$tableAttributes = $elementType->defineTableAttributes($state['source']);
-
-			// Ordering by an attribute?
-			if (!empty($state['order']))
+			case 'table':
 			{
-				foreach ($tableAttributes as $attribute)
+				// Make sure the attribute is actually allowed
+				$tableAttributes = $elementType->defineTableAttributes($sourceKey);
+
+				// Ordering by an attribute?
+				if (!empty($viewState['order']))
 				{
-					if ($attribute['attribute'] == $state['order'])
+					foreach ($tableAttributes as $attribute)
 					{
-						$criteria->order = $state['order'].' '.$state['sort'];
-						break;
+						if ($attribute['attribute'] == $viewState['order'])
+						{
+							$criteria->order = $viewState['order'].' '.$viewState['sort'];
+							break;
+						}
 					}
 				}
+
+				$variables['attributes'] = $tableAttributes;
+
+				break;
 			}
 
-			$containerVars['attributes'] = $tableAttributes;
-			$elementVars['attributes'] = $tableAttributes;
+			case 'structure':
+			{
+				$criteria->limit = null;
+				$criteria->offset = null;
+			}
 		}
 
 		// Find the elements!
-		$elementVars['elements'] = $criteria->find();
-
-		$viewFolder = '_elements/'.$state['view'].'view/';
+		$variables['elements'] = $criteria->find();
 
 		if (!$criteria->offset)
 		{
-			$elementContainerHtml = $this->renderTemplate($viewFolder.'container', $containerVars, true);
+			$template = 'container';
 		}
 		else
 		{
-			$elementContainerHtml = null;
+			$template = 'elements';
 		}
 
-		$elementDataHtml = $this->renderTemplate($viewFolder.'elements', $elementVars, true);
-		$totalVisible = $criteria->offset + $criteria->limit;
-		$remainingElements = $criteria->total() - $totalVisible;
+		$html = craft()->templates->render('_elements/'.$viewState['mode'].'view/'.$template, $variables);
+
+		if ($viewState['mode'] != 'structure')
+		{
+			$totalVisible = $criteria->offset + $criteria->limit;
+			$remainingElements = $criteria->total() - $totalVisible;
+		}
+		else
+		{
+			$totalVisible = null;
+			$remainingElements = 0;
+		}
 
 		$this->returnJson(array(
-			'elementContainerHtml' => $elementContainerHtml,
-			'elementDataHtml'      => $elementDataHtml,
-			'headHtml'             => craft()->templates->getHeadHtml(),
-			'totalVisible'         => $totalVisible,
-			'more'                 => ($remainingElements > 0),
+			'html'         => $html,
+			'headHtml'     => craft()->templates->getHeadHtml(),
+			'totalVisible' => $totalVisible,
+			'more'         => ($remainingElements > 0),
 		));
 	}
 
@@ -156,7 +176,7 @@ class ElementsController extends BaseController
 
 		if (!$elementType)
 		{
-			throw new Exception(Craft::t('No element type exists with the class "{class}"', array('class' => $class)));
+			throw new Exception(Craft::t('No element type exists with the class “{class}”', array('class' => $class)));
 		}
 
 		return $elementType;
@@ -166,30 +186,23 @@ class ElementsController extends BaseController
 	 * Returns the criteria for a given source.
 	 *
 	 * @param array  $sources
-	 * @param string $selectedSource
+	 * @param string $sourceKey
 	 * @return array|null
 	 */
-	private function _getSourceCriteria($sources, $selectedSource)
+	private function _findSource($sources, $sourceKey)
 	{
-		if (isset($sources[$selectedSource]))
+		if (isset($sources[$sourceKey]))
 		{
-			if (isset($sources[$selectedSource]['criteria']))
-			{
-				return $sources[$selectedSource]['criteria'];
-			}
-			else
-			{
-				return array();
-			}
+			return $sources[$sourceKey];
 		}
 		else
 		{
 			// Look through any nested sources
 			foreach ($sources as $key => $source)
 			{
-				if (!empty($source['nested']) && ($nestedSourceCriteria = $this->_getSourceCriteria($source['nested'], $selectedSource)))
+				if (!empty($source['nested']) && ($nestedSource = $this->_findSource($source['nested'], $sourceKey)))
 				{
-					return $nestedSourceCriteria;
+					return $nestedSource;
 				}
 			}
 		}

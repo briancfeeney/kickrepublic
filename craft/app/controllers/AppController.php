@@ -26,6 +26,20 @@ class AppController extends BaseController
 	}
 
 	/**
+	 * Returns update info.
+	 */
+	public function actionCheckForUpdates()
+	{
+		$forceRefresh = (bool) craft()->request->getPost('forceRefresh');
+		craft()->updates->getUpdates($forceRefresh);
+
+		$this->returnJson(array(
+			'total'    => craft()->updates->getTotalAvailableUpdates(),
+			'critical' => craft()->updates->isCriticalUpdateAvailable()
+		));
+	}
+
+	/**
 	 * Loads any CP alerts.
 	 */
 	public function actionGetCpAlerts()
@@ -173,7 +187,7 @@ class AppController extends BaseController
 		$this->requireAjaxRequest();
 
 		$package = craft()->request->getRequiredPost('package');
-		$success = Craft::installPackage($package);
+		$success = craft()->installPackage($package);
 
 		$this->returnJson(array(
 			'success' => $success
@@ -189,7 +203,7 @@ class AppController extends BaseController
 		$this->requireAjaxRequest();
 
 		$package = craft()->request->getRequiredPost('package');
-		$success = Craft::uninstallPackage($package);
+		$success = craft()->uninstallPackage($package);
 
 		$this->returnJson(array(
 			'success' => $success

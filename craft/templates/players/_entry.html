@@ -29,9 +29,29 @@
 			
 	</div>
 	<div class="col-xs-9">
-			<h4>{% for option in entry.player_position %}{{ option }}{% endfor %}</h4>
-			<h3>{% for row in entry.player_clubs %}{{ row.player_club }}{% endfor %}</h3>
-			{{ entry.body }}
+		<h4>{% for option in entry.player_position %}{{ option }}{% endfor %}</h4>
+		<h3>{% for row in entry.player_clubs %}{{ row.player_club }}{% endfor %}</h3>
+		
+		{{ entry.body }}
+	</div>
+</div>
+<div class="row">
+	<div class="col-sm-9 col-sm-offset-3">
+		<section id="news">
+
+	       	{% set posts = craft.entries.section('news').find() %}
+			{% if posts | length %}
+			    <h4>Related News</h4>
+
+			    <ul>
+			        {% for post in posts %}
+			            <li><a href="{{ post.url }}">{{ post.title }}</a></li>
+			        {% endfor %}
+			    </ul>
+			{% endif %}
+
+		</section>
+		
 	</div>
 </div>
 		</article>

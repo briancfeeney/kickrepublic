@@ -11,7 +11,7 @@ namespace Craft;
  * @link      http://buildwithcraft.com
  */
 
-Craft::requirePackage(CraftPackage::Cloud);
+craft()->requirePackage(CraftPackage::Cloud);
 
 /**
  * S3 source type class
@@ -184,7 +184,7 @@ class S3AssetSourceType extends BaseAssetSourceType
 		foreach ($fileList as $file)
 		{
 			// Strip the prefix, so we don't index the parent folders
-			$file['name'] = substr($file['name'], strlen($prefix));
+			$file['name'] = mb_substr($file['name'], mb_strlen($prefix));
 
 			if (!preg_match(AssetsHelper::IndexSkipItemsPattern, $file['name']))
 			{
@@ -209,7 +209,7 @@ class S3AssetSourceType extends BaseAssetSourceType
 					}
 				}
 
-				if (substr($file['name'], -1) == '/')
+				if (mb_substr($file['name'], -1) == '/')
 				{
 					$bucketFolders[$file['name']] = true;
 				}
@@ -604,7 +604,7 @@ class S3AssetSourceType extends BaseAssetSourceType
 		rsort($filesToMove);
 		foreach ($filesToMove as $file)
 		{
-			$filePath = substr($file['name'], strlen($this->_getPathPrefix().$folder->fullPath));
+			$filePath = mb_substr($file['name'], mb_strlen($this->_getPathPrefix().$folder->fullPath));
 
 			$this->_s3->copyObject($bucket, $file['name'], $bucket, $newFullPath . $filePath, \S3::ACL_PUBLIC_READ);
 			@$this->_s3->deleteObject($bucket, $file['name']);
@@ -715,5 +715,13 @@ class S3AssetSourceType extends BaseAssetSourceType
 		return $this->getSettings()->urlPrefix.$this->_getPathPrefix();
 	}
 
-
+	/**
+	 * Return true if the source is a remote source.
+	 *
+	 * @return bool
+	 */
+	public function isRemote()
+	{
+		return true;
+	}
 }

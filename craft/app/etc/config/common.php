@@ -10,10 +10,6 @@
  * @link      http://buildwithcraft.com
  */
 
-Yii::setPathOfAlias('app', CRAFT_APP_PATH);
-Yii::setPathOfAlias('plugins', CRAFT_PLUGINS_PATH);
-Yii::setPathOfAlias('Imagine', CRAFT_APP_PATH.'/lib/Imagine');
-
 // Load the deafult configs
 $generalConfig = require_once(CRAFT_APP_PATH.'etc/config/defaults/general.php');
 $dbConfig = require_once(CRAFT_APP_PATH.'etc/config/defaults/db.php');
@@ -159,8 +155,12 @@ $configArray = array(
 		'app.enums.PluginVersionUpdateStatus',
 		'app.enums.PtAccountCredentialStatus',
 		'app.enums.RequirementResult',
+		'app.enums.SectionType',
 		'app.enums.UserStatus',
 		'app.enums.VersionUpdateStatus',
+		'app.etc.behaviors.AppBehavior',
+		'app.etc.behaviors.BaseBehavior',
+		'app.etc.behaviors.FieldLayoutBehavior',
 		'app.etc.cache.FileCache',
 		'app.etc.components.BaseApplicationComponent',
 		'app.etc.components.BaseComponentType',
@@ -177,7 +177,6 @@ $configArray = array(
 		'app.etc.db.DbBackup',
 		'app.etc.db.DbCommand',
 		'app.etc.db.DbConnection',
-		'app.etc.db.PDO',
 		'app.etc.db.schemas.MysqlSchema',
 		'app.etc.errors.DbConnectException',
 		'app.etc.errors.ErrorException',
@@ -218,6 +217,9 @@ $configArray = array(
 		'app.etc.templating.twigextensions.IncludeResource_TokenParser',
 		'app.etc.templating.twigextensions.IncludeTranslations_Node',
 		'app.etc.templating.twigextensions.IncludeTranslations_TokenParser',
+		'app.etc.templating.twigextensions.NavItem_Node',
+		'app.etc.templating.twigextensions.Nav_Node',
+		'app.etc.templating.twigextensions.Nav_TokenParser',
 		'app.etc.templating.twigextensions.Paginate_Node',
 		'app.etc.templating.twigextensions.Paginate_TokenParser',
 		'app.etc.templating.twigextensions.Redirect_Node',
@@ -232,6 +234,7 @@ $configArray = array(
 		'app.etc.updates.Updater',
 		'app.etc.users.UserIdentity',
 		'app.etc.web.UrlManager',
+		'app.extensions.NestedSetBehavior',
 		'app.fieldtypes.AssetsFieldType',
 		'app.fieldtypes.BaseElementFieldType',
 		'app.fieldtypes.BaseFieldType',
@@ -296,6 +299,7 @@ $configArray = array(
 		'app.models.EmailSettingsModel',
 		'app.models.EntryDraftModel',
 		'app.models.EntryModel',
+		'app.models.EntryTypeModel',
 		'app.models.EntryVersionModel',
 		'app.models.EtModel',
 		'app.models.FieldGroupModel',
@@ -337,6 +341,7 @@ $configArray = array(
 		'app.records.EntryDraftRecord',
 		'app.records.EntryLocaleRecord',
 		'app.records.EntryRecord',
+		'app.records.EntryTypeRecord',
 		'app.records.EntryVersionRecord',
 		'app.records.FieldGroupRecord',
 		'app.records.FieldLayoutFieldRecord',
@@ -351,6 +356,7 @@ $configArray = array(
 		'app.records.SectionLocaleRecord',
 		'app.records.SectionRecord',
 		'app.records.SessionRecord',
+		'app.records.StructuredEntryRecord',
 		'app.records.SystemSettingsRecord',
 		'app.records.TagRecord',
 		'app.records.TagSetRecord',
@@ -400,6 +406,22 @@ $configArray = array(
 		'app.services.UserPermissionsService',
 		'app.services.UserSessionService',
 		'app.services.UsersService',
+		'app.tests.BaseTest',
+		'app.tests.TestApplication',
+		'app.tests.helpers.StubHelper',
+		'app.tests.unit.AppBehaviorTest',
+		'app.tests.unit.ArrayHelperTest',
+		'app.tests.unit.ContentServiceTest',
+		'app.tests.unit.CraftClassTest',
+		'app.tests.unit.CraftTableTest',
+		'app.tests.unit.EntriesServiceTest',
+		'app.tests.unit.EntryModelTest',
+		'app.tests.unit.HttpRequestsServiceTest',
+		'app.tests.unit.PluginsTest',
+		'app.tests.unit.RecentEntriesWidgetTest',
+		'app.tests.unit.ResourceProcessorTest',
+		'app.tests.unit.SectionModelTest',
+		'app.tests.unit.UrlHelperTest',
 		'app.tools.AssetIndexTool',
 		'app.tools.BaseTool',
 		'app.tools.ClearCachesTool',
@@ -432,6 +454,7 @@ $configArray = array(
 		'app.variables.ImageVariable',
 		'app.variables.LocalizationVariable',
 		'app.variables.LogoVariable',
+		'app.variables.PaginateVariable',
 		'app.variables.PluginVariable',
 		'app.variables.PluginsVariable',
 		'app.variables.RebrandVariable',
@@ -464,11 +487,12 @@ $configArray = array(
 			'tablePrefix'       => $tablePrefix,
 			'driverMap'         => array('mysql' => 'Craft\MysqlSchema'),
 			'class'             => 'Craft\DbConnection',
-			'pdoClass'          => 'Craft\PDO',
 		),
 
 		'config' => array(
-			'class' => 'Craft\ConfigService',
+			'class'         => 'Craft\ConfigService',
+			'generalConfig' => $generalConfig,
+			'dbConfig'      => $dbConfig,
 		),
 
 		'i18n' => array(
@@ -482,8 +506,6 @@ $configArray = array(
 
 	'params' => array(
 		'adminEmail'            => 'admin@website.com',
-		'dbConfig'              => $dbConfig,
-		'generalConfig'         => $generalConfig,
 	)
 );
 
@@ -501,25 +523,29 @@ $cpRoutes['globals/(?P<globalSetHandle>{handle})'] = 'globals';
 
 $cpRoutes['updates/go/(?P<handle>[^/]*)'] = 'updates/_go';
 
-$cpRoutes['settings']                                             = array('action' => 'systemSettings/settingsIndex');
-$cpRoutes['settings/assets']                                      = array('action' => 'assetSources/sourceIndex');
-$cpRoutes['settings/assets/sources/new']                          = array('action' => 'assetSources/editSource');
-$cpRoutes['settings/assets/sources/(?P<sourceId>\d+)']            = array('action' => 'assetSources/editSource');
-$cpRoutes['settings/assets/transforms']                           = array('action' => 'assetTransforms/transformIndex');
-$cpRoutes['settings/assets/transforms/new']                       = array('action' => 'assetTransforms/editTransform');
-$cpRoutes['settings/assets/transforms/(?P<handle>{handle})']      = array('action' => 'assetTransforms/editTransform');
-$cpRoutes['settings/fields/(?P<groupId>\d+)']                     = 'settings/fields';
-$cpRoutes['settings/fields/new']                                  = 'settings/fields/_edit';
-$cpRoutes['settings/fields/edit/(?P<fieldId>\d+)']                = 'settings/fields/_edit';
-$cpRoutes['settings/general']                                     = array('action' => 'systemSettings/generalSettings');
-$cpRoutes['settings/globals/new']                                 = array('action' => 'systemSettings/editGlobalSet');
-$cpRoutes['settings/globals/(?P<globalSetId>\d+)']                = array('action' => 'systemSettings/editGlobalSet');
-$cpRoutes['settings/plugins/(?P<pluginClass>{handle})']           = 'settings/plugins/_settings';
-$cpRoutes['settings/sections/new']                                = 'settings/sections/_edit';
-$cpRoutes['settings/sections/(?P<sectionId>\d+)']                 = 'settings/sections/_edit';
-$cpRoutes['settings/tags']                                        = array('action' => 'tags/index');
-$cpRoutes['settings/tags/new']                                    = array('action' => 'tags/editTagSet');
-$cpRoutes['settings/tags/(?P<tagSetId>\d+)']                      = array('action' => 'tags/editTagSet');
+$cpRoutes['settings']                                                             = array('action' => 'systemSettings/settingsIndex');
+$cpRoutes['settings/assets']                                                      = array('action' => 'assetSources/sourceIndex');
+$cpRoutes['settings/assets/sources/new']                                          = array('action' => 'assetSources/editSource');
+$cpRoutes['settings/assets/sources/(?P<sourceId>\d+)']                            = array('action' => 'assetSources/editSource');
+$cpRoutes['settings/assets/transforms']                                           = array('action' => 'assetTransforms/transformIndex');
+$cpRoutes['settings/assets/transforms/new']                                       = array('action' => 'assetTransforms/editTransform');
+$cpRoutes['settings/assets/transforms/(?P<handle>{handle})']                      = array('action' => 'assetTransforms/editTransform');
+$cpRoutes['settings/fields/(?P<groupId>\d+)']                                     = 'settings/fields';
+$cpRoutes['settings/fields/new']                                                  = 'settings/fields/_edit';
+$cpRoutes['settings/fields/edit/(?P<fieldId>\d+)']                                = 'settings/fields/_edit';
+$cpRoutes['settings/general']                                                     = array('action' => 'systemSettings/generalSettings');
+$cpRoutes['settings/globals/new']                                                 = array('action' => 'systemSettings/editGlobalSet');
+$cpRoutes['settings/globals/(?P<globalSetId>\d+)']                                = array('action' => 'systemSettings/editGlobalSet');
+$cpRoutes['settings/plugins/(?P<pluginClass>{handle})']                           = 'settings/plugins/_settings';
+$cpRoutes['settings/sections']                                                    = array('action' => 'sections/index');
+$cpRoutes['settings/sections/new']                                                = array('action' => 'sections/editSection');
+$cpRoutes['settings/sections/(?P<sectionId>\d+)']                                 = array('action' => 'sections/editSection');
+$cpRoutes['settings/sections/(?P<sectionId>\d+)/entrytypes']                      = array('action' => 'sections/entryTypesIndex');
+$cpRoutes['settings/sections/(?P<sectionId>\d+)/entrytypes/new']                  = array('action' => 'sections/editEntryType');
+$cpRoutes['settings/sections/(?P<sectionId>\d+)/entrytypes/(?P<entryTypeId>\d+)'] = array('action' => 'sections/editEntryType');
+$cpRoutes['settings/tags']                                                        = array('action' => 'tags/index');
+$cpRoutes['settings/tags/new']                                                    = array('action' => 'tags/editTagSet');
+$cpRoutes['settings/tags/(?P<tagSetId>\d+)']                                      = array('action' => 'tags/editTagSet');
 
 $cpRoutes['settings/packages'] = array(
 	'params' => array(
@@ -595,7 +621,15 @@ $components['images']['class']               = 'Craft\ImagesService';
 $components['migrations']['class']           = 'Craft\MigrationsService';
 $components['path']['class']                 = 'Craft\PathService';
 $components['relations']['class']            = 'Craft\RelationsService';
-$components['sections']['class']             = 'Craft\SectionsService';
+
+$components['sections'] = array(
+	'class' => 'Craft\SectionsService',
+	'typeLimits' => array(
+		'single'    => 5,
+		'channel'   => 1,
+		'structure' => 0
+	)
+);
 
 $components['resources']['class']            = 'Craft\ResourcesService';
 $components['resources']['dateParam']        = 'd';
@@ -663,7 +697,10 @@ $components['urlManager']['class'] = 'Craft\UrlManager';
 $components['urlManager']['cpRoutes'] = $cpRoutes;
 $components['urlManager']['pathParam'] = 'p';
 
-$components['errorHandler']['class'] = 'Craft\ErrorHandler';
+$components['errorHandler'] = array(
+	'class' => 'Craft\ErrorHandler',
+	'errorAction' => 'templates/renderError'
+);
 
 $components['fileCache']['class'] = 'Craft\FileCache';
 

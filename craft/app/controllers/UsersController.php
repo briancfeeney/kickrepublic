@@ -25,10 +25,17 @@ class UsersController extends BaseController
 	{
 		if (craft()->userSession->isLoggedIn())
 		{
-			$this->redirect('');
+			if (craft()->request->isAjaxRequest())
+			{
+				$this->returnJson(array(
+					'success' => true
+				));
+			}
+			else
+			{
+				$this->redirect(UrlHelper::getCpUrl('dashboard'));
+			}
 		}
-
-		$vars = array();
 
 		if (craft()->request->isPostRequest())
 		{
@@ -66,26 +73,15 @@ class UsersController extends BaseController
 				{
 					craft()->userSession->setError($errorMessage);
 
-					$vars = array(
+					craft()->urlManager->setRouteVariables(array(
 						'loginName' => $loginName,
 						'rememberMe' => $rememberMe,
 						'errorCode' => $errorCode,
 						'errorMessage' => $errorMessage,
-					);
+					));
 				}
 			}
 		}
-
-		if (craft()->request->isCpRequest())
-		{
-			$template = 'login';
-		}
-		else
-		{
-			$template = craft()->config->get('loginPath');
-		}
-
-		$this->renderTemplate($template, $vars);
 	}
 
 	/**
@@ -152,8 +148,6 @@ class UsersController extends BaseController
 				'loginName'   => $loginName,
 			));
 		}
-
-
 	}
 
 	/**
@@ -187,15 +181,6 @@ class UsersController extends BaseController
 
 			if (craft()->users->changePassword($user))
 			{
-				// Log them in
-				if (!craft()->userSession->login($user->username, $newPassword))
-				{
-					$errorCode = craft()->userSession->getLoginErrorCode();
-					$errorMessage = craft()->userSession->getLoginErrorMessage($errorCode, $user->username);
-
-					Craft::log('Tried to automatically log in after a password update, but could not: '.$errorMessage, LogLevel::Warning);
-				}
-
 				// If the user can't access the CP, then send them to the front-end setPasswordSuccessPath.
 				if (!$user->can('accessCp'))
 				{
@@ -206,7 +191,8 @@ class UsersController extends BaseController
 				else
 				{
 					craft()->userSession->setNotice(Craft::t('Password updated.'));
-					$this->redirectToPostedUrl();
+					$url = UrlHelper::getCpUrl('dashboard');
+					$this->redirect($url);
 				}
 			}
 			else
@@ -232,13 +218,46 @@ class UsersController extends BaseController
 				throw new HttpException(404);
 			}
 
-			$template = craft()->config->getSetPasswordPath($code, $id, false);
+			$url = craft()->config->getSetPasswordPath($code, $id, $user);
 
-			$this->renderTemplate($template, array(
-				'code' => $code,
-				'id' => $id,
-				'newUser' => ($user->password ? false : true),
-			));
+			// If the user cannot access the CP
+			if (!$user->can('accessCp'))
+			{
+				// If they haven't defined a front-end set password template
+				if (!craft()->templates->doesTemplateExist(craft()->config->get('setPasswordPath')))
+				{
+					// Set PathService to use the CP templates path instead
+					craft()->path->setTemplatesPath(craft()->path->getCpTemplatesPath());
+
+					// Render Craft's set password template on the front-end.
+					$this->renderTemplate($url, array(
+						'code' => $code,
+						'id' => $id,
+						'newUser' => ($user->password ? false : true),
+					));
+				}
+				// They cannot access the CP, but they have a front-end set password template defined.
+				// Set the route variables and let URL manager do it's thing.
+				else
+				{
+					craft()->urlManager->setRouteVariables(array(
+						'code' => $code,
+						'id' => $id,
+						'newUser' => ($user->password ? false : true),
+					));
+				}
+			}
+			// The user can access the CP, so send them to Craft's set password template in the dashboard.
+			else
+			{
+				craft()->path->setTemplatesPath(craft()->path->getCpTemplatesPath());
+
+				$this->renderTemplate($url, array(
+					'code' => $code,
+					'id' => $id,
+					'newUser' => ($user->password ? false : true),
+				));
+			}
 		}
 	}
 
@@ -261,7 +280,7 @@ class UsersController extends BaseController
 
 		if (!$user)
 		{
-			if (($url = craft()->config->get('activateFailurePath')) != '')
+			if (($url = craft()->config->getActivateAccountFailurePath()) != '')
 			{
 				$this->redirect(UrlHelper::getSiteUrl($url));
 			}
@@ -273,21 +292,44 @@ class UsersController extends BaseController
 
 		if (craft()->users->activateUser($user))
 		{
-			// All users that go through account activation will need to set their password.
-			$code = craft()->users->setVerificationCodeOnUser($user);
-
-			if ($user->can('accessCp'))
+			// Successfully activated user, do they require a password reset or is their password empty?
+			// If so, send them through the password logic.
+			if ($user->passwordResetRequired || !$user->password)
 			{
-				$url = craft()->config->getSetPasswordPath($code, $id, true, 'cp');
+				// All users that go through account activation will need to set their password.
+				$code = craft()->users->setVerificationCodeOnUser($user);
+
+				if ($user->can('accessCp'))
+				{
+					$url = craft()->config->get('actionTrigger').'/users/'.craft()->config->getCpSetPasswordPath();
+				}
+				else
+				{
+					$url = craft()->config->get('setPasswordPath');
+				}
 			}
+			// Otherwise, this is a registration from the front-end of the site.
 			else
 			{
-				$url = craft()->config->getSetPasswordPath($code, $id);
+				// If the user can't access the CP, then send them to the front-end activateAccountSuccessPath.
+				if (!$user->can('accessCp'))
+				{
+
+					$url = UrlHelper::getUrl(craft()->config->get('activateAccountSuccessPath'));
+					$this->redirect($url);
+				}
+				else
+				{
+					craft()->userSession->setNotice(Craft::t('Account activated.'));
+					$this->redirectToPostedUrl();
+				}
 			}
 		}
 		else
 		{
-			if (($url = craft()->config->get('activateFailurePath')) === '')
+			$url = craft()->config->getActivateAccountFailurePath();
+
+			if ($url === '')
 			{
 				// Failed to validate user and there is no custom validation failure path.  Throw an exception.
 				throw new HttpException('200', Craft::t('There was a problem activating this account.'));
@@ -299,6 +341,17 @@ class UsersController extends BaseController
 			}
 		}
 
+		if (craft()->request->isSecureConnection())
+		{
+			$url = UrlHelper::getUrl($url, array(
+				'code' => $code, 'id' => $id
+			), 'https');
+		}
+
+		$url = UrlHelper::getUrl($url, array(
+			'code' => $code, 'id' => $id
+		));
+
 		$this->redirect($url);
 	}
 
@@ -309,7 +362,7 @@ class UsersController extends BaseController
 	{
 		$this->requirePostRequest();
 
-		if (Craft::hasPackage(CraftPackage::Users))
+		if (craft()->hasPackage(CraftPackage::Users))
 		{
 			$userId = craft()->request->getPost('userId');
 
@@ -345,7 +398,7 @@ class UsersController extends BaseController
 		else
 		{
 			// Users package is required
-			Craft::requirePackage(CraftPackage::Users);
+			craft()->requirePackage(CraftPackage::Users);
 
 			// Are they already logged in?
 			if (craft()->userSession->getUser())
@@ -431,7 +484,7 @@ class UsersController extends BaseController
 					craft()->userSession->setNotice(Craft::t('User saved.'));
 
 					// TODO: Remove for 2.0
-					if (isset($_POST['redirect']) && strpos($_POST['redirect'], '{userId}') !== false)
+					if (isset($_POST['redirect']) && mb_strpos($_POST['redirect'], '{userId}') !== false)
 					{
 						Craft::log('The {userId} token within the ‘redirect’ param on users/saveUser requests has been deprecated. Use {id} instead.', LogLevel::Warning);
 						$_POST['redirect'] = str_replace('{userId}', '{id}', $_POST['redirect']);
@@ -599,9 +652,9 @@ class UsersController extends BaseController
 			$source = craft()->request->getRequiredPost('source');
 
 			// Strip off any querystring info, if any.
-			if (($qIndex = strpos($source, '?')) !== false)
+			if (($qIndex = mb_strpos($source, '?')) !== false)
 			{
-				$source = substr($source, 0, strpos($source, '?'));
+				$source = mb_substr($source, 0, mb_strpos($source, '?'));
 			}
 
 			$user = craft()->users->getUserById($userId);

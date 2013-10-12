@@ -49,7 +49,7 @@ class MigrateCommand extends \MigrateCommand
 			}
 		}
 
-		$yiiVersion = Craft::getYiiVersion();
+		$yiiVersion = craft()->getYiiVersion();
 		echo "\nCraft Migration Tool (based on Yii v{$yiiVersion})\n\n";
 
 		return true;

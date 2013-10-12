@@ -201,16 +201,13 @@ class UpdatesService extends BaseApplicationComponent
 	 */
 	public function setNewCraftInfo($version, $build, $releaseDate)
 	{
-		$info = Craft::getInfo();
+		$info = craft()->getInfo();
 
 		$info->version     = $version;
 		$info->build       = $build;
 		$info->releaseDate = $releaseDate;
 
-		// TODO: Deprecate after next breakpoint release.
-		$info->track = 'stable';
-
-		return Craft::saveInfo($info);
+		return craft()->saveInfo($info);
 	}
 
 	/**
@@ -293,20 +290,32 @@ class UpdatesService extends BaseApplicationComponent
 	{
 		Craft::log('Preparing to update '.$handle.'.', LogLevel::Info, true);
 
+		// Fire an 'onBeginUpdate' event and pass in the type
+		$this->onBeginUpdate(new Event($this, array(
+			'type' => $manual ? 'manual' : 'auto'
+		)));
+
 		try
 		{
 			$updater = new Updater();
+
+			// Make sure we still meet the requirements.
+			$updater->checkRequirements();
 
 			// No need to get the latest update info if this is a manual update.
 			if (!$manual)
 			{
 				$updater->getLatestUpdateInfo();
+				$updateModel = $this->getUpdates();
+				Craft::log('Updating from '.$updateModel->app->localVersion.'.'.$updateModel->app->localBuild.' to '.$updateModel->app->latestVersion.'.'.$updateModel->app->latestBuild.'.', LogLevel::Info, true);
+				$result = $updater->getUpdateFileInfo();
+
 			}
 
-			$updater->checkRequirements();
+			$result['success'] = true;
 
 			Craft::log('Finished preparing to update '.$handle.'.', LogLevel::Info, true);
-			return array('success' => true);
+			return $result;
 		}
 		catch (\Exception $e)
 		{
@@ -315,16 +324,17 @@ class UpdatesService extends BaseApplicationComponent
 	}
 
 	/**
+	 * @param $md5
 	 * @return array
 	 */
-	public function processUpdateDownload()
+	public function processUpdateDownload($md5)
 	{
 		Craft::log('Starting to process the update download.', LogLevel::Info, true);
 
 		try
 		{
 			$updater = new Updater();
-			$result = $updater->processDownload();
+			$result = $updater->processDownload($md5);
 			$result['success'] = true;
 
 			Craft::log('Finished processing the update download.', LogLevel::Info, true);
@@ -471,6 +481,12 @@ class UpdatesService extends BaseApplicationComponent
 			$updater->cleanUp($uid, $handle);
 
 			Craft::log('Finished cleaning up after the update.', LogLevel::Info, true);
+
+			// Fire an 'onEndUpdate' event and pass in that it was a successful update.
+			$this->onEndUpdate(new Event($this, array(
+				'success' => true
+			)));
+
 			return array('success' => true);
 		}
 		catch (\Exception $e)
@@ -488,6 +504,11 @@ class UpdatesService extends BaseApplicationComponent
 	{
 		try
 		{
+			// Fire an 'onEndUpdate' event and pass in that the update failed.
+			$this->onEndUpdate(new Event($this, array(
+				'success' => false
+			)));
+
 			craft()->config->maxPowerCaptain();
 
 			if ($dbBackupPath && craft()->config->get('backupDbOnUpdate') && craft()->config->get('restoreDbOnUpdateFailure'))
@@ -548,7 +569,7 @@ class UpdatesService extends BaseApplicationComponent
 	 */
 	public function isCraftDbUpdateNeeded()
 	{
-		return (CRAFT_BUILD > Craft::getBuild());
+		return (CRAFT_BUILD > craft()->getBuild());
 	}
 
 	/**
@@ -562,7 +583,7 @@ class UpdatesService extends BaseApplicationComponent
 		// Only Craft has the concept of a breakpoint, not plugins.
 		if ($this->isCraftDbUpdateNeeded())
 		{
-			return (Craft::getBuild() < CRAFT_MIN_BUILD_REQUIRED);
+			return (craft()->getBuild() < CRAFT_MIN_BUILD_REQUIRED);
 		}
 		else
 		{
@@ -578,7 +599,7 @@ class UpdatesService extends BaseApplicationComponent
 	 */
 	public function isTrackValid()
 	{
-		if (($track = Craft::getTrack()) && $track != CRAFT_TRACK)
+		if (($track = craft()->getTrack()) && $track != CRAFT_TRACK)
 		{
 			return false;
 		}
@@ -606,5 +627,25 @@ class UpdatesService extends BaseApplicationComponent
 		}
 
 		return $pluginsThatNeedDbUpdate;
+	}
+
+	/**
+	 * Fires an 'onBeginUpdate' event.
+	 *
+	 * @param Event $event
+	 */
+	public function onBeginUpdate(Event $event)
+	{
+		$this->raiseEvent('onBeginUpdate', $event);
+	}
+
+	/**
+	 * Fires an 'onEndUpdate' event.
+	 *
+	 * @param Event $event
+	 */
+	public function onEndUpdate(Event $event)
+	{
+		$this->raiseEvent('onEndUpdate', $event);
 	}
 }

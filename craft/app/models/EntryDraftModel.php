@@ -11,7 +11,7 @@ namespace Craft;
  * @link      http://buildwithcraft.com
  */
 
-Craft::requirePackage(CraftPackage::PublishPro);
+craft()->requirePackage(CraftPackage::PublishPro);
 
 /**
  *

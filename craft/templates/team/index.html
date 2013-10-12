@@ -57,7 +57,7 @@
 						<ul class="list-unstyled">
 							<div class="row">
 						       {% for post in team.current_roster %}
-								<div class="col-sm-3">
+								<div class="col-xs-6 col-sm-3">
 						           <li>
 										<a href="{{ post.url }}">
 											{% for image in post.player_photo %}
@@ -79,7 +79,7 @@
 							</div>
 						</ul>
 		
-						<a href="{{ url('players') }}">View the full list of players.</a>
+						<a href="{{ url('players') }}" class="read-more">View the full list of players</a>
 					</section>
 				
 				</div>

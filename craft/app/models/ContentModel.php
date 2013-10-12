@@ -34,7 +34,7 @@ class ContentModel extends BaseModel
 			'title'     => array(AttributeType::String, 'required' => $requiredTitle),
 		);
 
-		if (Craft::isInstalled() && !craft()->isConsole())
+		if (craft()->isInstalled() && !craft()->isConsole())
 		{
 			$allFields = craft()->fields->getAllFields();
 

@@ -1,10 +1,10 @@
 {% extends "_layouts/cp" %}
 
-{% set docsUrl = 'http://docs.buildwithcraft.com/cp/settings/fields.html#field-settings' %}
+{% set docsUrl = 'http://buildwithcraft.com/docs/fields#field-layouts' %}
 
 {% import "_includes/forms" as forms %}
 
-{% if fieldId is defined %}
+{% if field is not defined and fieldId is defined %}
 	{% set field = craft.fields.getFieldById(fieldId) %}
 	{% if not field %}
 		{% exit 404 %}
@@ -99,6 +99,7 @@
 			id: 'handle',
 			class: 'code',
 			name: 'handle',
+			maxlength: 64,
 			value: (field is defined ? field.handle : null),
 			errors: (field is defined ? field.getErrors('handle') : null),
 			required: true,

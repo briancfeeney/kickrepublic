@@ -54,7 +54,7 @@ class EmailService extends BaseApplicationComponent
 	{
 		$emailModel = new EmailModel();
 
-		if (Craft::hasPackage(CraftPackage::Rebrand))
+		if (craft()->hasPackage(CraftPackage::Rebrand))
 		{
 			$message = craft()->emailMessages->getMessage($key, $user->preferredLocale);
 
@@ -69,7 +69,7 @@ class EmailService extends BaseApplicationComponent
 
 		$tempTemplatesPath = '';
 
-		if (Craft::hasPackage(CraftPackage::Rebrand))
+		if (craft()->hasPackage(CraftPackage::Rebrand))
 		{
 			// Is there a custom HTML template set?
 			$settings = $this->getSettings();
@@ -167,7 +167,7 @@ class EmailService extends BaseApplicationComponent
 			throw new Exception(Craft::t('Could not determine how to send the email.  Check your email settings.'));
 		}
 
-		$email = new \PhpMailer(true);
+		$email = new \PHPMailer(true);
 
 		// Default the charset to UTF-8
 		$email->CharSet = 'UTF-8';

@@ -26,7 +26,7 @@ class InstallController extends BaseController
 	public function init()
 	{
 		// Return a 404 if Craft is already installed
-		if (!craft()->config->get('devMode') && Craft::isInstalled())
+		if (!craft()->config->get('devMode') && craft()->isInstalled())
 		{
 			throw new HttpException(404);
 		}

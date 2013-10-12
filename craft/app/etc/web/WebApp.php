@@ -90,6 +90,9 @@ class WebApp extends \CWebApplication
 		$this->getComponent('request');
 		$this->getComponent('log');
 
+		// Attach our Craft app behavior.
+		$this->attachBehavior('AppBehavior', new AppBehavior());
+
 		// Set our own custom runtime path.
 		$this->setRuntimePath($this->path->getRuntimePath());
 
@@ -126,16 +129,6 @@ class WebApp extends \CWebApplication
 	}
 
 	/**
-	 * Returns the current target timezone.
-	 *
-	 * @return string
-	 */
-	public function getTimezone()
-	{
-		return Craft::getTimezone();
-	}
-
-	/**
 	 * Processes the request.
 	 *
 	 * @throws HttpException
@@ -152,7 +145,7 @@ class WebApp extends \CWebApplication
 		$this->_processInstallRequest();
 
 		// If the system in is maintenance mode and it's a site request, throw a 503.
-		if (Craft::isInMaintenanceMode() && $this->request->isSiteRequest())
+		if (craft()->isInMaintenanceMode() && $this->request->isSiteRequest())
 		{
 			throw new HttpException(503);
 		}
@@ -162,6 +155,12 @@ class WebApp extends \CWebApplication
 
 		// Check if the app path has changed.  If so, run the requirements check again.
 		$this->_processRequirementsCheck();
+
+		// Now that we've ran the requirements checker, set MB to use UTF-8
+		mb_internal_encoding('UTF-8');
+		mb_http_input('UTF-8');
+		mb_http_output('UTF-8');
+		mb_detect_order('auto');
 
 		// If the track has changed, put the brakes on the request.
 		if (!$this->updates->isTrackValid())
@@ -184,7 +183,7 @@ class WebApp extends \CWebApplication
 		// If we're in maintenance mode and it's not a site request, show the manual update template.
 		if (
 			$this->updates->isCraftDbUpdateNeeded() ||
-			(Craft::isInMaintenanceMode() && $this->request->isCpRequest()) ||
+			(craft()->isInMaintenanceMode() && $this->request->isCpRequest()) ||
 			$this->request->getActionSegments() == array('update', 'cleanUp') ||
 			$this->request->getActionSegments() == array('update', 'rollback')
 		)
@@ -193,7 +192,7 @@ class WebApp extends \CWebApplication
 		}
 
 		// Make sure that the system is on, or that the user has permission to access the site/CP while the system is off
-		if (Craft::isSystemOn() ||
+		if (craft()->isSystemOn() ||
 			($this->request->isActionRequest() && $this->request->getActionSegments() == array('users', 'login')) ||
 			($this->request->isSiteRequest() && $this->userSession->checkPermission('accessSiteWhenSystemIsOff')) ||
 			($this->request->isCpRequest()) && $this->userSession->checkPermission('accessCpWhenSystemIsOff')
@@ -315,7 +314,7 @@ class WebApp extends \CWebApplication
 	{
 		if (!isset($this->_templatePath))
 		{
-			if (strpos(get_class($this->request), 'HttpRequest') !== false)
+			if (mb_strpos(get_class($this->request), 'HttpRequest') !== false)
 			{
 				$this->_templatePath = $this->path->getTemplatesPath();
 			}
@@ -599,7 +598,7 @@ class WebApp extends \CWebApplication
 		{
 			foreach ($this->_packageComponents as $packageName => $packageComponents)
 			{
-				if (Craft::hasPackage($packageName))
+				if (craft()->hasPackage($packageName))
 				{
 					$this->setComponents($packageComponents);
 				}
@@ -620,7 +619,7 @@ class WebApp extends \CWebApplication
 		$isCpRequest = $this->request->isCpRequest();
 
 		// Are they requesting an installer template/action specifically?
-		if ($isCpRequest && $this->request->getSegment(1) === 'install' && !Craft::isInstalled())
+		if ($isCpRequest && $this->request->getSegment(1) === 'install' && !craft()->isInstalled())
 		{
 			$action = $this->request->getSegment(2, 'index');
 			$this->runController('install/'.$action);
@@ -636,7 +635,7 @@ class WebApp extends \CWebApplication
 		}
 
 		// Should they be?
-		else if (!Craft::isInstalled())
+		else if (!craft()->isInstalled())
 		{
 			// Give it to them if accessing the CP
 			if ($isCpRequest)
@@ -660,7 +659,7 @@ class WebApp extends \CWebApplication
 	 */
 	private function _getTargetLanguage()
 	{
-		if (Craft::isInstalled())
+		if (craft()->isInstalled())
 		{
 			// Will any locale validation be necessary here?
 			if ($this->request->isCpRequest() || defined('CRAFT_LOCALE'))

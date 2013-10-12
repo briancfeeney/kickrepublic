@@ -11,7 +11,7 @@ namespace Craft;
  * @link      http://buildwithcraft.com
  */
 
-Craft::requirePackage(CraftPackage::Users);
+craft()->requirePackage(CraftPackage::Users);
 
 /**
  * User permission functions

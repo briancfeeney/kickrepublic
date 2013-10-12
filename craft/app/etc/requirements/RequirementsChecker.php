@@ -22,9 +22,9 @@ class RequirementsChecker extends \CComponent
 	private $_errorFolders;
 
 	/**
-	 * @access private
+	 *
 	 */
-	private function init()
+	public function init()
 	{
 		$requiredPhpVersion = craft()->params['requiredPhpVersion'];
 		$requiredMysqlVersion = craft()->params['requiredMysqlVersion'];
@@ -39,7 +39,7 @@ class RequirementsChecker extends \CComponent
 			),
 			new Requirement(
 				Craft::t('$_SERVER Variable'),
-				($message = $this->checkServerVar()) === '',
+				($message = $this->_checkServerVar()) === '',
 				true,
 				'<a href="http://buildwithcraft.com">Craft</a>',
 				$message
@@ -121,15 +121,109 @@ class RequirementsChecker extends \CComponent
 				'<a href="http://buildwithcraft.com">Craft</a>',
 				Craft::t('Craft requires <a href="http://php.net/manual/en/book.curl.php">cURL</a> in order to run.')
 			),
-
+			new Requirement(
+				Craft::t('crypt() with CRYPT_BLOWFISH enabled'),
+				true,
+				function_exists('crypt') && defined('CRYPT_BLOWFISH') && CRYPT_BLOWFISH,
+				'<a href="http://www.yiiframework.com/doc/api/1.1/CPasswordHelper">CPasswordHelper</a>',
+				Craft::t('Craft requires the <a href="http://php.net/manual/en/function.crypt.php">crypt()</a> function with CRYPT_BLOWFISH enabled for secure password storage.')
+			),
+			new Requirement(
+				Craft::t('PCRE UTF-8 support'),
+				preg_match('/./u', 'Ü') === 1,
+				true,
+				Craft::t('<a href="http://php.net/manual/en/book.pcre.php">PCRE</a> must be compiled to support UTF-8.')
+			),
+			new Requirement(
+				Craft::t('Multibyte String support'),
+				(extension_loaded('mbstring') && ini_get('mbstring.func_overload') != 1),
+				true,
+				Craft::t('Craft requires the <a href="http://www.php.net/manual/en/book.mbstring.php">Multibyte String extension</a> with <a href="http://php.net/manual/en/mbstring.overload.php">Function Overloading</a> disabled in order to run.')
+			),
+			new Requirement(
+				Craft::t('iconv support'),
+				function_exists('iconv'),
+				false,
+				Craft::t('Craft requires <a href="http://php.net/manual/en/book.iconv.php">iconv</a> in order to run.')
+			)
 		);
 	}
+
+	/**
+		 */
+		public function run()
+		{
+			$this->init();
+			$installResult = InstallStatus::Success;
+
+			foreach ($this->_requirements as $requirement)
+			{
+				if ($requirement->getResult() == RequirementResult::Failed)
+				{
+					$installResult = InstallStatus::Failure;
+					break;
+				}
+				else if ($requirement->getResult() == RequirementResult::Warning)
+				{
+					$installResult = InstallStatus::Warning;
+				}
+			}
+
+			$writableFolders = $this->_getWritableFolders();
+
+			$errorFolders = null;
+
+			foreach ($writableFolders as $writableFolder)
+			{
+				if (!IOHelper::isWritable($writableFolder))
+				{
+					$errorFolders[] = IOHelper::getRealPath($writableFolder);
+					$installResult = InstallStatus::Failure;
+				}
+			}
+
+			$this->_result = $installResult;
+			$this->_serverInfo = $this->_calculateServerInfo();
+			$this->_errorFolders = $errorFolders;
+		}
+
+		/**
+		 * @return mixed
+		 */
+		public function getResult()
+		{
+			return $this->_result;
+		}
+
+		/**
+		 * @return mixed
+		 */
+		public function getServerInfo()
+		{
+			return $this->_serverInfo;
+		}
+
+		/**
+		 * @return null
+		 */
+		public function getErrorFolders()
+		{
+			return $this->_errorFolders;
+		}
+
+		/**
+		 * @return mixed
+		 */
+		public function getRequirements()
+		{
+			return $this->_requirements;
+		}
 
 	/**
 	 * @access private
 	 * @return string
 	 */
-	private function checkServerVar()
+	private function _checkServerVar()
 	{
 		$vars = array('HTTP_HOST', 'SERVER_NAME', 'SERVER_PORT', 'SCRIPT_NAME', 'SCRIPT_FILENAME', 'PHP_SELF', 'HTTP_ACCEPT', 'HTTP_USER_AGENT');
 		$missing = array();
@@ -173,7 +267,7 @@ class RequirementsChecker extends \CComponent
 			));
 
 		$info[] = isset($_SERVER['SERVER_SOFTWARE']) ? $_SERVER['SERVER_SOFTWARE'] : '';
-		$info[] = 'Yii v'.Craft::getYiiVersion();
+		$info[] = 'Yii v'.craft()->getYiiVersion();
 		$info[] =  \CTimestamp::formatDate(craft()->locale->getTimeFormat());;
 
 		return implode(' | ', $info);
@@ -192,75 +286,5 @@ class RequirementsChecker extends \CComponent
 		);
 
 		return $folders;
-	}
-
-	/**
-	 */
-	public function run()
-	{
-		$this->init();
-		$installResult = InstallStatus::Success;
-
-		foreach ($this->_requirements as $requirement)
-		{
-			if ($requirement->getResult() == RequirementResult::Failed)
-			{
-				$installResult = InstallStatus::Failure;
-				break;
-			}
-			else if ($requirement->getResult() == RequirementResult::Warning)
-			{
-				$installResult = InstallStatus::Warning;
-			}
-		}
-
-		$writableFolders = $this->_getWritableFolders();
-
-		$errorFolders = null;
-
-		foreach ($writableFolders as $writableFolder)
-		{
-			if (!IOHelper::isWritable($writableFolder))
-			{
-				$errorFolders[] = IOHelper::getRealPath($writableFolder);
-				$installResult = InstallStatus::Failure;
-			}
-		}
-
-		$this->_result = $installResult;
-		$this->_serverInfo = $this->_calculateServerInfo();
-		$this->_errorFolders = $errorFolders;
-	}
-
-	/**
-	 * @return mixed
-	 */
-	public function getResult()
-	{
-		return $this->_result;
-	}
-
-	/**
-	 * @return mixed
-	 */
-	public function getServerInfo()
-	{
-		return $this->_serverInfo;
-	}
-
-	/**
-	 * @return null
-	 */
-	public function getErrorFolders()
-	{
-		return $this->_errorFolders;
-	}
-
-	/**
-	 * @return mixed
-	 */
-	public function getRequirements()
-	{
-		return $this->_requirements;
 	}
 }

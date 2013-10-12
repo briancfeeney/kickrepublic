@@ -6073,6 +6073,17 @@ img {
 .fluid-width-video-wrapper {
   margin: 20px 0;
 }
+.gray-scale {
+  filter: url("data:image/svg+xml;utf8,<svg xmlns=\'http://www.w3.org/2000/svg\'><filter id=\'grayscale\'><feColorMatrix type=\'matrix\' values=\'0.3333 0.3333 0.3333 0 0 0.3333 0.3333 0.3333 0 0 0.3333 0.3333 0.3333 0 0 0 0 0 1 0\'/></filter></svg>#grayscale");
+  /* Firefox 10+, Firefox on Android */
+
+  filter: gray;
+  -webkit-filter: grayscale(100%);
+}
+.no-gray-scale {
+  filter: none;
+  -webkit-filter: none;
+}
 /* ----------------------------------------------------------------------------- */
 header {
   font-family: "alternate-gothic-no-2-d", sans-serif;
@@ -6250,7 +6261,7 @@ nav .bottom-nav li:last-child a {
   font-family: "franklin-gothic-urw-cond", sans-serif;
   font-style: normal;
   font-weight: 400;
-  margin-left: 15px;
+  margin-left: 21px;
   padding-left: 0;
 }
 #sidebar li {
@@ -6279,6 +6290,11 @@ nav .bottom-nav li:last-child a {
   background-color: #cbcbdd;
   background-size: cover;
   background-position: 50% 50%;
+  filter: url("data:image/svg+xml;utf8,<svg xmlns=\'http://www.w3.org/2000/svg\'><filter id=\'grayscale\'><feColorMatrix type=\'matrix\' values=\'0.3333 0.3333 0.3333 0 0 0.3333 0.3333 0.3333 0 0 0.3333 0.3333 0.3333 0 0 0 0 0 1 0\'/></filter></svg>#grayscale");
+  /* Firefox 10+, Firefox on Android */
+
+  filter: gray;
+  -webkit-filter: grayscale(100%);
 }
 #players li .player-no-image,
 #coach li .player-no-image {
@@ -6286,12 +6302,28 @@ nav .bottom-nav li:last-child a {
   width: 100%;
   margin-bottom: 10px;
   background-color: #cbcbdd;
+  filter: url("data:image/svg+xml;utf8,<svg xmlns=\'http://www.w3.org/2000/svg\'><filter id=\'grayscale\'><feColorMatrix type=\'matrix\' values=\'0.3333 0.3333 0.3333 0 0 0.3333 0.3333 0.3333 0 0 0.3333 0.3333 0.3333 0 0 0 0 0 1 0\'/></filter></svg>#grayscale");
+  /* Firefox 10+, Firefox on Android */
+
+  filter: gray;
+  -webkit-filter: grayscale(100%);
 }
 #players li .player-no-image span,
 #coach li .player-no-image span {
   color: #ffffff;
   font-size: 11.5em;
   margin-left: -2px;
+}
+#players li:hover .player-image,
+#coach li:hover .player-image,
+#players li:hover .player-no-image,
+#coach li:hover .player-no-image {
+  filter: none;
+  -webkit-filter: none;
+}
+#players li:hover a h3,
+#coach li:hover a h3 {
+  color: #cf2e2c;
 }
 @media (min-width: 768px) {
   
@@ -6312,8 +6344,17 @@ nav .bottom-nav li:last-child a {
   border-bottom: 1px solid #cf2e2c;
   padding-bottom: 15px;
 }
-#rankings .row {
-  margin-top: -25px;
+#rankings h3 {
+  font-size: 25px;
+  margin-top: 9px;
+  color: #2e2f48;
+}
+#rankings h4 {
+  font-size: 40px;
+  margin: 0;
+}
+#rankings ul p {
+  margin-top: 14px;
 }
 /* ----------------------------------------------------------------------------- */
 #writers {
