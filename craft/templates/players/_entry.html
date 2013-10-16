@@ -39,7 +39,7 @@
 	<div class="col-sm-9 col-sm-offset-3">
 		<section id="news">
 
-	       	{% set posts = craft.entries.section('news').find() %}
+	       	{% set posts = craft.entries.find({section:'news', parentOf:entry}) %}
 			{% if posts | length %}
 			    <h4>Related News</h4>
 

@@ -6216,6 +6216,10 @@ nav .bottom-nav li:last-child a {
 #search .news.single p:first-of-type {
   font-size: 18px;
 }
+#news .news.single h1,
+#search .news.single h1 {
+  margin-top: 0;
+}
 #news .read-more,
 #search .read-more {
   text-align: right;
