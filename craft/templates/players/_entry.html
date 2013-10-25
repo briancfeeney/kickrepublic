@@ -16,43 +16,48 @@
 
 <article>
 	
-<h1>{{ entry.title }}</h1>
+	<h1>{{ entry.title }}</h1>
 
-<div class="row">
-	<div class="col-xs-3">
+	<div class="row">
+		<div class="col-xs-3">
 
-			{% for image in entry.player_photo %}
+				{% for image in entry.player_photo %}
 			
-				<img src="{{ image.url }}" height="{{ image.height }}" width="{{ image.width }}" alt="{{ entry.title }}" class="featured-image">
+					<img src="{{ image.url }}" height="{{ image.height }}" width="{{ image.width }}" alt="{{ entry.title }}" class="featured-image">
 			
-			{% endfor %}
+				{% endfor %}
 			
-	</div>
-	<div class="col-xs-9">
-		<h4>{% for option in entry.player_position %}{{ option }}{% endfor %}</h4>
-		<h3>{% for row in entry.player_clubs %}{{ row.player_club }}{% endfor %}</h3>
+		</div>
+		<div class="col-xs-9">
+			<h4>{% for option in entry.player_position %}{{ option }}{% endfor %}</h4>
+			<h3>{% for row in entry.player_clubs %}{{ row.player_club }}{% endfor %}</h3>
 		
-		{{ entry.body }}
+			{{ entry.body }}
+		</div>
 	</div>
-</div>
-<div class="row">
-	<div class="col-sm-9 col-sm-offset-3">
-		<section id="news">
+	<div class="row">
+		<div class="col-sm-9 col-sm-offset-3">
+			<section id="related-news">
 
-	       	{% set posts = craft.entries.find({section:'news', parentOf:entry}) %}
-			{% if posts | length %}
-			    <h4>Related News</h4>
+		       	{% set posts = craft.entries.find({section:'news', parentOf:entry}) %}
+				{% if posts | length %}
+				    <h4>Related News</h4>
 
-			    <ul>
-			        {% for post in posts %}
-			            <li><a href="{{ post.url }}">{{ post.title }}</a></li>
-			        {% endfor %}
-			    </ul>
-			{% endif %}
+				    <ul class="list-unstyled">
+				        {% for post in posts %}
+				            <li>
+								<a href="{{ post.url }}">
+									<h3>{{ post.title }}</h3>
+									<h5>{{ post.postDate.format('F d, Y') }}</h5>
+								</a>
+							</li>
+				        {% endfor %}
+				    </ul>
+				{% endif %}
 
-		</section>
+			</section>
 		
-	</div>
-</div>
-		</article>
+		</div>
+	</div>	
+</article>
 {% endblock %}

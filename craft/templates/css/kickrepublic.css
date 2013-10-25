@@ -6336,6 +6336,16 @@ nav .bottom-nav li:last-child a {
 #coach h3 {
   margin-top: 10px;
 }
+#related-news {
+  margin-top: 60px;
+}
+#related-news h3 {
+  margin-bottom: 5px;
+}
+#related-news h5 {
+  color: #999999;
+  margin-top: 0;
+}
 /* ----------------------------------------------------------------------------- */
 #rankings-intro {
   margin-bottom: 40px;
