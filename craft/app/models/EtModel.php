@@ -2,22 +2,34 @@
 namespace Craft;
 
 /**
- * Craft by Pixel & Tonic
+ * Class EtModel
  *
- * @package   Craft
- * @author    Pixel & Tonic, Inc.
- * @copyright Copyright (c) 2013, Pixel & Tonic, Inc.
+ * @author    Pixel & Tonic, Inc. <support@pixelandtonic.com>
+ * @copyright Copyright (c) 2014, Pixel & Tonic, Inc.
  * @license   http://buildwithcraft.com/license Craft License Agreement
- * @link      http://buildwithcraft.com
- */
-
-/**
- *
+ * @see       http://buildwithcraft.com
+ * @package   craft.app.models
+ * @since     1.0
  */
 class EtModel extends BaseModel
 {
+	// Public Methods
+	// =========================================================================
+
 	/**
-	 * @access protected
+	 * @return null
+	 */
+	public function decode()
+	{
+		echo JsonHelper::decode($this);
+	}
+
+	// Protected Methods
+	// =========================================================================
+
+	/**
+	 * @inheritDoc BaseModel::defineAttributes()
+	 *
 	 * @return array
 	 */
 	protected function defineAttributes()
@@ -28,8 +40,14 @@ class EtModel extends BaseModel
 		// The license key status.  Set by the server response.
 		$attributes['licenseKeyStatus']  = AttributeType::String;
 
+		// The edition that Craft is licensed to use
+		$attributes['licensedEdition'] = array(AttributeType::Enum, 'values' => array(Craft::Personal, Craft::Client, Craft::Pro));
+
 		// The domain that the license is associated with
 		$attributes['licensedDomain'] = AttributeType::String;
+
+		// Whether Craft is running for a domain that's eligible to be used in Edition Test Mode
+		$attributes['editionTestableDomain'] = AttributeType::Bool;
 
 		// Extra arbitrary data to send to the server.
 		$attributes['data'] = AttributeType::Mixed;
@@ -46,20 +64,14 @@ class EtModel extends BaseModel
 		// The port number the request comes from.
 		$attributes['requestPort'] = AttributeType::String;
 
-		// Any packages installed on the client.
-		$attributes['installedPackages'] = array(AttributeType::Mixed, 'default' => array());
-
-		// All the packages that are actually licensed.
-		$attributes['licensedPackages'] = array(AttributeType::Mixed, 'default' => array());
-
-		// Any packages that are in trial mode.
-		$attributes['packageTrials'] = array(AttributeType::Mixed, 'default' => array());
-
 		// The local version number.
 		$attributes['localVersion'] = array(AttributeType::String, 'required' => true);
 
 		// The local build number.
 		$attributes['localBuild'] = array(AttributeType::Number, 'required' => true);
+
+		// The local edition.
+		$attributes['localEdition'] = array(AttributeType::String, 'required' => true);
 
 		// The currently logged in user's email address.
 		$attributes['userEmail'] = AttributeType::String;
@@ -70,14 +82,9 @@ class EtModel extends BaseModel
 		// Any errors to return;
 		$attributes['errors'] = AttributeType::Mixed;
 
-		return $attributes;
-	}
+		// Any additional server info to include.
+		$attributes['serverInfo'] = AttributeType::Mixed;
 
-	/*
-	 *
-	 */
-	public function decode()
-	{
-		echo JsonHelper::decode($this);
+		return $attributes;
 	}
 }

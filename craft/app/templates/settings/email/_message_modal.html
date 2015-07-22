@@ -1,4 +1,5 @@
-{% requirePackage 'Rebrand' %}
+{% requireEdition CraftClient %}
+{% requireAdmin %}
 
 {% import "_includes/forms" as forms %}
 {% set key = craft.request.getPost('key') %}
@@ -7,9 +8,9 @@
 
 
 <header class="header">
-	<h1>{{ "Edit Message"|t }}</h1>
+	<h1 class="left">{{ "Edit Message"|t }}</h1>
 
-	{% if craft.hasPackage('Localize') %}
+	{% if craft.isLocalized() %}
 		<ul class="right">
 			<li class="select locale">
 				<select>
@@ -41,8 +42,8 @@
 </div>
 
 <footer class="footer">
-	<ul class="right">
-		<li><input type="button" class="btn cancel" value="{{ 'Cancel'|t }}"></li>
-		<li><input type="submit" class="btn submit" value="{{ 'Save'|t }}"></li>
-	</ul>
+	<div class="buttons right">
+		<input type="button" class="btn cancel" value="{{ 'Cancel'|t }}">
+		<input type="submit" class="btn submit" value="{{ 'Save'|t }}">
+	</div>
 </footer>

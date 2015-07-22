@@ -15,15 +15,25 @@
 {% endif -%}
 
 <div class="timewrapper">
-	{%- include "_includes/forms/text" with { autocomplete: false, size: 10, value: (value ? value.localeTime() : '') } -%}
+	{%- include "_includes/forms/text" with { autocomplete: false, size: 10, value: (value and value.localeTime is defined ? value.localeTime() : value) } -%}
 </div>
+
+{%-	set localeData = craft.i18n.getLocaleData() %}
 
 {%- set js %}
 
-	var $timePicker = $('#{{ id }}');
+	var $timePicker = $('#{{ id|namespaceInputId|e('js') }}');
 	$timePicker.timepicker({
 		timeFormat: '{{ craft.i18n.timepickerJsFormat }}',
-		closeOnWindowScroll: false
+		closeOnWindowScroll: false,
+		orientation: '{{ localeData.getOrientation() }}',
+		{% if minuteIncrement is defined %}step: '{{ minuteIncrement }}',{% endif %}
+		lang: {
+			am: '{{ localeData.getAMName() }}',
+			AM: '{{ localeData.getAMName() }}',
+			pm: '{{ localeData.getPMName() }}',
+			PM: '{{ localeData.getPMName() }}'
+		}
 	});
 
 {%- endset %}

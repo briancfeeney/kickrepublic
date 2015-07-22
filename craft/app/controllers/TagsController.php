@@ -2,40 +2,48 @@
 namespace Craft;
 
 /**
- * Craft by Pixel & Tonic
+ * The TagsController class is a controller that handles various tag and tag group related tasks such as displaying,
+ * saving, deleting, searching and creating tags and tag groups in the control panel.
  *
- * @package   Craft
- * @author    Pixel & Tonic, Inc.
- * @copyright Copyright (c) 2013, Pixel & Tonic, Inc.
+ * Note that all actions in the controller require an authenticated Craft session via {@link BaseController::allowAnonymous}.
+ *
+ * @author    Pixel & Tonic, Inc. <support@pixelandtonic.com>
+ * @copyright Copyright (c) 2014, Pixel & Tonic, Inc.
  * @license   http://buildwithcraft.com/license Craft License Agreement
- * @link      http://buildwithcraft.com
- */
-
-/**
- *
+ * @see       http://buildwithcraft.com
+ * @package   craft.app.controllers
+ * @since     1.1
  */
 class TagsController extends BaseController
 {
+	// Public Methods
+	// =========================================================================
+
 	/**
-	 * Tag settings index.
+	 * Called before displaying the tag settings index page.
+	 *
+	 * @return null
 	 */
 	public function actionIndex()
 	{
 		craft()->userSession->requireAdmin();
 
-		$tagSets = craft()->tags->getAllTagSets();
+		$tagGroups = craft()->tags->getAllTagGroups();
 
 		$this->renderTemplate('settings/tags/index', array(
-			'tagSets' => $tagSets
+			'tagGroups' => $tagGroups
 		));
 	}
 
 	/**
-	 * Edit a tag set.
+	 * Edit a tag group.
 	 *
 	 * @param array $variables
+	 *
+	 * @throws HttpException
+	 * @return null
 	 */
-	public function actionEditTagSet(array $variables = array())
+	public function actionEditTagGroup(array $variables = array())
 	{
 		craft()->userSession->requireAdmin();
 
@@ -45,79 +53,83 @@ class TagsController extends BaseController
 			array('label' => Craft::t('Tags'),  'url' => UrlHelper::getUrl('settings/tags'))
 		);
 
-		if (!empty($variables['tagSetId']))
+		if (!empty($variables['tagGroupId']))
 		{
-			if (empty($variables['tagSet']))
+			if (empty($variables['tagGroup']))
 			{
-				$variables['tagSet'] = craft()->tags->getTagSetById($variables['tagSetId']);
+				$variables['tagGroup'] = craft()->tags->getTagGroupById($variables['tagGroupId']);
 
-				if (!$variables['tagSet'])
+				if (!$variables['tagGroup'])
 				{
 					throw new HttpException(404);
 				}
 			}
 
-			$variables['title'] = $variables['tagSet']->name;
+			$variables['title'] = $variables['tagGroup']->name;
 		}
 		else
 		{
-			if (empty($variables['tagSet']))
+			if (empty($variables['tagGroup']))
 			{
-				$variables['tagSet'] = new TagSetModel();
+				$variables['tagGroup'] = new TagGroupModel();
 			}
 
-			$variables['title'] = Craft::t('Create a new tag set');
+			$variables['title'] = Craft::t('Create a new tag group');
 		}
 
 		$variables['tabs'] = array(
-			'settings'    => array('label' => Craft::t('Settings'), 'url' => '#tagset-settings'),
-			'fieldLayout' => array('label' => Craft::t('Field Layout'), 'url' => '#tagset-fieldlayout')
+			'settings'    => array('label' => Craft::t('Settings'), 'url' => '#taggroup-settings'),
+			'fieldLayout' => array('label' => Craft::t('Field Layout'), 'url' => '#taggroup-fieldlayout')
 		);
 
 		$this->renderTemplate('settings/tags/_edit', $variables);
 	}
 
 	/**
-	 * Save a tag set.
+	 * Save a tag group.
+	 *
+	 * @return null
 	 */
-	public function actionSaveTagSet()
+	public function actionSaveTagGroup()
 	{
 		$this->requirePostRequest();
 		craft()->userSession->requireAdmin();
 
-		$tagSet = new TagSetModel();
+		$tagGroup = new TagGroupModel();
 
 		// Set the simple stuff
-		$tagSet->id     = craft()->request->getPost('tagSetId');
-		$tagSet->name   = craft()->request->getPost('name');
-		$tagSet->handle = craft()->request->getPost('handle');
+		$tagGroup->id     = craft()->request->getPost('tagGroupId');
+		$tagGroup->name   = craft()->request->getPost('name');
+		$tagGroup->handle = craft()->request->getPost('handle');
 
 		// Set the field layout
-		$fieldLayout = craft()->fields->assembleLayoutFromPost(false);
+		$fieldLayout = craft()->fields->assembleLayoutFromPost();
 		$fieldLayout->type = ElementType::Tag;
-		$tagSet->setFieldLayout($fieldLayout);
+		$tagGroup->setFieldLayout($fieldLayout);
 
 		// Save it
-		if (craft()->tags->saveTagSet($tagSet))
+		if (craft()->tags->saveTagGroup($tagGroup))
 		{
-			craft()->userSession->setNotice(Craft::t('Tag set saved.'));
-			$this->redirectToPostedUrl($tagSet);
+			craft()->userSession->setNotice(Craft::t('Tag group saved.'));
+			$this->redirectToPostedUrl($tagGroup);
 		}
 		else
 		{
-			craft()->userSession->setError(Craft::t('Couldn’t save the tag set.'));
+			craft()->userSession->setError(Craft::t('Couldn’t save the tag group.'));
 		}
 
-		// Send the tag set back to the template
+		// Send the tag group back to the template
 		craft()->urlManager->setRouteVariables(array(
-			'tagSet' => $tagSet
+			'tagGroup' => $tagGroup
 		));
 	}
 
 	/**
-	 * Deletes a tag set.
+	 * Deletes a tag group.
+	 *
+	 * @return null
 	 */
-	public function actionDeleteTagSet()
+	public function actionDeleteTagGroup()
 	{
 		$this->requirePostRequest();
 		$this->requireAjaxRequest();
@@ -125,12 +137,14 @@ class TagsController extends BaseController
 
 		$sectionId = craft()->request->getRequiredPost('id');
 
-		craft()->tags->deleteTagSetById($sectionId);
+		craft()->tags->deleteTagGroupById($sectionId);
 		$this->returnJson(array('success' => true));
 	}
 
 	/**
 	 * Searches for tags.
+	 *
+	 * @return null
 	 */
 	public function actionSearchForTags()
 	{
@@ -138,7 +152,7 @@ class TagsController extends BaseController
 		$this->requireAjaxRequest();
 
 		$search = craft()->request->getPost('search');
-		$tagSetId = craft()->request->getPost('tagSetId');
+		$tagGroupId = craft()->request->getPost('tagGroupId');
 		$excludeIds = craft()->request->getPost('excludeIds', array());
 
 		$notIds = array('and');
@@ -149,14 +163,14 @@ class TagsController extends BaseController
 		}
 
 		$criteria = craft()->elements->getCriteria(ElementType::Tag);
-		$criteria->setId  = $tagSetId;
-		$criteria->search = 'name:'.$search.'*';
-		$criteria->id     = $notIds;
+		$criteria->groupId = $tagGroupId;
+		$criteria->title   = DbHelper::escapeParam($search).'*';
+		$criteria->id      = $notIds;
 		$tags = $criteria->find();
 
 		$return = array();
 		$exactMatches = array();
-		$tagNameLengths = array();
+		$tagTitleLengths = array();
 		$exactMatch = false;
 
 		$normalizedSearch = StringHelper::normalizeKeywords($search);
@@ -164,15 +178,15 @@ class TagsController extends BaseController
 		foreach ($tags as $tag)
 		{
 			$return[] = array(
-				'id'   => $tag->id,
-				'name' => $tag->name
+				'id'    => $tag->id,
+				'title' => $tag->getContent()->title
 			);
 
-			$tagNameLengths[] = mb_strlen($tag->name);
+			$tagTitleLengths[] = mb_strlen($tag->getContent()->title);
 
-			$normalizedName = StringHelper::normalizeKeywords($tag->name);
+			$normalizedTitle = StringHelper::normalizeKeywords($tag->getContent()->title);
 
-			if ($normalizedName == $normalizedSearch)
+			if ($normalizedTitle == $normalizedSearch)
 			{
 				$exactMatches[] = 1;
 				$exactMatch = true;
@@ -183,7 +197,7 @@ class TagsController extends BaseController
 			}
 		}
 
-		array_multisort($exactMatches, SORT_DESC, $tagNameLengths, $return);
+		array_multisort($exactMatches, SORT_DESC, $tagTitleLengths, $return);
 
 		$this->returnJson(array(
 			'tags'       => $return,
@@ -192,61 +206,31 @@ class TagsController extends BaseController
 	}
 
 	/**
-	 * Edits a tag's content.
+	 * Creates a new tag.
+	 *
+	 * @return null
 	 */
-	public function actionEditTagContent()
+	public function actionCreateTag()
 	{
 		$this->requireLogin();
 		$this->requireAjaxRequest();
 
-		$requestId = craft()->request->getPost('requestId', 0);
-		$tagId = craft()->request->getRequiredPost('elementId');
-		$tag = craft()->tags->getTagById($tagId);
+		$tag = new TagModel();
+		$tag->groupId = craft()->request->getRequiredPost('groupId');
+		$tag->getContent()->title = craft()->request->getRequiredPost('title');
 
-		if (!$tag)
+		if (craft()->tags->saveTag($tag))
 		{
-			throw new Exception(Craft::t('No tag exists with the ID “{id}”.', array('id' => $tagId)));
+			$this->returnJson(array(
+				'success' => true,
+				'id'      => $tag->id
+			));
 		}
-
-		$html = craft()->templates->render('_includes/edit_element', array(
-			'element'     => $tag,
-			'hasTitle'    => false,
-			'fieldLayout' => $tag->getSet()->getFieldLayout()
-		));
-
-		$this->returnJson(array(
-			'requestId' => $requestId,
-			'headHtml' => craft()->templates->getHeadHtml(),
-			'bodyHtml' => $html,
-			'footHtml' => craft()->templates->getFootHtml(),
-		));
-	}
-
-	/**
-	 * Saves a tag's content.
-	 */
-	public function actionSaveTagContent()
-	{
-		$this->requireLogin();
-		$this->requireAjaxRequest();
-
-		$tagId = craft()->request->getRequiredPost('elementId');
-
-		$tag = craft()->tags->getTagById($tagId);
-
-		if (!$tag)
+		else
 		{
-			throw new Exception(Craft::t('No tag exists with the ID “{id}”.', array('id' => $tagId)));
+			$this->returnJson(array(
+				'success' => false
+			));
 		}
-
-		$fields = craft()->request->getPost('fields');
-		$tag->getContent()->setAttributes($fields);
-
-		$success = craft()->tags->saveTagContent($tag);
-
-		$this->returnJson(array(
-			'success' => true,
-			'title'   => (string) $tag
-		));
 	}
 }

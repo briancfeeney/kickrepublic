@@ -2,26 +2,47 @@
 namespace Craft;
 
 /**
- * Craft by Pixel & Tonic
- *
- * @package   Craft
- * @author    Pixel & Tonic, Inc.
- * @copyright Copyright (c) 2013, Pixel & Tonic, Inc.
- * @license   http://buildwithcraft.com/license Craft License Agreement
- * @link      http://buildwithcraft.com
- */
-
-/**
  * DateFormatter class with functions for date/time-pickers.
+ *
+ * @author    Pixel & Tonic, Inc. <support@pixelandtonic.com>
+ * @copyright Copyright (c) 2014, Pixel & Tonic, Inc.
+ * @license   http://buildwithcraft.com/license Craft License Agreement
+ * @see       http://buildwithcraft.com
+ * @package   craft.app.etc.dates
+ * @since     1.0
  */
 class DateFormatter extends \CDateFormatter
 {
+	// Properties
+	// =========================================================================
+
+	/**
+	 * @var
+	 */
 	private $_datepickerCLocaleFormat;
+
+	/**
+	 * @var
+	 */
 	private $_datepickerJsFormat;
+
+	/**
+	 * @var
+	 */
 	private $_datepickerPhpFormat;
 
+	/**
+	 * @var
+	 */
 	private $_timepickerCLocaleFormat;
+
+	/**
+	 * @var
+	 */
 	private $_timepickerPhpFormat;
+
+	// Public Methods
+	// =========================================================================
 
 	/**
 	 * Returns the jQuery UI Datepicker date format.
@@ -102,8 +123,29 @@ class DateFormatter extends \CDateFormatter
 	}
 
 	/**
-	 * Returns the date format used by the datepicker.
-	 * Similar to 'short' except we want to use 4 digit years instead of 2.
+	 * Add support for DateTime objects.
+	 *
+	 * @param string|DateTime $timestamp
+	 * @param string          $dateWidth
+	 * @param string          $timeWidth
+	 *
+	 * @return string
+	 */
+	public function formatDateTime($timestamp, $dateWidth = 'medium', $timeWidth = 'medium')
+	{
+		if ($timestamp instanceof \DateTime)
+		{
+			$timestamp = $timestamp->getTimestamp();
+		}
+
+		return parent::formatDateTime($timestamp, $dateWidth, $timeWidth);
+	}
+
+	// Private Methods
+	// =========================================================================
+
+	/**
+	 * Returns the date format used by the datepicker.  Similar to 'short' except we want to use 4 digit years instead of 2.
 	 *
 	 * @return string
 	 */
@@ -114,7 +156,7 @@ class DateFormatter extends \CDateFormatter
 			$this->_datepickerCLocaleFormat = $this->_locale->getDateFormat('short');
 
 			// Swap 2-digit years with 4.
-			$this->_datepickerCLocaleFormat = str_replace('yy', 'y', $this->_datepickerCLocaleFormat);
+			$this->_datepickerCLocaleFormat = preg_replace('/y+/', 'y', $this->_datepickerCLocaleFormat);
 		}
 
 		return $this->_datepickerCLocaleFormat;
@@ -123,10 +165,10 @@ class DateFormatter extends \CDateFormatter
 	/**
 	 * Converts CLocale time format tokens to jQuery UI Datepicker date format tokens.
 	 *
-	 * @access private
 	 * @param string $token
-	 * @return string
+	 *
 	 * @see http://api.jqueryui.com/datepicker/#utility-formatDate
+	 * @return string
 	 */
 	private function _getDatepickerJsToken($token)
 	{
@@ -161,10 +203,10 @@ class DateFormatter extends \CDateFormatter
 	/**
 	 * Converts CLocale date format tokens to PHP date() date format tokens.
 	 *
-	 * @access private
 	 * @param string $token
-	 * @return string
+	 *
 	 * @see http://php.net/manual/en/function.date.php
+	 * @return string
 	 */
 	private function _getDatepickerPhpToken($token)
 	{
@@ -199,10 +241,10 @@ class DateFormatter extends \CDateFormatter
 	/**
 	 * Converts CLocale time format tokens to PHP date() time format tokens.
 	 *
-	 * @access private
 	 * @param string $token
-	 * @return string
+	 *
 	 * @see http://php.net/manual/en/function.date.php
+	 * @return string
 	 */
 	private function _getTimepickerPhpToken($token)
 	{

@@ -2,54 +2,126 @@
 namespace Craft;
 
 /**
- * Craft by Pixel & Tonic
+ * Tag model class.
  *
- * @package   Craft
- * @author    Pixel & Tonic, Inc.
- * @copyright Copyright (c) 2013, Pixel & Tonic, Inc.
+ * @author    Pixel & Tonic, Inc. <support@pixelandtonic.com>
+ * @copyright Copyright (c) 2014, Pixel & Tonic, Inc.
  * @license   http://buildwithcraft.com/license Craft License Agreement
- * @link      http://buildwithcraft.com
- */
-
-/**
- * Tag model class
+ * @see       http://buildwithcraft.com
+ * @package   craft.app.models
+ * @since     1.1
  */
 class TagModel extends BaseElementModel
 {
-	protected $elementType = ElementType::Tag;
+	// Properties
+	// =========================================================================
 
 	/**
-	 * Use the tag name as its string representation.
+	 * @var string
+	 */
+	protected $elementType = ElementType::Tag;
+
+	// Public Methods
+	// =========================================================================
+
+	/**
+	 * Use the tag title as its string representation.
 	 *
 	 * @return string
 	 */
-	function __toString()
+	public function __toString()
 	{
-		return $this->name;
+		return $this->getContent()->title;
 	}
 
 	/**
-	 * @access protected
+	 * @inheritDoc BaseElementModel::isEditable()
+	 *
+	 * @return bool
+	 */
+	public function isEditable()
+	{
+		return true;
+	}
+
+	/**
+	 * @inheritDoc BaseElementModel::getFieldLayout()
+	 *
+	 * @return FieldLayoutModel|null
+	 */
+	public function getFieldLayout()
+	{
+		$tagGroup = $this->getGroup();
+
+		if ($tagGroup)
+		{
+			return $tagGroup->getFieldLayout();
+		}
+	}
+
+	/**
+	 * Returns the tag's group.
+	 *
+	 * @return TagGroupModel|null
+	 */
+	public function getGroup()
+	{
+		if ($this->groupId)
+		{
+			return craft()->tags->getTagGroupById($this->groupId);
+		}
+	}
+
+	// Deprecated functions
+
+	/**
+	 * Returns the tag group's ID.
+	 *
+	 * @deprecated Deprecated in 2.0. Use 'groupId' instead.
+	 * @return int|null
+	 */
+	public function setId()
+	{
+		craft()->deprecator->log('TagModel::setId', 'Tags’ ‘setId’ property has been deprecated. Use ‘groupId’ instead.');
+		return $this->groupId;
+	}
+
+	/**
+	 * Returns the tag's group.
+	 *
+	 * @deprecated Deprecated in 2.0. Use {@link getGroup()} instead.
+	 * @return TagGroupModel|null
+	 */
+	public function getSet()
+	{
+		craft()->deprecator->log('TagModel::getSet()', 'TagModel::getSet() has been deprecated. Use getGroup() instead.');
+		return $this->getGroup();
+	}
+
+	/**
+	 * Returns the tag's title.
+	 *
+	 * @deprecated Deprecated in 2.3. Use {@link $title} instead.
+	 * @return string
+	 */
+	public function getName()
+	{
+		// TODO: Add a deprecation log in 3.0
+		return $this->getContent()->title;
+	}
+
+	// Protected Methods
+	// =========================================================================
+
+	/**
+	 * @inheritDoc BaseModel::defineAttributes()
+	 *
 	 * @return array
 	 */
 	protected function defineAttributes()
 	{
 		return array_merge(parent::defineAttributes(), array(
-			'setId' => AttributeType::Number,
-			'name'  => AttributeType::String,
+			'groupId' => AttributeType::Number,
 		));
-	}
-
-	/**
-	 * Returns the tag's set.
-	 *
-	 * @return TagSetModel|null
-	 */
-	public function getSet()
-	{
-		if ($this->setId)
-		{
-			return craft()->tags->getTagSetById($this->setId);
-		}
 	}
 }

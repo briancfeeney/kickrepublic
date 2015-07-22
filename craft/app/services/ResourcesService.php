@@ -2,29 +2,74 @@
 namespace Craft;
 
 /**
- * Craft by Pixel & Tonic
+ * Class ResourcesService
  *
- * @package   Craft
- * @author    Pixel & Tonic, Inc.
- * @copyright Copyright (c) 2013, Pixel & Tonic, Inc.
+ * @author    Pixel & Tonic, Inc. <support@pixelandtonic.com>
+ * @copyright Copyright (c) 2014, Pixel & Tonic, Inc.
  * @license   http://buildwithcraft.com/license Craft License Agreement
- * @link      http://buildwithcraft.com
- */
-
-/**
- *
+ * @see       http://buildwithcraft.com
+ * @package   craft.app.services
+ * @since     1.0
  */
 class ResourcesService extends BaseApplicationComponent
 {
+	// Constants
+	// =========================================================================
 
 	const DefaultUserphotoFilename = 'user.gif';
 
+	// Properties
+	// =========================================================================
+
+	/**
+	 * @var
+	 */
 	public $dateParam;
+
+	// Public Methods
+	// =========================================================================
+
+	/**
+	 * Returns the cached file system path for a given resource, if we have it.
+	 *
+	 * @param string $path
+	 *
+	 * @return string|null
+	 */
+	public function getCachedResourcePath($path)
+	{
+		$realPath = craft()->cache->get('resourcePath:'.$path);
+
+		if ($realPath && IOHelper::fileExists($realPath))
+		{
+			return $realPath;
+		}
+	}
+
+	/**
+	 * Caches a file system path for a given resource.
+	 *
+	 * @param string $path
+	 * @param string $realPath
+	 *
+	 * @return null
+	 */
+	public function cacheResourcePath($path, $realPath)
+	{
+		if (!$realPath)
+		{
+			$realPath = ':(';
+		}
+
+		craft()->cache->set('resourcePath:'.$path, $realPath);
+	}
 
 	/**
 	 * Resolves a resource path to the actual file system path, or returns false if the resource cannot be found.
 	 *
 	 * @param string $path
+	 *
+	 * @throws HttpException
 	 * @return string
 	 */
 	public function getResourcePath($path)
@@ -39,11 +84,17 @@ class ResourcesService extends BaseApplicationComponent
 				case 'js':
 				{
 					// Route to js/compressed/ if useCompressedJs is enabled
-					if (craft()->config->get('useCompressedJs') && !craft()->request->getQuery('uncompressed'))
+					// unless js/uncompressed/* is requested, in which case drop the uncompressed/ seg
+					if (isset($segs[1]) && $segs[1] == 'uncompressed')
+					{
+						array_splice($segs, 1, 1);
+					}
+					else if (craft()->config->get('useCompressedJs'))
 					{
 						array_splice($segs, 1, 0, 'compressed');
-						$path = implode('/', $segs);
 					}
+
+					$path = implode('/', $segs);
 					break;
 				}
 
@@ -65,9 +116,15 @@ class ResourcesService extends BaseApplicationComponent
 							return false;
 						}
 
-						$username = IOHelper::cleanFilename($segs[1]);
-						$size     = IOHelper::cleanFilename($segs[2]);
-						$filename = IOHelper::cleanFilename($segs[3]);
+						$size = AssetsHelper::cleanAssetName($segs[2], false);
+						// Looking for either a numeric size or "original" keyword
+						if (!is_numeric($size) && $size != "original")
+						{
+							return false;
+						}
+
+						$username = AssetsHelper::cleanAssetName($segs[1], false);
+						$filename = AssetsHelper::cleanAssetName($segs[3]);
 
 						$userPhotosPath = craft()->path->getUserPhotosPath().$username.'/';
 						$sizedPhotoFolder = $userPhotosPath.$size.'/';
@@ -85,9 +142,16 @@ class ResourcesService extends BaseApplicationComponent
 
 							IOHelper::ensureFolderExists($sizedPhotoFolder);
 
-							craft()->images->loadImage($originalPhotoPath)
-								->resize($size)
-								->saveAs($sizedPhotoPath);
+							if (IOHelper::isWritable($sizedPhotoFolder))
+							{
+								craft()->images->loadImage($originalPhotoPath, $size, $size)
+									->resize($size)
+									->saveAs($sizedPhotoPath);
+							}
+							else
+							{
+								Craft::log('Tried to write to target folder and could not: '.$sizedPhotoFolder, LogLevel::Error);
+							}
 						}
 
 						return $sizedPhotoPath;
@@ -102,21 +166,37 @@ class ResourcesService extends BaseApplicationComponent
 					}
 
 					$size = $segs[1];
-					$sourceFile = craft()->path->getResourcesPath().'images/'.self::DefaultUserphotoFilename;
+					$sourceFile = craft()->path->getResourcesPath().'images/'.static::DefaultUserphotoFilename;
 					$targetFolder = craft()->path->getUserPhotosPath().'__default__/';
 					IOHelper::ensureFolderExists($targetFolder);
-					$targetFile = $targetFolder.$size.'.'.IOHelper::getExtension($sourceFile);
-					craft()->images->loadImage($sourceFile)
-						->resize($size)
-						->saveAs($targetFile);
 
-					return $targetFile;
+					if (IOHelper::isWritable($targetFolder))
+					{
+						$targetFile = $targetFolder.$size.'.'.IOHelper::getExtension($sourceFile);
+						craft()->images->loadImage($sourceFile, $size, $size)
+							->resize($size)
+							->saveAs($targetFile);
+
+						return $targetFile;
+					}
+					else
+					{
+						Craft::log('Tried to write to the target folder, but could not:'.$targetFolder, LogLevel::Error);
+					}
 				}
 
 				case 'tempuploads':
 				{
 					array_shift($segs);
+
 					return craft()->path->getTempUploadsPath().implode('/', $segs);
+				}
+
+				case 'tempassets':
+				{
+					array_shift($segs);
+
+					return craft()->path->getAssetsTempSourcePath().implode('/', $segs);
 				}
 
 				case 'assetthumbs':
@@ -132,28 +212,9 @@ class ResourcesService extends BaseApplicationComponent
 						return false;
 					}
 
-					$sourceType = craft()->assetSources->getSourceTypeById($fileModel->sourceId);
-
 					$size = $segs[2];
 
-					$thumbFolder = craft()->path->getAssetsThumbsPath().$size.'/';
-					IOHelper::ensureFolderExists($thumbFolder);
-
-					$thumbPath = $thumbFolder.$fileModel->id.'.'.pathinfo($fileModel->filename, PATHINFO_EXTENSION);
-
-					if (!IOHelper::fileExists($thumbPath))
-					{
-						$sourcePath = $sourceType->getImageSourcePath($fileModel);
-						if (!IOHelper::fileExists($sourcePath))
-						{
-							return false;
-						}
-						craft()->images->loadImage($sourcePath)
-							->scaleAndCrop($size, $size)
-							->saveAs($thumbPath);
-					}
-
-					return $thumbPath;
+					return craft()->assetTransforms->getThumbServerPath($fileModel, $size);
 				}
 
 				case 'icons':
@@ -163,7 +224,7 @@ class ResourcesService extends BaseApplicationComponent
 						return false;
 					}
 
-					$ext = mb_strtolower($segs[1]);
+					$ext = StringHelper::toLowerCase($segs[1]);
 					$size = $segs[2];
 
 					$iconPath = $this->_getIconPath($ext, $size);
@@ -174,6 +235,30 @@ class ResourcesService extends BaseApplicationComponent
 				case 'logo':
 				{
 					return craft()->path->getStoragePath().implode('/', $segs);
+				}
+
+				case 'transforms':
+				{
+					try
+					{
+						if (!empty($segs[1]))
+						{
+							$transformIndexModel = craft()->assetTransforms->getTransformIndexModelById((int) $segs[1]);
+						}
+
+						if (empty($transformIndexModel))
+						{
+							throw new HttpException(404);
+						}
+
+						$url = craft()->assetTransforms->ensureTransformUrlByIndexModel($transformIndexModel);
+					}
+					catch (Exception $exception)
+					{
+						throw new HttpException(404, $exception->getMessage());
+					}
+					craft()->request->redirect($url, true, 302);
+					craft()->end();
 				}
 			}
 		}
@@ -198,13 +283,13 @@ class ResourcesService extends BaseApplicationComponent
 		}
 
 		// Maybe a plugin wants to do something custom with this URL
-		$pluginPaths = craft()->plugins->call('getResourcePath', array($path));
-		foreach ($pluginPaths as $path)
+		craft()->plugins->loadPlugins();
+
+		$pluginPath = craft()->plugins->callFirst('getResourcePath', array($path), true);
+
+		if ($pluginPath && IOHelper::fileExists($pluginPath))
 		{
-			if ($path && IOHelper::fileExists($path))
-			{
-				return $path;
-			}
+			return $pluginPath;
 		}
 
 		// Couldn't find the file
@@ -215,45 +300,71 @@ class ResourcesService extends BaseApplicationComponent
 	 * Sends a resource back to the browser.
 	 *
 	 * @param string $path
+	 *
 	 * @throws HttpException
+	 * @return null
 	 */
 	public function sendResource($path)
 	{
 		if (PathHelper::ensurePathIsContained($path) === false)
 		{
-			throw new HttpException(403);
+			throw new HttpException(404);
 		}
 
-		$path = $this->getResourcePath($path);
+		$cachedPath = $this->getCachedResourcePath($path);
 
-		if ($path === false || !IOHelper::fileExists($path))
+		if ($cachedPath)
+		{
+			if ($cachedPath == ':(')
+			{
+				// 404
+				$realPath = false;
+			}
+			else
+			{
+				// We've got it already
+				$realPath = $cachedPath;
+			}
+		}
+		else
+		{
+			// We don't have a cache of the file system path, so let's get it
+			$realPath = $this->getResourcePath($path);
+
+			// Now cache it
+			$this->cacheResourcePath($path, $realPath);
+		}
+
+		if ($realPath === false || !IOHelper::fileExists($realPath))
 		{
 			throw new HttpException(404);
 		}
 
-		// If there is a timestamp and HTTP_IF_MODIFIED_SINCE exists, check the timestamp against requested file's last modified date.
-		// If the last modified date is less than the timestamp, return a 304 not modified and let the browser serve it from cache.
-		$timestamp = craft()->request->getParam('d', null);
+		// If there is a timestamp and HTTP_IF_MODIFIED_SINCE exists, check the timestamp against requested file's last
+		// modified date. If the last modified date is less than the timestamp, return a 304 not modified and let the
+		// browser serve it from cache.
+		$timestamp = craft()->request->getParam($this->dateParam, null);
 
 		if ($timestamp !== null && array_key_exists('HTTP_IF_MODIFIED_SINCE', $_SERVER))
 		{
 			$requestDate = DateTime::createFromFormat('U', $timestamp);
-			$lastModifiedFileDate = IOHelper::getLastTimeModified($path);
+			$lastModifiedFileDate = IOHelper::getLastTimeModified($realPath);
 
 			if ($lastModifiedFileDate && $lastModifiedFileDate <= $requestDate)
 			{
 				// Let the browser serve it from cache.
-				header('HTTP/1.1 304 Not Modified');
+				HeaderHelper::setHeader('HTTP/1.1 304 Not Modified');
 				craft()->end();
 			}
 		}
 
-		// Note that $content may be empty -- they could be requesting a blank text file or something.
-		// It doens't matter. No need to throw a 404.
-		$content = IOHelper::getFileContents($path);
+		// Note that $content may be empty -- they could be requesting a blank text file or something. It doens't matter.
+		// No need to throw a 404.
+		$content = IOHelper::getFileContents($realPath);
 
 		// Normalize URLs in CSS files
-		$mimeType = IOHelper::getMimeTypeByExtension($path);
+		$mimeType = IOHelper::getMimeTypeByExtension($realPath);
+
 		if (mb_strpos($mimeType, 'css') !== false)
 		{
 			$content = preg_replace_callback('/(url\(([\'"]?))(.+?)(\2\))/', array(&$this, '_normalizeCssUrl'), $content);
@@ -268,42 +379,62 @@ class ResourcesService extends BaseApplicationComponent
 				$options['cache'] = true;
 			}
 
-			craft()->request->sendFile($path, $content, $options);
+			craft()->request->sendFile($realPath, $content, $options);
 		}
 		else
 		{
-			craft()->request->xSendFile($path);
+			craft()->request->xSendFile($realPath);
 		}
 
 		// You shall not pass.
 		craft()->end();
 	}
 
+	// Private Methods
+	// =========================================================================
+
 	/**
-	 * @access private
 	 * @param $match
+	 *
 	 * @return string
 	 */
 	private function _normalizeCssUrl($match)
 	{
-		// ignore root-relative, absolute, and data: URLs
+		// Ignore root-relative, absolute, and data: URLs
 		if (preg_match('/^(\/|https?:\/\/|data:)/', $match[3]))
 		{
 			return $match[0];
 		}
 
-		$url = IOHelper::getFolderName(craft()->request->getPath()).$match[3];
+		// Clean up any relative folders at the beginning of the CSS URL
+		$requestFolder = IOHelper::getFolderName(craft()->request->getPath());
+		$requestFolderParts = array_filter(explode('/', $requestFolder));
+		$cssUrlParts = array_filter(explode('/', $match[3]));
 
-		// Make sure this is a resource URL
-		$resourceTrigger = craft()->config->getResourceTrigger();
-		$resourceTriggerPos = mb_strpos($url, $resourceTrigger);
-		if ($resourceTriggerPos !== false)
+		while (isset($cssUrlParts[0]) && $cssUrlParts[0] == '..' && $requestFolderParts)
 		{
-			// Give UrlHelper a chance to add the timestamp
-			$path = mb_substr($url, $resourceTriggerPos + mb_strlen($resourceTrigger));
-			$url = UrlHelper::getResourceUrl($path);
+			array_pop($requestFolderParts);
+			array_shift($cssUrlParts);
 		}
 
+		$pathParts = array_merge($requestFolderParts, $cssUrlParts);
+		$path = implode('/', $pathParts);
+		$url = UrlHelper::getUrl($path);
+
+		// Is this going to be a resource URL?
+		$rootResourceUrl = UrlHelper::getUrl(craft()->config->getResourceTrigger()).'/';
+		$rootResourceUrlLength = strlen($rootResourceUrl);
+
+		if (strncmp($rootResourceUrl, $url, $rootResourceUrlLength) === 0)
+		{
+			// Isolate the relative resource path
+			$resourcePath = substr($url, $rootResourceUrlLength);
+
+			// Give UrlHelper a chance to add the timestamp
+			$url = UrlHelper::getResourceUrl($resourcePath);
+		}
+
+		// Return the normalized CSS URL declaration
 		return $match[1].$url.$match[4];
 	}
 
@@ -312,6 +443,7 @@ class ResourcesService extends BaseApplicationComponent
 	 *
 	 * @param $ext
 	 * @param $size
+	 *
 	 * @return string
 	 */
 	private function _getIconPath($ext, $size)
@@ -349,10 +481,8 @@ class ResourcesService extends BaseApplicationComponent
 
 		// Determine the closest source size
 		$sourceSizes = array(
-			array('size' => 28, 'extSize' => 4, 'extY' => 20),
-			array('size' => 56, 'extSize' => 8, 'extY' => 40),
-			array('size' => 178, 'extSize' => 30, 'extY' => 142),
-			array('size' => 350, 'extSize' => 60, 'extY' => 280)
+			array('size' => 40,  'extSize' => 7,  'extY' => 25),
+			array('size' => 350, 'extSize' => 60, 'extY' => 220),
 		);
 
 		foreach ($sourceSizes as $sourceSize)
@@ -367,40 +497,38 @@ class ResourcesService extends BaseApplicationComponent
 
 		// Do we have a source icon that we can resize?
 		$sourceIconLocation = $sourceFolder.'/'.$ext.'.png';
+
 		if (!IOHelper::fileExists($sourceIconLocation))
 		{
 			$sourceFile = craft()->path->getAppPath().'etc/assets/fileicons/'.$sourceSize['size'].'.png';
-			$image = imagecreatefrompng($sourceFile);
+			$image = craft()->images->loadImage($sourceFile);
+
 			// Text placement.
 			if ($ext)
 			{
-				$color = imagecolorallocate($image, 153, 153, 153);
-				$text = mb_strtoupper($ext);
 				$font = craft()->path->getAppPath().'etc/assets/helveticaneue-webfont.ttf';
 
-				// Get the bounding box so we can calculate the position
-				$box = imagettfbbox($sourceSize['extSize'], 0, $font, $text);
-				$width = $box[4] - $box[0];
+				$image->setFontProperties($font, $sourceSize['extSize'], "#999");
+				$text = StringHelper::toUpperCase($ext);
+
+				$box = $image->getTextBox($text);
+				$width = $box->getWidth();
 
 				// place the text in the center-bottom-ish of the image
-				imagettftext($image, $sourceSize['extSize'], 0, ceil(($sourceSize['size'] - $width) / 2), $sourceSize['extY'], $color, $font, $text);
+				$x = ceil(($sourceSize['size'] - $width) / 2);
+				$y = $sourceSize['extY'];
+				$image->writeText($text, $x, $y);
 			}
-
-			// Preserve transparency
-			imagealphablending($image, false);
-			$color = imagecolorallocatealpha($image, 0, 0, 0, 127);
-			imagefill($image, 0, 0, $color);
-			imagesavealpha($image, true);
 
 			// Make sure we have a folder to save to and save it.
 			IOHelper::ensureFolderExists($sourceFolder);
-			imagepng($image, $sourceIconLocation);
+			$image->saveAs($sourceIconLocation);
 		}
 
 		if ($size != $sourceSize['size'])
 		{
 			// Resize the source icon to fit this size.
-			craft()->images->loadImage($sourceIconLocation)
+			craft()->images->loadImage($sourceIconLocation, $size, $size)
 				->scaleAndCrop($size, $size)
 				->saveAs($iconLocation);
 		}

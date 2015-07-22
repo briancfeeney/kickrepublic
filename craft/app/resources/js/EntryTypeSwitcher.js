@@ -1,18 +1,16 @@
 /**
- * Craft by Pixel & Tonic
- *
- * @package   Craft
- * @author    Pixel & Tonic, Inc.
- * @copyright Copyright (c) 2013, Pixel & Tonic, Inc.
+ * @author    Pixel & Tonic, Inc. <support@pixelandtonic.com>
+ * @copyright Copyright (c) 2014, Pixel & Tonic, Inc.
  * @license   http://buildwithcraft.com/license Craft License Agreement
- * @link      http://buildwithcraft.com
+ * @see       http://buildwithcraft.com
+ * @package   craft.app.resources
  */
 
 (function($) {
 
 
-Craft.EntryTypeSwitcher = Garnish.Base.extend({
-
+Craft.EntryTypeSwitcher = Garnish.Base.extend(
+{
 	$form: null,
 	$typeSelect: null,
 	$spinner: null,
@@ -22,7 +20,7 @@ Craft.EntryTypeSwitcher = Garnish.Base.extend({
 	{
 		this.$form = $('#entry-form');
 		this.$typeSelect = $('#entryType');
-		this.$spinner = $('<div class="spinner hidden" style="margin-left: 5px;"/>').insertAfter(this.$typeSelect.parent());
+		this.$spinner = $('<div class="spinner hidden" style="position: absolute; margin-'+Craft.left+': 2px;"/>').insertAfter(this.$typeSelect.parent());
 		this.$fields = $('#fields');
 
 		this.addListener(this.$typeSelect, 'change', 'onTypeChange');
@@ -37,30 +35,24 @@ Craft.EntryTypeSwitcher = Garnish.Base.extend({
 
 			if (textStatus == 'success')
 			{
-				Craft.cp.deselectContentTab();
-				Craft.cp.$contentTabsContainer.html(response.tabsHtml);
-				this.$fields.html(response.fieldsHtml);
-				Craft.cp.initContentTabs();
+				var fieldsPane = this.$fields.data('pane');
+				fieldsPane.deselectTab();
+				this.$fields.html(response.paneHtml);
+				fieldsPane.destroy();
+				this.$fields.pane();
+				Craft.initUiElements(this.$fields);
 
-				var html = '';
-
-				if (response.headHtml)
-				{
-					html += response.headHtml;
-				}
-
-				if (response.footHtml)
-				{
-					html += response.footHtml;
-				}
-
-				if (html)
-				{
-					$(html).appendTo(Garnish.$bod);
-				}
+				Craft.appendHeadHtml(response.headHtml);
+				Craft.appendFootHtml(response.footHtml);
 
 				// Update the slug generator with the new title input
-				slugGenerator.setNewSource('#title');
+				if (typeof slugGenerator != "undefined")
+				{
+					slugGenerator.setNewSource('#title');
+				}
+
+				// Trigger a resize event to force a grid update
+				Garnish.$win.trigger('resize');
 			}
 		}, this));
 	}

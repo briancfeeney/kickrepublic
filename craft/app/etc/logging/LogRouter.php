@@ -2,22 +2,24 @@
 namespace Craft;
 
 /**
- * Craft by Pixel & Tonic
+ * Class LogRouter
  *
- * @package   Craft
- * @author    Pixel & Tonic, Inc.
- * @copyright Copyright (c) 2013, Pixel & Tonic, Inc.
+ * @author    Pixel & Tonic, Inc. <support@pixelandtonic.com>
+ * @copyright Copyright (c) 2014, Pixel & Tonic, Inc.
  * @license   http://buildwithcraft.com/license Craft License Agreement
- * @link      http://buildwithcraft.com
- */
-
-/**
- *
+ * @see       http://buildwithcraft.com
+ * @package   craft.app.etc.logging
+ * @since     1.0
  */
 class LogRouter extends \CLogRouter
 {
+	// Public Methods
+	// =========================================================================
+
 	/**
 	 * @param $route
+	 *
+	 * @return null
 	 */
 	public function addRoute($route)
 	{
@@ -31,6 +33,8 @@ class LogRouter extends \CLogRouter
 	 * Removes a route from the LogRouter by class name.
 	 *
 	 * @param $class
+	 *
+	 * @return null
 	 */
 	public function removeRoute($class)
 	{
@@ -38,14 +42,14 @@ class LogRouter extends \CLogRouter
 
 		for ($counter = 0; $counter < sizeof($this->_routes); $counter++)
 		{
-			if (mb_strtolower(get_class($this->_routes[$counter])) == mb_strtolower(__NAMESPACE__.'\\'.$class))
+			if (StringHelper::toLowerCase(get_class($this->_routes[$counter])) == StringHelper::toLowerCase(__NAMESPACE__.'\\'.$class))
 			{
 				$match = $counter;
 				break;
 			}
 		}
 
-		if ($match)
+		if (is_numeric($match))
 		{
 			array_splice($this->_routes, $match, 1);
 		}

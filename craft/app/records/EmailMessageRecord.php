@@ -1,24 +1,26 @@
 <?php
 namespace Craft;
 
+craft()->requireEdition(Craft::Client);
+
 /**
- * Craft by Pixel & Tonic
+ * Class EmailMessageRecord
  *
- * @package   Craft
- * @author    Pixel & Tonic, Inc.
- * @copyright Copyright (c) 2013, Pixel & Tonic, Inc.
+ * @author    Pixel & Tonic, Inc. <support@pixelandtonic.com>
+ * @copyright Copyright (c) 2014, Pixel & Tonic, Inc.
  * @license   http://buildwithcraft.com/license Craft License Agreement
- * @link      http://buildwithcraft.com
- */
-
-craft()->requirePackage(CraftPackage::Rebrand);
-
-/**
- *
+ * @see       http://buildwithcraft.com
+ * @package   craft.app.records
+ * @since     1.0
  */
 class EmailMessageRecord extends BaseRecord
 {
+	// Public Methods
+	// =========================================================================
+
 	/**
+	 * @inheritDoc BaseRecord::getTableName()
+	 *
 	 * @return string
 	 */
 	public function getTableName()
@@ -27,7 +29,35 @@ class EmailMessageRecord extends BaseRecord
 	}
 
 	/**
-	 * @access protected
+	 * @inheritDoc BaseRecord::defineRelations()
+	 *
+	 * @return array
+	 */
+	public function defineRelations()
+	{
+		return array(
+			'locale'  => array(static::BELONGS_TO, 'LocaleRecord', 'locale', 'required' => true, 'onDelete' => static::CASCADE, 'onUpdate' => static::CASCADE),
+		);
+	}
+
+	/**
+	 * @inheritDoc BaseRecord::defineIndexes()
+	 *
+	 * @return array
+	 */
+	public function defineIndexes()
+	{
+		return array(
+			array('columns' => array('key', 'locale'), 'unique' => true),
+		);
+	}
+
+	// Protected Methods
+	// =========================================================================
+
+	/**
+	 * @inheritDoc BaseRecord::defineAttributes()
+	 *
 	 * @return array
 	 */
 	protected function defineAttributes()
@@ -37,16 +67,6 @@ class EmailMessageRecord extends BaseRecord
 			'locale'   => array(AttributeType::Locale, 'required' => true),
 			'subject'  => array(AttributeType::String, 'required' => true, 'maxLength' => 1000),
 			'body'     => array(AttributeType::String, 'required' => true, 'column' => ColumnType::Text),
-		);
-	}
-
-	/**
-	 * @return array
-	 */
-	public function defineIndexes()
-	{
-		return array(
-			array('columns' => array('key', 'locale'), 'unique' => true),
 		);
 	}
 }

@@ -11,7 +11,7 @@
 	<div class="input{% if errors %} errors{% endif %}">
 		{{ text({
 			id: sectionType~'-'~name~'-'~locale.id,
-			class: 'code',
+			class: 'code ltr',
 			name: 'types['~sectionType~']['~name~']['~locale.id~']',
 			value: (value != '__home__' ? value : null),
 			errors: errors
@@ -22,11 +22,11 @@
 {% endmacro %}
 
 {% macro urlFormatInput(sectionType, brandNewSection, section) %}
-	{% if craft.hasPackage('Localize') or sectionType == 'structure' %}
-		<table class="data">
+	{% if craft.isLocalized() or sectionType == 'structure' %}
+		<table class="data fullwidth">
 			{% if sectionType == 'structure' %}
 				<thead>
-					{% if craft.hasPackage('Localize') %}
+					{% if craft.isLocalized() %}
 						<th></th>
 					{% endif %}
 					<th scope="col">{{ "Top-Level Entries"|t }}</th>
@@ -35,16 +35,16 @@
 			{% endif %}
 			<tbody>
 				{% for locale in craft.i18n.getSiteLocales() %}
-					<tr class="urlFormatRow-{{ locale.id }}{% if craft.hasPackage('Localize') and not brandNewSection and section.locales[locale.id] is not defined %} hidden{% endif %}">
-						{% if craft.hasPackage('Localize') %}
+					<tr class="for-locale-{{ locale.id }}{% if craft.isLocalized() and not brandNewSection and section.locales[locale.id] is not defined %} hidden{% endif %}">
+						{% if craft.isLocalized() %}
 							<th class="thin nowrap">{{ locale.id }}</th>
 						{% endif %}
-						<td>
+						<td class="topalign">
 							{% set value = ((section.type == sectionType or sectionType != 'single') and section.locales[locale.id] is defined ? section.locales[locale.id].urlFormat : null) %}
 							{{ _self.urlFormatText(sectionType, locale, section, 'urlFormat', value) }}
 						</td>
 						{% if sectionType == 'structure' %}
-							<td>
+							<td class="topalign">
 								{% set value = ((section.type == 'structure') and section.locales[locale.id] is defined ? section.locales[locale.id].nestedUrlFormat : '{parent.uri}/{slug}') %}
 								{{ _self.urlFormatText(sectionType, locale, section, 'nestedUrlFormat', value) }}
 							</td>
@@ -79,6 +79,7 @@
 		label: "Entry Template"|t,
 		instructions: (sectionType == 'single' ? "The template to use when the entry’s URL is requested."|t : "The template to use when an entry’s URL is requested."|t),
 		id: sectionType~'-template',
+		class: 'ltr',
 		name: 'types['~sectionType~'][template]',
 		value: section.template,
 		errors: section.getErrors('template')
@@ -87,11 +88,12 @@
 
 {% from _self import urlFormatInput, hasUrlsField, templateField %}
 
-
 {% set content %}
-	<form method="post" action="" accept-charset="UTF-8" data-saveshortcut="1">
+	<form method="post" accept-charset="UTF-8" data-saveshortcut>
 		<input type="hidden" name="action" value="sections/saveSection">
 		<input type="hidden" name="redirect" value="settings/sections">
+		{{ getCsrfInput() }}
+
 		{% if section.id %}<input type="hidden" name="sectionId" value="{{ section.id }}">{% endif %}
 
 		{{ forms.textField({
@@ -118,28 +120,50 @@
 			required: true
 		}) }}
 
-		{% if craft.hasPackage('Localize') %}
+		{% if craft.isLocalized() %}
 			{% set localesInput %}
-				{% for locale in craft.i18n.getSiteLocales() %}
-					<div>
-						{{ forms.checkbox({
-							label: locale.name~' ('~locale.id~')',
-							name: 'locales[]',
-							value: locale.id,
-							checked: (brandNewSection or section.locales[locale.id] is defined),
-							toggle: '.urlFormatRow-'~locale.id
-						}) }}
-					</div>
-				{% endfor %}
+				<table class="data" style="width: auto;">
+					<thead>
+						<tr>
+							<td></td>
+							<th scope="col">{{ "Locale"|t }}</th>
+							<th scope="col">{{ "Default Status"|t }}</th>
+						</tr>
+					</thead>
+					<tbody>
+						{% for locale in craft.i18n.getSiteLocales() %}
+							{% set localeSelected = (brandNewSection or section.locales[locale.id] is defined) %}
+							<tr>
+								<td>
+									{{ forms.checkbox({
+										id: 'locale-'~locale.id,
+										name: 'locales[]',
+										value: locale.id,
+										checked: localeSelected,
+										toggle: '.for-locale-'~locale.id
+									}) }}
+								</td>
+								<td><label for="locale-{{ locale.id }}">{{ locale.name }} ({{ locale.id }})</label></td>
+								<td class="centeralign">
+									<div class="for-locale-{{ locale.id }}{% if not localeSelected %} hidden{% endif %}">
+										{{ forms.lightswitch({
+											name: 'defaultLocaleStatuses['~locale.id~']',
+											on:   (brandNewSection or not section.locales[locale.id] is defined or section.locales[locale.id].enabledByDefault),
+											small: true
+										}) }}
+									</div>
+								</td>
+							</tr>
+						{% endfor %}
+					</tbody>
+				</table>
 			{% endset %}
 
 			{{ forms.field({
-				label: "Locales"|t,
-				instructions: "Which locales should this section be enabled in?"|t
+				label: "Which locales should entries in this section target?"|t,
+				errors: section.getErrors('localeErrors'),
 			}, localesInput) }}
 		{% endif %}
-
-		<hr>
 
 		{{ forms.selectField({
 			label: "Section Type"|t,
@@ -153,6 +177,8 @@
 			errors: section.getErrors('type')
 		}) }}
 
+		<hr>
+
 		{% if canBeSingle %}
 			<div id="type-single"{% if section.type != 'single' %} class="hidden"{% endif %}>
 
@@ -162,9 +188,8 @@
 						id: 'single-homepage',
 						name: 'types[single][homepage]',
 						checked: section.isHomepage(),
-						toggle: 'single-uri-container',
-						reverseToggle: true
-					})}}
+						reverseToggle: 'single-uri-container'
+					}) }}
 				{% endif %}
 
 				<div id="single-uri-container"{% if section.isHomepage() %} class="hidden"{% endif %}>
@@ -181,18 +206,20 @@
 			</div>
 		{% endif %}
 
+		{% set urlFormatParams = {
+			label: "Entry URL Format"|t,
+			instructions: "What the entry URLs should look like. You can include tags that output entry properties, such as {ex1} or {ex2}."|t({ ex1: '<code>{slug}</code>', ex2: '<code>{postDate|date("Y")}</code>' }),
+			required: true,
+			errors: section.getErrors('urlFormat')
+		} %}
+
 		{% if canBeChannel %}
 			<div id="type-channel"{% if section.type != 'channel' %} class="hidden"{% endif %}>
 
 				{{ hasUrlsField('channel', section) }}
 
 				<div id="channel-url-settings" class="nested-fields{% if not section.hasUrls %} hidden{% endif %}">
-					{{ forms.field({
-						label: "Entry URL Format"|t,
-						instructions: "What the entry URLs should look like. <code>{slug}</code> is required, but it can also include any entry properties, e.g. <code>{postDate.year}</code>."|t,
-						required: true,
-						errors: section.getErrors('urlFormat')
-					}, urlFormatInput('channel', brandNewSection, section)) }}
+					{{ forms.field(urlFormatParams, urlFormatInput('channel', brandNewSection, section)) }}
 
 					{{ templateField('channel', section) }}
 				</div>
@@ -206,30 +233,34 @@
 				{{ hasUrlsField('structure', section) }}
 
 				<div id="structure-url-settings" class="nested-fields{% if not section.hasUrls %} hidden{% endif %}">
-					{{ forms.field({
-						label: "Entry URL Formats"|t,
-						instructions: "What the entry URLs should look like. <code>{slug}</code> is required, but it can also include any entry properties, e.g. <code>{postDate.year}</code>."|t,
-						required: true,
-						errors: section.getErrors('urlFormat')
-					}, urlFormatInput('structure', brandNewSection, section)) }}
+					{{ forms.field(urlFormatParams, urlFormatInput('structure', brandNewSection, section)) }}
 
 					{{ templateField('structure', section) }}
 				</div>
 
 				{{ forms.textField({
-					label: "Max Entry Depth"|t,
-					instructions: "The maximum depth entries can go. Leave blank if you don’t care."|t,
-					id: 'structure-maxDepth',
-					name: 'types[structure][maxDepth]',
-					value: section.maxDepth,
+					label: "Max Levels"|t,
+					instructions: "The maximum number of levels this section can have. Leave blank if you don’t care."|t,
+					id: 'structure-maxLevels',
+					name: 'types[structure][maxLevels]',
+					value: section.maxLevels,
 					size: 5,
-					errors: section.getErrors('maxDepth')
+					errors: section.getErrors('maxLevels')
 				}) }}
 
 			</div>
 		{% endif %}
 
 		<hr>
+
+		{% if CraftEdition >= CraftClient %}
+			{{ forms.checkboxField({
+				label: "Enable versioning for entries in this section?"|t,
+				id: 'enableVersioning',
+				name: 'enableVersioning',
+				checked: section.enableVersioning
+			}) }}
+		{% endif %}
 
 		<div class="buttons">
 			<input type="submit" class="btn submit" value="{{ 'Save'|t }}">
@@ -249,8 +280,10 @@
 		{% endif %}
 	{% endfor %}
 
-	new Craft.EntryUrlFormatGenerator('#name', '#single-template');
-	new Craft.EntryUrlFormatGenerator('#name', '#channel-template',   { suffix: '/_entry' });
-	new Craft.EntryUrlFormatGenerator('#name', '#structure-template', { suffix: '/_entry' });
+	{% if brandNewSection %}
+		new Craft.EntryUrlFormatGenerator('#name', '#single-template');
+		new Craft.EntryUrlFormatGenerator('#name', '#channel-template',   { suffix: '/_entry' });
+		new Craft.EntryUrlFormatGenerator('#name', '#structure-template', { suffix: '/_entry' });
+	{% endif %}
 {% endset %}
 {% includeJs js %}

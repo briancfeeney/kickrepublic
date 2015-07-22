@@ -1,6 +1,6 @@
 {% if customizableTabs is not defined %}{% set customizableTabs = true %}{% endif %}
 {% if not customizableTabs and pretendTabName is not defined %}
-	{% set pretendTabName = 'Content' %}
+	{% set pretendTabName = "Content"|t %}
 {% endif %}
 
 {% set groups = craft.fields.getAllGroups('id') %}
@@ -15,7 +15,7 @@
 	"Give your tab a name."
 %}
 
-{% includeCssFile "http://fonts.googleapis.com/css?family=Coming+Soon" %}
+{% includeCssFile "//fonts.googleapis.com/css?family=Coming+Soon" %}
 
 {% macro tab(customizableTabs, tabName, tabFields) %}
 	<div class="fld-tab">
@@ -46,6 +46,10 @@
 
 	<h2>{{ "Design your field layout"|t }}</h2>
 
+	{% if instructions is defined %}
+		<div class="instructions">{{ instructions|md }}</div>
+	{% endif %}
+
 	<div class="fld-tabs">
 		{% if fieldLayout %}
 			{% import _self as macros %}
@@ -61,8 +65,8 @@
 	</div>
 
 	{% if customizableTabs %}
-		<div class="buttons">
-			<div id="newtabbtn" class="btn add icon">{{ "New Tab"|t }}</div>
+		<div class="newtabbtn-container">
+			<div class="btn add icon">{{ "New Tab"|t }}</div>
 			<h3>{{ "…Or use one of your field groups as a starting point:"|t }}</h3>
 		</div>
 	{% endif %}
@@ -71,7 +75,7 @@
 		{% for group in groups %}
 			{% set totalUnselected = 0 %}
 			{% for field in group.fields %}
-				{% if not fieldLayout or field.id not in fieldLayout.getFields()|keys %}
+				{% if not fieldLayout or field.id not in fieldLayout.getFieldIds() %}
 					{% set totalUnselected = totalUnselected + 1 %}
 				{% endif %}
 			{% endfor %}
@@ -82,7 +86,7 @@
 				</div>
 				<div class="fld-tabcontent">
 					{% for field in group.fields %}
-						{% set selected = fieldLayout and field.id in fieldLayout.getFields()|keys %}
+						{% set selected = fieldLayout and field.id in fieldLayout.getFieldIds() %}
 						<div class="fld-field unused{% if selected %} hidden{% endif %}" data-id="{{ field.id }}">
 							<span>{{ field.name }}</span>
 						</div>
@@ -96,14 +100,16 @@
 
 {% set js %}
 	var initFLD = function() {
-		new Craft.FieldLayoutDesigner('#fieldlayoutform', {
-			customizableTabs: {{ customizableTabs ? 'true' : 'false' }}
+		new Craft.FieldLayoutDesigner('#{{ "fieldlayoutform"|namespaceInputId }}', {
+			customizableTabs: {{ customizableTabs ? 'true' : 'false' }},
+			fieldInputName: '{{ "fieldLayout[__TAB_NAME__][]"|namespaceInputName|e("js") }}',
+			requiredFieldInputName: '{{ "requiredFields[]"|namespaceInputName|e("js") }}'
 		});
 	};
 
 	{% if tab is defined %}
 
-		var $fldTab = $('#tab-{{ tab }}');
+		var $fldTab = $('#{{ ("tab-"~tab)|namespaceInputId }}');
 
 		if ($fldTab.hasClass('sel'))
 		{

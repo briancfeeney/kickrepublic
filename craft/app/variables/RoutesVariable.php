@@ -2,33 +2,39 @@
 namespace Craft;
 
 /**
- * Craft by Pixel & Tonic
+ * Route functions.
  *
- * @package   Craft
- * @author    Pixel & Tonic, Inc.
- * @copyright Copyright (c) 2013, Pixel & Tonic, Inc.
+ * @author    Pixel & Tonic, Inc. <support@pixelandtonic.com>
+ * @copyright Copyright (c) 2014, Pixel & Tonic, Inc.
  * @license   http://buildwithcraft.com/license Craft License Agreement
- * @link      http://buildwithcraft.com
- */
-
-/**
- * Route functions
+ * @see       http://buildwithcraft.com
+ * @package   craft.app.variables
+ * @since     1.0
  */
 class RoutesVariable
 {
+	// Public Methods
+	// =========================================================================
+
 	/**
-	 * Returns all routes.
+	 * Returns the routes defined in the CP.
+	 *
+	 * @return array
 	 */
-	public function getAllRoutes()
+	public function getDbRoutes()
 	{
-		$return = array();
+		$routes = array();
 
-		$routes = RouteRecord::model()->ordered()->findAll();
+		$results = craft()->db->createCommand()
+			->select('id, locale, urlParts, template')
+			->from('routes')
+			->order('sortOrder')
+			->queryAll();
 
-		foreach ($routes as $route)
+		foreach ($results as $result)
 		{
 			$urlDisplayHtml = '';
-			$urlParts = JsonHelper::decode($route->urlParts);
+			$urlParts = JsonHelper::decode($result['urlParts']);
 
 			foreach ($urlParts as $part)
 			{
@@ -38,17 +44,18 @@ class RoutesVariable
 				}
 				else
 				{
-					$urlDisplayHtml .= '<span class="token" data-name="'.$part[0].'" data-value="'.$part[1].'">'.$part[0].'</span>';
+					$urlDisplayHtml .= HtmlHelper::encodeParams('<span class="token" data-name="{partZero}" data-value="{partOne}"><span>{partZero}</span></span>', array('partZero' => $part[0], 'partOne' => $part[1]));
 				}
 			}
 
-			$return[] = array(
-				'id' => $route->id,
+			$routes[] = array(
+				'id'             => $result['id'],
+				'locale'         => $result['locale'],
 				'urlDisplayHtml' => $urlDisplayHtml,
-				'template' => $route->template
+				'template'       => $result['template']
 			);
 		}
 
-		return $return;
+		return $routes;
 	}
 }

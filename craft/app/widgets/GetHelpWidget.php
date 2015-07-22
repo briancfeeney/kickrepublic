@@ -2,22 +2,32 @@
 namespace Craft;
 
 /**
- * Craft by Pixel & Tonic
+ * Get Help widget.
  *
- * @package   Craft
- * @author    Pixel & Tonic, Inc.
- * @copyright Copyright (c) 2013, Pixel & Tonic, Inc.
+ * @author    Pixel & Tonic, Inc. <support@pixelandtonic.com>
+ * @copyright Copyright (c) 2014, Pixel & Tonic, Inc.
  * @license   http://buildwithcraft.com/license Craft License Agreement
- * @link      http://buildwithcraft.com
- */
-
-/**
- * Get Help widget
+ * @see       http://buildwithcraft.com
+ * @package   craft.app.widgets
+ * @since     1.0
  */
 class GetHelpWidget extends BaseWidget
 {
+	// Properties
+	// =========================================================================
+
 	/**
-	 * Returns the type of widget this is.
+	 * Whether users should be able to select more than one of this widget type.
+	 *
+	 * @var bool
+	 */
+	protected $multi = false;
+
+	// Public Methods
+	// =========================================================================
+
+	/**
+	 * @inheritDoc IComponentType::getName()
 	 *
 	 * @return string
 	 */
@@ -27,7 +37,7 @@ class GetHelpWidget extends BaseWidget
 	}
 
 	/**
-	 * Gets the widget's title.
+	 * @inheritDoc IWidget::getTitle()
 	 *
 	 * @return string
 	 */
@@ -37,12 +47,18 @@ class GetHelpWidget extends BaseWidget
 	}
 
 	/**
-	 * Returns the widget's body HTML.
+	 * @inheritDoc IWidget::getBodyHtml()
 	 *
 	 * @return string|false
 	 */
 	public function getBodyHtml()
 	{
+		// Only admins get the Get Help widget.
+		if (!craft()->userSession->isAdmin())
+		{
+			return false;
+		}
+
 		$id = $this->model->id;
 		$js = "new Craft.GetHelpWidget({$id});";
 		craft()->templates->includeJs($js);
@@ -50,32 +66,22 @@ class GetHelpWidget extends BaseWidget
 		craft()->templates->includeJsResource('js/GetHelpWidget.js');
 		craft()->templates->includeTranslations('Message sent successfully.', 'Couldn’t send support request.');
 
+		return craft()->templates->render('_components/widgets/GetHelp/body');
+	}
 
-		$message = "Enter your message here.\n\n" .
-			"------------------------------\n\n" .
-			'Craft version: ' .
-			Craft::t('{version} build {build}', array(
-				'version' => craft()->getVersion(),
-				'build'   => craft()->getBuild()
-			))."\n" .
-			'Packages: '.implode(', ', craft()->getPackages());
-
-		$plugins = craft()->plugins->getPlugins();
-
-		if ($plugins)
+	/**
+	 * @inheritDoc IComponentType::isSelectable()
+	 *
+	 * @return bool
+	 */
+	public function isSelectable()
+	{
+		// Only admins get the Get Help widget.
+		if (parent::isSelectable() && craft()->userSession->isAdmin())
 		{
-			$pluginNames = array();
-
-			foreach ($plugins as $plugin)
-			{
-				$pluginNames[] = $plugin->getName().' ('.$plugin->getDeveloper().')';
-			}
-
-			$message .= "\nPlugins: ".implode(', ', $pluginNames);
+			return true;
 		}
 
-		return craft()->templates->render('_components/widgets/GetHelp/body', array(
-			'message' => $message
-		));
+		return false;
 	}
 }

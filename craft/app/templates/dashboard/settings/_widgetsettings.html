@@ -14,6 +14,10 @@
 
 
 {% if widget is defined %}
+	{% if widget.type is defined and widget.type == 'GetHelp' and not currentUser.admin %}
+		{% exit 404 %}
+	{% endif %}
+
 	{% set widgetType = craft.dashboard.populateWidgetType(widget) %}
 	{% set isWidgetTypeMissing = not widgetType %}
 {% else %}
@@ -29,23 +33,28 @@
 
 
 {% if isNewWidget %}
-	{% set title = "Add a new widget."|t %}
+	{% set title = "Add a new widget"|t %}
 {% else %}
 	{% set title = widgetType.title %}
 {% endif %}
 
-
 {% set content %}
-	<form method="post" action="" accept-charset="UTF-8" data-saveshortcut="1">
+	<form method="post" accept-charset="UTF-8" data-saveshortcut>
+		{{ getCsrfInput() }}
 		<input type="hidden" name="action" value="dashboard/saveUserWidget">
 		<input type="hidden" name="redirect" value="dashboard/settings">
 		{% if not isNewWidget %}<input type="hidden" name="widgetId" value="{{ widget.id }}">{% endif %}
 
 		{% set widgetTypes = craft.dashboard.getAllWidgetTypes() %}
 
+		{% if not widgetType.isSelectable() %}
+			{% set newWidgetElement = { (widgetType.getClassHandle()) : widgetType } %}
+			{% set widgetTypes = newWidgetElement|merge(widgetTypes) %}
+		{% endif %}
+
 		{{ forms.selectField({
 			first: true,
-			label: "Type",
+			label: "Type"|t,
 			instructions: "What type of widget is this?"|t,
 			id: 'type',
 			name: 'type',
@@ -58,18 +67,16 @@
 
 		{% for _widgetType in widgetTypes %}
 			{% set isCurrent = (_widgetType.getClassHandle() == widgetType.getClassHandle()) %}
-			{% if isCurrent %}
-				{% set settings = widgetType.settingsHtml %}
-			{% else %}
-				{% set settings = _widgetType.settingsHtml %}
-			{% endif %}
 
-			{% if settings %}
-				<div id="{{ _widgetType.getClassHandle() }}"{% if not isCurrent %} class="hidden"{% endif %}>
-					{% set namespace = 'types[' ~ _widgetType.getClassHandle() ~ ']' %}
-					{{- settings|ns(namespace)|raw -}}
-				</div>
-			{% endif %}
+			<div id="{{ _widgetType.getClassHandle() }}"{% if not isCurrent %} class="hidden"{% endif %}>
+				{% namespace 'types['~_widgetType.getClassHandle()~']' %}
+					{% if isCurrent %}
+						{{ widgetType.getSettingsHtml()|raw }}
+					{% else %}
+						{{ _widgetType.getSettingsHtml()|raw }}
+					{% endif %}
+				{% endnamespace %}
+			</div>
 		{% endfor %}
 
 		<div class="buttons">

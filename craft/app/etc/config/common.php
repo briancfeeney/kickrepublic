@@ -1,99 +1,5 @@
 <?php
 
-/**
- * Craft by Pixel & Tonic
- *
- * @package   Craft
- * @author    Pixel & Tonic, Inc.
- * @copyright Copyright (c) 2013, Pixel & Tonic, Inc.
- * @license   http://buildwithcraft.com/license Craft License Agreement
- * @link      http://buildwithcraft.com
- */
-
-// Load the deafult configs
-$generalConfig = require_once(CRAFT_APP_PATH.'etc/config/defaults/general.php');
-$dbConfig = require_once(CRAFT_APP_PATH.'etc/config/defaults/db.php');
-
-/**
- * Merges a base config array with a custom config array,
- * taking environment-specific configs into account.
- *
- * @param array &$baseConfig
- * @param array $customConfig
- */
-function mergeConfigs(&$baseConfig, $customConfig)
-{
-	// Is this a multi-environment config?
-	if (array_key_exists('*', $customConfig))
-	{
-		foreach ($customConfig as $env => $envConfig)
-		{
-			if ($env == '*' || strpos(CRAFT_ENVIRONMENT, $env) !== false)
-			{
-				$baseConfig = array_merge($baseConfig, $envConfig);
-			}
-		}
-	}
-	else
-	{
-		$baseConfig = array_merge($baseConfig, $customConfig);
-	}
-}
-
-// Does craft/config/general.php exist? (It used to be called blocks.php so maybe not.)
-if (file_exists(CRAFT_CONFIG_PATH.'general.php'))
-{
-	if (is_array($customGeneralConfig = @include(CRAFT_CONFIG_PATH.'general.php')))
-	{
-		mergeConfigs($generalConfig, $customGeneralConfig);
-	}
-}
-else if (file_exists(CRAFT_CONFIG_PATH.'blocks.php'))
-{
-	// Originally blocks.php defined a $blocksConfig variable, and then later returned an array directly.
-	if (is_array($customGeneralConfig = require_once(CRAFT_CONFIG_PATH.'blocks.php')))
-	{
-		mergeConfigs($generalConfig, $customGeneralConfig);
-	}
-	else if (isset($blocksConfig))
-	{
-		$generalConfig = array_merge($generalConfig, $blocksConfig);
-		unset($blocksConfig);
-	}
-}
-
-// Originally db.php defined a $dbConfig variable.
-if (is_array($customDbConfig = require_once(CRAFT_CONFIG_PATH.'db.php')))
-{
-	mergeConfigs($dbConfig, $customDbConfig);
-}
-
-if ($generalConfig['devMode'] == true)
-{
-	error_reporting(E_ALL & ~E_STRICT);
-	ini_set('display_errors', 1);
-}
-else
-{
-	error_reporting(0);
-	ini_set('display_errors', 0);
-}
-
-ini_set('log_errors', 1);
-ini_set('error_log', CRAFT_STORAGE_PATH.'runtime/logs/phperrors.log');
-
-// Table prefixes cannot be longer than 5 characters
-$tablePrefix = rtrim($dbConfig['tablePrefix'], '_');
-if ($tablePrefix)
-{
-	if (strlen($tablePrefix) > 5)
-	{
-		$tablePrefix = substr($tablePrefix, 0, 5);
-	}
-
-	$tablePrefix .= '_';
-}
-
 $configArray = array(
 
 	// autoloading model and component classes
@@ -109,12 +15,20 @@ $configArray = array(
 		'app.assetsourcetypes.LocalAssetSourceType',
 		'app.assetsourcetypes.RackspaceAssetSourceType',
 		'app.assetsourcetypes.S3AssetSourceType',
+		'app.assetsourcetypes.TempAssetSourceType',
+		'app.consolecommands.BaseCommand',
+		'app.consolecommands.MigrateCommand',
+		'app.consolecommands.QuerygenCommand',
 		'app.controllers.AppController',
 		'app.controllers.AssetSourcesController',
 		'app.controllers.AssetTransformsController',
 		'app.controllers.AssetsController',
 		'app.controllers.BaseController',
+		'app.controllers.BaseElementsController',
+		'app.controllers.BaseEntriesController',
+		'app.controllers.CategoriesController',
 		'app.controllers.DashboardController',
+		'app.controllers.ElementIndexController',
 		'app.controllers.ElementsController',
 		'app.controllers.EmailMessagesController',
 		'app.controllers.EntriesController',
@@ -127,23 +41,46 @@ $configArray = array(
 		'app.controllers.RebrandController',
 		'app.controllers.RoutesController',
 		'app.controllers.SectionsController',
+		'app.controllers.StructuresController',
 		'app.controllers.SystemSettingsController',
 		'app.controllers.TagsController',
+		'app.controllers.TasksController',
 		'app.controllers.TemplatesController',
 		'app.controllers.ToolsController',
 		'app.controllers.UpdateController',
 		'app.controllers.UserSettingsController',
 		'app.controllers.UsersController',
+		'app.controllers.UtilsController',
+		'app.elementactions.BaseElementAction',
+		'app.elementactions.CopyReferenceTagElementAction',
+		'app.elementactions.DeleteAssetsElementAction',
+		'app.elementactions.DeleteElementAction',
+		'app.elementactions.DeleteUsersElementAction',
+		'app.elementactions.EditElementAction',
+		'app.elementactions.IElementAction',
+		'app.elementactions.NewChildElementAction',
+		'app.elementactions.RenameFileElementAction',
+		'app.elementactions.ReplaceFileElementAction',
+		'app.elementactions.SetStatusElementAction',
+		'app.elementactions.SuspendUsersElementAction',
+		'app.elementactions.UnsuspendUsersElementAction',
+		'app.elementactions.ViewElementAction',
 		'app.elementtypes.AssetElementType',
 		'app.elementtypes.BaseElementType',
+		'app.elementtypes.CategoryElementType',
 		'app.elementtypes.EntryElementType',
 		'app.elementtypes.GlobalSetElementType',
 		'app.elementtypes.IElementType',
+		'app.elementtypes.MatrixBlockElementType',
 		'app.elementtypes.TagElementType',
 		'app.elementtypes.UserElementType',
+		'app.enums.AssetConflictResolution',
 		'app.enums.AttributeType',
+		'app.enums.BaseEnum',
+		'app.enums.CacheMethod',
 		'app.enums.ColumnType',
 		'app.enums.ComponentType',
+		'app.enums.ConfigFile',
 		'app.enums.CraftPackage',
 		'app.enums.ElementType',
 		'app.enums.EmailerType',
@@ -152,24 +89,31 @@ $configArray = array(
 		'app.enums.LicenseKeyStatus',
 		'app.enums.LogLevel',
 		'app.enums.PatchManifestFileAction',
+		'app.enums.PeriodType',
 		'app.enums.PluginVersionUpdateStatus',
-		'app.enums.PtAccountCredentialStatus',
 		'app.enums.RequirementResult',
 		'app.enums.SectionType',
+		'app.enums.TaskStatus',
 		'app.enums.UserStatus',
 		'app.enums.VersionUpdateStatus',
 		'app.etc.behaviors.AppBehavior',
 		'app.etc.behaviors.BaseBehavior',
 		'app.etc.behaviors.FieldLayoutBehavior',
+		'app.etc.cache.ApcCache',
+		'app.etc.cache.DbCache',
+		'app.etc.cache.EAcceleratorCache',
 		'app.etc.cache.FileCache',
+		'app.etc.cache.MemCache',
+		'app.etc.cache.RedisCache',
+		'app.etc.cache.WinCache',
+		'app.etc.cache.XCache',
+		'app.etc.cache.ZendDataCache',
 		'app.etc.components.BaseApplicationComponent',
 		'app.etc.components.BaseComponentType',
 		'app.etc.components.BaseSavableComponentType',
 		'app.etc.components.IComponentType',
 		'app.etc.components.ISavableComponentType',
 		'app.etc.console.ConsoleCommandRunner',
-		'app.etc.console.commands.MigrateCommand',
-		'app.etc.console.commands.QuerygenCommand',
 		'app.etc.dates.DateFormatter',
 		'app.etc.dates.DateInterval',
 		'app.etc.dates.DateTime',
@@ -178,6 +122,7 @@ $configArray = array(
 		'app.etc.db.DbCommand',
 		'app.etc.db.DbConnection',
 		'app.etc.db.schemas.MysqlSchema',
+		'app.etc.elements.ElementRelationParamParser',
 		'app.etc.errors.DbConnectException',
 		'app.etc.errors.ErrorException',
 		'app.etc.errors.ErrorHandler',
@@ -188,6 +133,7 @@ $configArray = array(
 		'app.etc.et.Et',
 		'app.etc.events.Event',
 		'app.etc.i18n.LocaleData',
+		'app.etc.i18n.NumberFormatter',
 		'app.etc.i18n.PhpMessageSource',
 		'app.etc.io.BaseIO',
 		'app.etc.io.File',
@@ -198,25 +144,37 @@ $configArray = array(
 		'app.etc.io.Zip',
 		'app.etc.io.ZipArchive',
 		'app.etc.logging.FileLogRoute',
+		'app.etc.logging.LogFilter',
 		'app.etc.logging.LogRouter',
 		'app.etc.logging.Logger',
 		'app.etc.logging.ProfileLogRoute',
 		'app.etc.logging.WebLogRoute',
 		'app.etc.plugins.BasePlugin',
-		'app.etc.requirements.Requirement',
+		'app.etc.plugins.IPlugin',
+		'app.etc.requirements.Requirements',
 		'app.etc.requirements.RequirementsChecker',
 		'app.etc.search.SearchQuery',
 		'app.etc.search.SearchQueryTerm',
 		'app.etc.search.SearchQueryTermGroup',
 		'app.etc.state.StatePersister',
+		'app.etc.templating.BaseTemplate',
 		'app.etc.templating.StringTemplate',
+		'app.etc.templating.TwigParser',
+		'app.etc.templating.twigextensions.Cache_Node',
+		'app.etc.templating.twigextensions.Cache_TokenParser',
 		'app.etc.templating.twigextensions.CraftTwigExtension',
 		'app.etc.templating.twigextensions.Exit_Node',
 		'app.etc.templating.twigextensions.Exit_TokenParser',
+		'app.etc.templating.twigextensions.Header_Node',
+		'app.etc.templating.twigextensions.Header_TokenParser',
+		'app.etc.templating.twigextensions.Hook_Node',
+		'app.etc.templating.twigextensions.Hook_TokenParser',
 		'app.etc.templating.twigextensions.IncludeResource_Node',
 		'app.etc.templating.twigextensions.IncludeResource_TokenParser',
 		'app.etc.templating.twigextensions.IncludeTranslations_Node',
 		'app.etc.templating.twigextensions.IncludeTranslations_TokenParser',
+		'app.etc.templating.twigextensions.Namespace_Node',
+		'app.etc.templating.twigextensions.Namespace_TokenParser',
 		'app.etc.templating.twigextensions.NavItem_Node',
 		'app.etc.templating.twigextensions.Nav_Node',
 		'app.etc.templating.twigextensions.Nav_TokenParser',
@@ -224,34 +182,44 @@ $configArray = array(
 		'app.etc.templating.twigextensions.Paginate_TokenParser',
 		'app.etc.templating.twigextensions.Redirect_Node',
 		'app.etc.templating.twigextensions.Redirect_TokenParser',
+		'app.etc.templating.twigextensions.RequireAdmin_Node',
+		'app.etc.templating.twigextensions.RequireAdmin_TokenParser',
+		'app.etc.templating.twigextensions.RequireEdition_Node',
+		'app.etc.templating.twigextensions.RequireEdition_TokenParser',
 		'app.etc.templating.twigextensions.RequireLogin_Node',
 		'app.etc.templating.twigextensions.RequireLogin_TokenParser',
-		'app.etc.templating.twigextensions.RequirePackage_Node',
-		'app.etc.templating.twigextensions.RequirePackage_TokenParser',
 		'app.etc.templating.twigextensions.RequirePermission_Node',
 		'app.etc.templating.twigextensions.RequirePermission_TokenParser',
+		'app.etc.templating.twigextensions.Switch_Node',
+		'app.etc.templating.twigextensions.Switch_TokenParser',
 		'app.etc.templating.twigextensions.TemplateLoader',
 		'app.etc.updates.Updater',
 		'app.etc.users.UserIdentity',
+		'app.etc.web.CookieCollection',
+		'app.etc.web.HttpCookie',
+		'app.etc.web.UploadedFile',
 		'app.etc.web.UrlManager',
 		'app.extensions.NestedSetBehavior',
 		'app.fieldtypes.AssetsFieldType',
 		'app.fieldtypes.BaseElementFieldType',
 		'app.fieldtypes.BaseFieldType',
 		'app.fieldtypes.BaseOptionsFieldType',
+		'app.fieldtypes.CategoriesFieldType',
 		'app.fieldtypes.CheckboxesFieldType',
 		'app.fieldtypes.ColorFieldType',
 		'app.fieldtypes.DateFieldType',
 		'app.fieldtypes.DropdownFieldType',
 		'app.fieldtypes.EntriesFieldType',
 		'app.fieldtypes.IFieldType',
+		'app.fieldtypes.LightswitchFieldType',
+		'app.fieldtypes.MatrixFieldType',
 		'app.fieldtypes.MultiOptionsFieldData',
 		'app.fieldtypes.MultiSelectFieldType',
 		'app.fieldtypes.NumberFieldType',
 		'app.fieldtypes.OptionData',
 		'app.fieldtypes.PlainTextFieldType',
+		'app.fieldtypes.PositionSelectFieldType',
 		'app.fieldtypes.RadioButtonsFieldType',
-		'app.fieldtypes.RelationFieldData',
 		'app.fieldtypes.RichTextData',
 		'app.fieldtypes.RichTextFieldType',
 		'app.fieldtypes.SingleOptionFieldData',
@@ -264,7 +232,8 @@ $configArray = array(
 		'app.helpers.CpHelper',
 		'app.helpers.DateTimeHelper',
 		'app.helpers.DbHelper',
-		'app.helpers.ErrorHelper',
+		'app.helpers.ElementHelper',
+		'app.helpers.HeaderHelper',
 		'app.helpers.HtmlHelper',
 		'app.helpers.IOHelper',
 		'app.helpers.ImageHelper',
@@ -292,8 +261,13 @@ $configArray = array(
 		'app.models.AssetTransformModel',
 		'app.models.BaseComponentModel',
 		'app.models.BaseElementModel',
+		'app.models.BaseEntryRevisionModel',
 		'app.models.BaseModel',
+		'app.models.CategoryGroupLocaleModel',
+		'app.models.CategoryGroupModel',
+		'app.models.CategoryModel',
 		'app.models.ContentModel',
+		'app.models.DeprecationErrorModel',
 		'app.models.ElementCriteriaModel',
 		'app.models.EmailModel',
 		'app.models.EmailSettingsModel',
@@ -312,8 +286,11 @@ $configArray = array(
 		'app.models.GlobalSetModel',
 		'app.models.InfoModel',
 		'app.models.LocaleModel',
+		'app.models.LogEntryModel',
+		'app.models.MatrixBlockModel',
+		'app.models.MatrixBlockTypeModel',
+		'app.models.MatrixSettingsModel',
 		'app.models.Model',
-		'app.models.PackagePurchaseOrderModel',
 		'app.models.PasswordModel',
 		'app.models.PluginNewReleaseModel',
 		'app.models.PluginUpdateModel',
@@ -321,10 +298,13 @@ $configArray = array(
 		'app.models.SectionLocaleModel',
 		'app.models.SectionModel',
 		'app.models.SiteSettingsModel',
+		'app.models.StructureModel',
+		'app.models.TagGroupModel',
 		'app.models.TagModel',
-		'app.models.TagSetModel',
-		'app.models.TryPackageModel',
+		'app.models.TaskModel',
 		'app.models.UpdateModel',
+		'app.models.UpgradePurchaseModel',
+		'app.models.UrlModel',
 		'app.models.UserGroupModel',
 		'app.models.UserModel',
 		'app.models.UsernameModel',
@@ -335,11 +315,13 @@ $configArray = array(
 		'app.records.AssetSourceRecord',
 		'app.records.AssetTransformRecord',
 		'app.records.BaseRecord',
+		'app.records.CategoryGroupLocaleRecord',
+		'app.records.CategoryGroupRecord',
+		'app.records.CategoryRecord',
 		'app.records.ElementLocaleRecord',
 		'app.records.ElementRecord',
 		'app.records.EmailMessageRecord',
 		'app.records.EntryDraftRecord',
-		'app.records.EntryLocaleRecord',
 		'app.records.EntryRecord',
 		'app.records.EntryTypeRecord',
 		'app.records.EntryVersionRecord',
@@ -350,16 +332,21 @@ $configArray = array(
 		'app.records.FieldRecord',
 		'app.records.GlobalSetRecord',
 		'app.records.LocaleRecord',
+		'app.records.MatrixBlockRecord',
+		'app.records.MatrixBlockTypeRecord',
 		'app.records.MigrationRecord',
 		'app.records.PluginRecord',
 		'app.records.RouteRecord',
 		'app.records.SectionLocaleRecord',
 		'app.records.SectionRecord',
 		'app.records.SessionRecord',
-		'app.records.StructuredEntryRecord',
+		'app.records.StructureElementRecord',
+		'app.records.StructureRecord',
 		'app.records.SystemSettingsRecord',
+		'app.records.TagGroupRecord',
 		'app.records.TagRecord',
-		'app.records.TagSetRecord',
+		'app.records.TaskRecord',
+		'app.records.TokenRecord',
 		'app.records.UserGroupRecord',
 		'app.records.UserGroup_UserRecord',
 		'app.records.UserPermissionRecord',
@@ -371,10 +358,13 @@ $configArray = array(
 		'app.services.AssetSourcesService',
 		'app.services.AssetTransformsService',
 		'app.services.AssetsService',
+		'app.services.CacheService',
+		'app.services.CategoriesService',
 		'app.services.ComponentsService',
 		'app.services.ConfigService',
 		'app.services.ContentService',
 		'app.services.DashboardService',
+		'app.services.DeprecatorService',
 		'app.services.ElementsService',
 		'app.services.EmailMessagesService',
 		'app.services.EmailService',
@@ -389,6 +379,7 @@ $configArray = array(
 		'app.services.ImagesService',
 		'app.services.InstallService',
 		'app.services.LocalizationService',
+		'app.services.MatrixService',
 		'app.services.MigrationsService',
 		'app.services.PathService',
 		'app.services.PluginsService',
@@ -398,50 +389,65 @@ $configArray = array(
 		'app.services.SearchService',
 		'app.services.SectionsService',
 		'app.services.SecurityService',
+		'app.services.StructuresService',
 		'app.services.SystemSettingsService',
 		'app.services.TagsService',
+		'app.services.TasksService',
+		'app.services.TemplateCacheService',
 		'app.services.TemplatesService',
+		'app.services.TokensService',
 		'app.services.UpdatesService',
 		'app.services.UserGroupsService',
 		'app.services.UserPermissionsService',
 		'app.services.UserSessionService',
 		'app.services.UsersService',
+		'app.tasks.BaseTask',
+		'app.tasks.DeleteStaleTemplateCachesTask',
+		'app.tasks.FindAndReplaceTask',
+		'app.tasks.GeneratePendingTransformsTask',
+		'app.tasks.ITask',
+		'app.tasks.LocalizeRelationsTask',
+		'app.tasks.ResaveAllElementsTask',
+		'app.tasks.ResaveElementsTask',
+		'app.tasks.UpdateElementSlugsAndUrisTask',
 		'app.tests.BaseTest',
 		'app.tests.TestApplication',
 		'app.tests.helpers.StubHelper',
 		'app.tests.unit.AppBehaviorTest',
 		'app.tests.unit.ArrayHelperTest',
-		'app.tests.unit.ContentServiceTest',
-		'app.tests.unit.CraftClassTest',
-		'app.tests.unit.CraftTableTest',
 		'app.tests.unit.EntriesServiceTest',
 		'app.tests.unit.EntryModelTest',
 		'app.tests.unit.HttpRequestsServiceTest',
+		'app.tests.unit.ModelTest',
 		'app.tests.unit.PluginsTest',
 		'app.tests.unit.RecentEntriesWidgetTest',
 		'app.tests.unit.ResourceProcessorTest',
 		'app.tests.unit.SectionModelTest',
+		'app.tests.unit.StringHelperTest',
 		'app.tests.unit.UrlHelperTest',
 		'app.tools.AssetIndexTool',
 		'app.tools.BaseTool',
 		'app.tools.ClearCachesTool',
 		'app.tools.DbBackupTool',
+		'app.tools.FindAndReplaceTool',
 		'app.tools.ITool',
 		'app.tools.SearchIndexTool',
 		'app.validators.CompositeUniqueValidator',
 		'app.validators.DateTimeValidator',
 		'app.validators.HandleValidator',
-		'app.validators.LocaleNumberValidator',
 		'app.validators.LocaleValidator',
 		'app.validators.UriValidator',
+		'app.validators.UrlFormatValidator',
 		'app.validators.UrlValidator',
 		'app.variables.AppVariable',
 		'app.variables.AssetSourceTypeVariable',
 		'app.variables.BaseComponentTypeVariable',
+		'app.variables.CategoryGroupsVariable',
 		'app.variables.ConfigVariable',
 		'app.variables.CpVariable',
 		'app.variables.CraftVariable',
 		'app.variables.DashboardVariable',
+		'app.variables.DeprecatorVariable',
 		'app.variables.ElementTypeVariable',
 		'app.variables.ElementsVariable',
 		'app.variables.EmailMessagesVariable',
@@ -461,6 +467,7 @@ $configArray = array(
 		'app.variables.RoutesVariable',
 		'app.variables.SectionsVariable',
 		'app.variables.SystemSettingsVariable',
+		'app.variables.TasksVariable',
 		'app.variables.ToolVariable',
 		'app.variables.UpdatesVariable',
 		'app.variables.UserGroupsVariable',
@@ -479,20 +486,11 @@ $configArray = array(
 	'components' => array(
 
 		'db' => array(
-			'connectionString'  => strtolower('mysql:host='.$dbConfig['server'].';dbname=').$dbConfig['database'].strtolower(';port='.$dbConfig['port'].';'),
-			'emulatePrepare'    => true,
-			'username'          => $dbConfig['user'],
-			'password'          => $dbConfig['password'],
-			'charset'           => $dbConfig['charset'],
-			'tablePrefix'       => $tablePrefix,
-			'driverMap'         => array('mysql' => 'Craft\MysqlSchema'),
 			'class'             => 'Craft\DbConnection',
 		),
 
 		'config' => array(
 			'class'         => 'Craft\ConfigService',
-			'generalConfig' => $generalConfig,
-			'dbConfig'      => $dbConfig,
 		),
 
 		'i18n' => array(
@@ -509,17 +507,22 @@ $configArray = array(
 	)
 );
 
-// -------------------------------------------
-//  CP routes
-// -------------------------------------------
+// CP routes
+// ----------------------------------------------------------------------------
 
-$cpRoutes['dashboard/settings/new']               = 'dashboard/settings/_widgetsettings';
-$cpRoutes['dashboard/settings/(?P<widgetId>\d+)'] = 'dashboard/settings/_widgetsettings';
+$cpRoutes['categories']                                                           = array('action' => 'categories/categoryIndex');
+$cpRoutes['categories/(?P<groupHandle>{handle})']                                 = array('action' => 'categories/categoryIndex');
+$cpRoutes['categories/(?P<groupHandle>{handle})/new']                             = array('action' => 'categories/editCategory');
+$cpRoutes['categories/(?P<groupHandle>{handle})/(?P<categoryId>\d+)(?:-{slug})?'] = array('action' => 'categories/editCategory');
 
-$cpRoutes['entries/(?P<sectionHandle>{handle})/new']              = array('action' => 'entries/editEntry');
-$cpRoutes['entries/(?P<sectionHandle>{handle})/(?P<entryId>\d+)'] = array('action' => 'entries/editEntry');
+$cpRoutes['dashboard/settings/new']                                               = 'dashboard/settings/_widgetsettings';
+$cpRoutes['dashboard/settings/(?P<widgetId>\d+)']                                 = 'dashboard/settings/_widgetsettings';
 
-$cpRoutes['globals/(?P<globalSetHandle>{handle})'] = 'globals';
+$cpRoutes['entries/(?P<sectionHandle>{handle})']                                  = 'entries';
+$cpRoutes['entries/(?P<sectionHandle>{handle})/new']                              = array('action' => 'entries/editEntry');
+$cpRoutes['entries/(?P<sectionHandle>{handle})/(?P<entryId>\d+)(?:-{slug})?']     = array('action' => 'entries/editEntry');
+
+$cpRoutes['globals/(?P<globalSetHandle>{handle})']                                = array('action' => 'globals/editContent');
 
 $cpRoutes['updates/go/(?P<handle>[^/]*)'] = 'updates/_go';
 
@@ -530,6 +533,9 @@ $cpRoutes['settings/assets/sources/(?P<sourceId>\d+)']                          
 $cpRoutes['settings/assets/transforms']                                           = array('action' => 'assetTransforms/transformIndex');
 $cpRoutes['settings/assets/transforms/new']                                       = array('action' => 'assetTransforms/editTransform');
 $cpRoutes['settings/assets/transforms/(?P<handle>{handle})']                      = array('action' => 'assetTransforms/editTransform');
+$cpRoutes['settings/categories']                                                  = array('action' => 'categories/groupIndex');
+$cpRoutes['settings/categories/new']                                              = array('action' => 'categories/editCategoryGroup');
+$cpRoutes['settings/categories/(?P<groupId>\d+)']                                 = array('action' => 'categories/editCategoryGroup');
 $cpRoutes['settings/fields/(?P<groupId>\d+)']                                     = 'settings/fields';
 $cpRoutes['settings/fields/new']                                                  = 'settings/fields/_edit';
 $cpRoutes['settings/fields/edit/(?P<fieldId>\d+)']                                = 'settings/fields/_edit';
@@ -544,26 +550,24 @@ $cpRoutes['settings/sections/(?P<sectionId>\d+)/entrytypes']                    
 $cpRoutes['settings/sections/(?P<sectionId>\d+)/entrytypes/new']                  = array('action' => 'sections/editEntryType');
 $cpRoutes['settings/sections/(?P<sectionId>\d+)/entrytypes/(?P<entryTypeId>\d+)'] = array('action' => 'sections/editEntryType');
 $cpRoutes['settings/tags']                                                        = array('action' => 'tags/index');
-$cpRoutes['settings/tags/new']                                                    = array('action' => 'tags/editTagSet');
-$cpRoutes['settings/tags/(?P<tagSetId>\d+)']                                      = array('action' => 'tags/editTagSet');
+$cpRoutes['settings/tags/new']                                                    = array('action' => 'tags/editTagGroup');
+$cpRoutes['settings/tags/(?P<tagGroupId>\d+)']                                    = array('action' => 'tags/editTagGroup');
 
-$cpRoutes['settings/packages'] = array(
-	'params' => array(
-		'variables' => array(
-			'stripeApiKey' => 'pk_J2nJpozDxit0V6wYuT8xSvCKArONs'
-		)
-	)
-);
+$cpRoutes['utils/serverinfo']                                                     = array('action' => 'utils/serverInfo');
+$cpRoutes['utils/phpinfo']                                                        = array('action' => 'utils/phpInfo');
+$cpRoutes['utils/logs(/(?P<currentLogFileName>[A-Za-z0-9\.]+))?']                 = array('action' => 'utils/logs');
+$cpRoutes['utils/deprecationerrors']                                              = array('action' => 'utils/deprecationErrors');
 
 $cpRoutes['settings/routes'] = array(
 	'params' => array(
 		'variables' => array(
 			'tokens' => array(
 				'year'   => '\d{4}',
-				'month'  => '(?:0[1-9]|1[012])',
-				'day'    => '(?:0[1-9]|[12][0-9]|3[01])',
+				'month'  => '(?:0?[1-9]|1[012])',
+				'day'    => '(?:0?[1-9]|[12][0-9]|3[01])',
 				'number' => '\d+',
 				'page'   => '\d+',
+				'slug'   => '[^\/]+',
 				'tag'    => '[^\/]+',
 				'*'      => '[^\/]+',
 			)
@@ -571,57 +575,58 @@ $cpRoutes['settings/routes'] = array(
 	)
 );
 
-$cpRoutes['myaccount'] = 'users/_edit/account';
+$cpRoutes['myaccount'] = array('action' => 'users/editUser', 'params' => array('account' => 'current'));
 
-// Lanugage package routes
-$cpRoutes['pkgRoutes']['Localize']['entries/(?P<sectionHandle>{handle})/(?P<entryId>\d+)/(?P<localeId>\w+)'] = array('action' => 'entries/editEntry');
-$cpRoutes['pkgRoutes']['Localize']['entries/(?P<sectionHandle>{handle})/new/(?P<localeId>\w+)']              = array('action' => 'entries/editEntry');
-$cpRoutes['pkgRoutes']['Localize']['globals/(?P<localeId>\w+)/(?P<globalSetHandle>{handle})']                = 'globals';
+// Client routes
+$cpRoutes['editionRoutes'][1]['clientaccount']                                                                                = array('action' => 'users/editUser', 'params' => array('account' => 'client'));
+$cpRoutes['editionRoutes'][1]['entries/(?P<sectionHandle>{handle})/(?P<entryId>\d+)(?:-{slug}?)?/drafts/(?P<draftId>\d+)']    = array('action' => 'entries/editEntry');
+$cpRoutes['editionRoutes'][1]['entries/(?P<sectionHandle>{handle})/(?P<entryId>\d+)(?:-{slug})?/versions/(?P<versionId>\d+)'] = array('action' => 'entries/editEntry');
 
-// Publish Pro package routes
-$cpRoutes['pkgRoutes']['PublishPro']['entries/(?P<sectionHandle>{handle})/(?P<entryId>\d+)/drafts/(?P<draftId>\d+)']     = array('action' => 'entries/editEntry');
-$cpRoutes['pkgRoutes']['PublishPro']['entries/(?P<sectionHandle>{handle})/(?P<entryId>\d+)/versions/(?P<versionId>\d+)'] = array('action' => 'entries/editEntry');
+// Pro routes
+$cpRoutes['editionRoutes'][2]['clientaccount']                                                                                = false;
+$cpRoutes['editionRoutes'][2]['categories/(?P<groupHandle>{handle})/(?P<categoryId>\d+)(?:-{slug})?/(?P<localeId>\w+)']       = array('action' => 'categories/editCategory');
+$cpRoutes['editionRoutes'][2]['categories/(?P<groupHandle>{handle})/new/(?P<localeId>\w+)']                                   = array('action' => 'categories/editCategory');
+$cpRoutes['editionRoutes'][2]['entries/(?P<sectionHandle>{handle})/(?P<entryId>\d+)(?:-{slug})?/(?P<localeId>\w+)']           = array('action' => 'entries/editEntry');
+$cpRoutes['editionRoutes'][2]['entries/(?P<sectionHandle>{handle})/new/(?P<localeId>\w+)']                                    = array('action' => 'entries/editEntry');
+$cpRoutes['editionRoutes'][2]['globals/(?P<localeId>\w+)/(?P<globalSetHandle>{handle})']                                      = array('action' => 'globals/editContent');
+$cpRoutes['editionRoutes'][2]['users/new']                                                                                    = array('action' => 'users/editUser');
+$cpRoutes['editionRoutes'][2]['users/(?P<userId>\d+)']                                                                        = array('action' => 'users/editUser');
+$cpRoutes['editionRoutes'][2]['settings/users']                                                                               = 'settings/users/groups/_index';
+$cpRoutes['editionRoutes'][2]['settings/users/groups/new']                                                                    = 'settings/users/groups/_edit';
+$cpRoutes['editionRoutes'][2]['settings/users/groups/(?P<groupId>\d+)']                                                       = 'settings/users/groups/_edit';
 
-// Users package routes
-$cpRoutes['pkgRoutes']['Users']['myaccount/profile']             = 'users/_edit/profile';
-$cpRoutes['pkgRoutes']['Users']['myaccount/info']                = 'users/_edit/info';
-$cpRoutes['pkgRoutes']['Users']['myaccount/admin']               = 'users/_edit/admin';
-
-$cpRoutes['pkgRoutes']['Users']['users/new']                     = 'users/_edit/account';
-$cpRoutes['pkgRoutes']['Users']['users/(?P<userId>\d+)']         = 'users/_edit/account';
-$cpRoutes['pkgRoutes']['Users']['users/(?P<userId>\d+)/profile'] = 'users/_edit/profile';
-$cpRoutes['pkgRoutes']['Users']['users/(?P<userId>\d+)/admin']   = 'users/_edit/admin';
-$cpRoutes['pkgRoutes']['Users']['users/(?P<userId>\d+)/info']    = 'users/_edit/info';
-
-$cpRoutes['pkgRoutes']['Users']['settings/users']                         = 'settings/users/groups';
-$cpRoutes['pkgRoutes']['Users']['settings/users/groups/new']              = 'settings/users/groups/_settings';
-$cpRoutes['pkgRoutes']['Users']['settings/users/groups/(?P<groupId>\d+)'] = 'settings/users/groups/_settings';
-
-// -------------------------------------------
 //  Component config
-// -------------------------------------------
+// ----------------------------------------------------------------------------
 
 $components['users']['class']                = 'Craft\UsersService';
 $components['assets']['class']               = 'Craft\AssetsService';
 $components['assetTransforms']['class']      = 'Craft\AssetTransformsService';
 $components['assetIndexing']['class']        = 'Craft\AssetIndexingService';
 $components['assetSources']['class']         = 'Craft\AssetSourcesService';
+$components['cache']['class']                = 'Craft\CacheService';
+$components['categories']['class']           = 'Craft\CategoriesService';
 $components['content']['class']              = 'Craft\ContentService';
 $components['dashboard']['class']            = 'Craft\DashboardService';
+$components['deprecator']['class']           = 'Craft\DeprecatorService';
 $components['email']['class']                = 'Craft\EmailService';
 $components['elements']['class']             = 'Craft\ElementsService';
 $components['entries']['class']              = 'Craft\EntriesService';
 $components['et']['class']                   = 'Craft\EtService';
 $components['feeds']['class']                = 'Craft\FeedsService';
 $components['fields']['class']               = 'Craft\FieldsService';
-$components['fieldTypes']['class']           = 'Craft\FieldTypesService';
 $components['globals']['class']              = 'Craft\GlobalsService';
 $components['install']['class']              = 'Craft\InstallService';
 $components['images']['class']               = 'Craft\ImagesService';
+$components['matrix']['class']               = 'Craft\MatrixService';
 $components['migrations']['class']           = 'Craft\MigrationsService';
 $components['path']['class']                 = 'Craft\PathService';
 $components['relations']['class']            = 'Craft\RelationsService';
-
+$components['resources'] = array(
+	'class'     => 'Craft\ResourcesService',
+	'dateParam' => 'd',
+);
+$components['routes']['class']               = 'Craft\RoutesService';
+$components['search']['class']               = 'Craft\SearchService';
 $components['sections'] = array(
 	'class' => 'Craft\SectionsService',
 	'typeLimits' => array(
@@ -630,67 +635,67 @@ $components['sections'] = array(
 		'structure' => 0
 	)
 );
-
-$components['resources']['class']            = 'Craft\ResourcesService';
-$components['resources']['dateParam']        = 'd';
-
-$components['routes']['class']               = 'Craft\RoutesService';
-$components['search']['class']               = 'Craft\SearchService';
 $components['security']['class']             = 'Craft\SecurityService';
-$components['systemSettings']['class']       = 'Craft\SystemSettingsService';
+$components['structures']['class']           = 'Craft\StructuresService';
+$components['systemSettings'] = array(
+	'class' => 'Craft\SystemSettingsService',
+	'defaults' => array(
+		'users' => array(
+			'requireEmailVerification' => true,
+			'allowPublicRegistration' => false,
+			'defaultGroup' => null,
+		),
+		'email' => array(
+			'emailAddress' => null,
+			'senderName' => null,
+			'template' => null,
+			'protocol' => null,
+			'username' => null,
+			'password' => null,
+			'port' => 25,
+			'host' => null,
+			'timeout' => 30,
+			'smtpKeepAlive' => false,
+			'smtpAuth' => false,
+			'smtpSecureTransportType' => 'none',
+		)
+	)
+);
 $components['tags']['class']                 = 'Craft\TagsService';
+$components['tasks']['class']                = 'Craft\TasksService';
+$components['templateCache']['class']        = 'Craft\TemplateCacheService';
 $components['templates']['class']            = 'Craft\TemplatesService';
+$components['tokens']['class']               = 'Craft\TokensService';
 $components['updates']['class']              = 'Craft\UpdatesService';
-
 $components['components'] = array(
 	'class' => 'Craft\ComponentsService',
 	'types' => array(
-		'assetSource' => array('subfolder' => 'assetsourcetypes', 'suffix' => 'AssetSourceType', 'instanceof' => 'BaseAssetSourceType'),
-		'element'     => array('subfolder' => 'elementtypes',     'suffix' => 'ElementType',     'instanceof' => 'IElementType'),
-		'field'       => array('subfolder' => 'fieldtypes',       'suffix' => 'FieldType',       'instanceof' => 'IFieldType'),
-		'tool'        => array('subfolder' => 'tools',            'suffix' => 'Tool',            'instanceof' => 'ITool'),
-		'widget'      => array('subfolder' => 'widgets',          'suffix' => 'Widget',          'instanceof' => 'IWidget'),
+		'assetSource'   => array('subfolder' => 'assetsourcetypes', 'suffix' => 'AssetSourceType', 'instanceof' => 'BaseAssetSourceType', 'enableForPlugins' => false),
+		'element'       => array('subfolder' => 'elementtypes',     'suffix' => 'ElementType',     'instanceof' => 'IElementType',        'enableForPlugins' => true),
+		'elementAction' => array('subfolder' => 'elementactions',   'suffix' => 'ElementAction',   'instanceof' => 'IElementAction',      'enableForPlugins' => true),
+		'field'         => array('subfolder' => 'fieldtypes',       'suffix' => 'FieldType',       'instanceof' => 'IFieldType',          'enableForPlugins' => true),
+		'tool'          => array('subfolder' => 'tools',            'suffix' => 'Tool',            'instanceof' => 'ITool',               'enableForPlugins' => false),
+		'task'          => array('subfolder' => 'tasks',            'suffix' => 'Task',            'instanceof' => 'ITask',               'enableForPlugins' => true),
+		'widget'        => array('subfolder' => 'widgets',          'suffix' => 'Widget',          'instanceof' => 'IWidget',             'enableForPlugins' => true),
 	)
 );
-
 $components['plugins'] = array(
 	'class' => 'Craft\PluginsService',
-	'componentTypes' => array(
-		'controller'  => array('subfolder' => 'controllers',      'suffix' => 'Controller',      'instanceof' => 'BaseController'),
-		'field'       => array('subfolder' => 'fieldtypes',       'suffix' => 'FieldType',       'instanceof' => 'IFieldType'),
-		'helper'      => array('subfolder' => 'helpers',          'suffix' => 'Helper'),
-		'model'       => array('subfolder' => 'models',           'suffix' => 'Model',           'instanceof' => 'BaseModel'),
-		'record'      => array('subfolder' => 'records',          'suffix' => 'Record',          'instanceof' => 'BaseRecord'),
-		'service'     => array('subfolder' => 'services',         'suffix' => 'Service',         'instanceof' => 'BaseApplicationComponent'),
-		'variable'    => array('subfolder' => 'variables',        'suffix' => 'Variable'),
-		'validator'   => array('subfolder' => 'validators',       'suffix' => 'Validator'),
-		'widget'      => array('subfolder' => 'widgets',          'suffix' => 'Widget',          'instanceof' => 'IWidget'),
-	)
+	'autoloadClasses' => array('Controller','Enum','Helper','Model','Record','Service','Variable','Validator'),
 );
 
-// Plugins: This is for experimental use only.
-// The Element Type API is likely to change before this config setting is removed.
-if (!empty($generalConfig['enablePluginElementTypes']))
-{
-	$components['plugins']['componentTypes']['element'] = array('subfolder' => 'elementtypes', 'suffix' => 'ElementType', 'instanceof' => 'IElementType');
-}
+// Craft Client components
+$components['editionComponents'][1]['emailMessages']['class']   = 'Craft\EmailMessagesService';
+$components['editionComponents'][1]['entryRevisions']['class']  = 'Craft\EntryRevisionsService';
 
-// Publish Pro package components
-$components['pkgComponents']['PublishPro']['entryRevisions']['class'] = 'Craft\EntryRevisionsService';
+// Craft Pro components
+$components['editionComponents'][2]['userGroups']['class']      = 'Craft\UserGroupsService';
+$components['editionComponents'][2]['userPermissions']['class'] = 'Craft\UserPermissionsService';
 
-
-// Users package components
-$components['pkgComponents']['Users']['userGroups']['class']      = 'Craft\UserGroupsService';
-$components['pkgComponents']['Users']['userPermissions']['class'] = 'Craft\UserPermissionsService';
-
-// Rebrand package components
-$components['pkgComponents']['Rebrand']['emailMessages']['class'] = 'Craft\EmailMessagesService';
-
-$components['file']['class'] = 'Craft\File';
 $components['messages']['class'] = 'Craft\PhpMessageSource';
+$components['coreMessages']['class'] = 'Craft\PhpMessageSource';
 $components['request']['class'] = 'Craft\HttpRequestService';
 $components['request']['enableCookieValidation'] = true;
-$components['viewRenderer']['class'] = 'Craft\TemplateProcessor';
 $components['statePersister']['class'] = 'Craft\StatePersister';
 
 $components['urlManager']['class'] = 'Craft\UrlManager';
@@ -699,7 +704,6 @@ $components['urlManager']['pathParam'] = 'p';
 
 $components['errorHandler'] = array(
 	'class' => 'Craft\ErrorHandler',
-	'errorAction' => 'templates/renderError'
 );
 
 $components['fileCache']['class'] = 'Craft\FileCache';
@@ -723,7 +727,6 @@ $components['log']['routes'] = array(
 $components['httpSession']['autoStart']   = true;
 $components['httpSession']['cookieMode']  = 'only';
 $components['httpSession']['class']       = 'Craft\HttpSessionService';
-$components['httpSession']['sessionName'] = 'CraftSessionId';
 
 $components['userSession']['class'] = 'Craft\UserSessionService';
 $components['userSession']['allowAutoLogin']  = true;

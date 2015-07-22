@@ -1,24 +1,26 @@
 <?php
 namespace Craft;
 
+craft()->requireEdition(Craft::Client);
+
 /**
- * Craft by Pixel & Tonic
+ * Class EntryVersionRecord
  *
- * @package   Craft
- * @author    Pixel & Tonic, Inc.
- * @copyright Copyright (c) 2013, Pixel & Tonic, Inc.
+ * @author    Pixel & Tonic, Inc. <support@pixelandtonic.com>
+ * @copyright Copyright (c) 2014, Pixel & Tonic, Inc.
  * @license   http://buildwithcraft.com/license Craft License Agreement
- * @link      http://buildwithcraft.com
- */
-
-craft()->requirePackage(CraftPackage::PublishPro);
-
-/**
- * Stores entry versions
+ * @see       http://buildwithcraft.com
+ * @package   craft.app.records
+ * @since     1.0
  */
 class EntryVersionRecord extends BaseRecord
 {
+	// Public Methods
+	// =========================================================================
+
 	/**
+	 * @inheritDoc BaseRecord::getTableName()
+	 *
 	 * @return string
 	 */
 	public function getTableName()
@@ -27,19 +29,8 @@ class EntryVersionRecord extends BaseRecord
 	}
 
 	/**
-	 * @access protected
-	 * @return array
-	 */
-	protected function defineAttributes()
-	{
-		return array(
-			'locale' => array(AttributeType::Locale, 'required' => true),
-			'notes'  => array(AttributeType::String, 'column' => ColumnType::TinyText),
-			'data'   => array(AttributeType::Mixed, 'required' => true, 'column' => ColumnType::MediumText),
-		);
-	}
-
-	/**
+	 * @inheritDoc BaseRecord::defineRelations()
+	 *
 	 * @return array
 	 */
 	public function defineRelations()
@@ -53,12 +44,32 @@ class EntryVersionRecord extends BaseRecord
 	}
 
 	/**
+	 * @inheritDoc BaseRecord::defineIndexes()
+	 *
 	 * @return array
 	 */
 	public function defineIndexes()
 	{
 		return array(
 			array('columns' => array('entryId', 'locale')),
+		);
+	}
+
+	// Protected Methods
+	// =========================================================================
+
+	/**
+	 * @inheritDoc BaseRecord::defineAttributes()
+	 *
+	 * @return array
+	 */
+	protected function defineAttributes()
+	{
+		return array(
+			'locale' => array(AttributeType::Locale, 'required' => true),
+			'num'    => array(AttributeType::Number, 'column' => ColumnType::SmallInt, 'unsigned' => true, 'required' => true),
+			'notes'  => array(AttributeType::String, 'column' => ColumnType::TinyText),
+			'data'   => array(AttributeType::Mixed, 'required' => true, 'column' => ColumnType::MediumText),
 		);
 	}
 }

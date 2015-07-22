@@ -1,43 +1,28 @@
 <?php
 namespace Craft;
 
+craft()->requireEdition(Craft::Client);
+
 /**
- * Craft by Pixel & Tonic
+ * Class EntryDraftModel
  *
- * @package   Craft
- * @author    Pixel & Tonic, Inc.
- * @copyright Copyright (c) 2013, Pixel & Tonic, Inc.
+ * @author    Pixel & Tonic, Inc. <support@pixelandtonic.com>
+ * @copyright Copyright (c) 2014, Pixel & Tonic, Inc.
  * @license   http://buildwithcraft.com/license Craft License Agreement
- * @link      http://buildwithcraft.com
+ * @see       http://buildwithcraft.com
+ * @package   craft.app.models
+ * @since     1.0
  */
-
-craft()->requirePackage(CraftPackage::PublishPro);
-
-/**
- *
- */
-class EntryDraftModel extends EntryModel
+class EntryDraftModel extends BaseEntryRevisionModel
 {
-	/**
-	 * @access protected
-	 * @return array
-	 */
-	protected function defineAttributes()
-	{
-		$attributes = parent::defineAttributes();
-
-		$attributes['draftId'] = AttributeType::Number;
-		$attributes['creatorId'] = AttributeType::Number;
-		$attributes['name'] = AttributeType::String;
-
-		return $attributes;
-	}
+	// Public Methods
+	// =========================================================================
 
 	/**
-	 * Populates a new model instance with a given set of attributes.
+	 * @inheritDoc BaseModel::populateModel()
 	 *
-	 * @static
 	 * @param mixed $attributes
+	 *
 	 * @return EntryDraftModel
 	 */
 	public static function populateModel($attributes)
@@ -52,30 +37,41 @@ class EntryDraftModel extends EntryModel
 		$fieldContent = isset($entryData['fields']) ? $entryData['fields'] : null;
 		$attributes['draftId'] = $attributes['id'];
 		$attributes['id'] = $attributes['entryId'];
+		$attributes['revisionNotes'] = $attributes['notes'];
 		$title = $entryData['title'];
-		unset($attributes['data'], $entryData['fields'], $attributes['entryId'], $entryData['title']);
+		unset($attributes['data'], $entryData['fields'], $attributes['entryId'], $attributes['notes'], $entryData['title']);
 
 		$attributes = array_merge($attributes, $entryData);
 
 		// Initialize the draft
 		$draft = parent::populateModel($attributes);
-		$draft->getContent()->title = $title;
+
+		if ($title)
+		{
+			$draft->getContent()->title = $title;
+		}
 
 		if ($fieldContent)
 		{
-			$draft->getContent()->setValuesByFieldId($fieldContent);
+			$draft->setContentFromRevision($fieldContent);
 		}
 
 		return $draft;
 	}
 
+	// Protected Methods
+	// =========================================================================
+
 	/**
-	 * Returns the draft's creator.
+	 * @inheritDoc BaseModel::defineAttributes()
 	 *
-	 * @return UserModel|null
+	 * @return array
 	 */
-	public function getCreator()
+	protected function defineAttributes()
 	{
-		return craft()->users->getUserById($this->creatorId);
+		return array_merge(parent::defineAttributes(), array(
+			'draftId' => AttributeType::Number,
+			'name'    => AttributeType::String,
+		));
 	}
 }

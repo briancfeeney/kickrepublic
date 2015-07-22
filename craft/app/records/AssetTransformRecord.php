@@ -2,21 +2,23 @@
 namespace Craft;
 
 /**
- * Craft by Pixel & Tonic
+ * Class AssetTransformRecord
  *
- * @package   Craft
- * @author    Pixel & Tonic, Inc.
- * @copyright Copyright (c) 2013, Pixel & Tonic, Inc.
+ * @author    Pixel & Tonic, Inc. <support@pixelandtonic.com>
+ * @copyright Copyright (c) 2014, Pixel & Tonic, Inc.
  * @license   http://buildwithcraft.com/license Craft License Agreement
- * @link      http://buildwithcraft.com
- */
-
-/**
- *
+ * @see       http://buildwithcraft.com
+ * @package   craft.app.records
+ * @since     1.0
  */
 class AssetTransformRecord extends BaseRecord
 {
+	// Public Methods
+	// =========================================================================
+
 	/**
+	 * @inheritDoc BaseRecord::getTableName()
+	 *
 	 * @return string
 	 */
 	public function getTableName()
@@ -25,7 +27,36 @@ class AssetTransformRecord extends BaseRecord
 	}
 
 	/**
-	 * @access protected
+	 * @inheritDoc BaseRecord::defineIndexes()
+	 *
+	 * @return array
+	 */
+	public function defineIndexes()
+	{
+		return array(
+			array('columns' => array('name'), 'unique' => true),
+			array('columns' => array('handle'), 'unique' => true),
+		);
+	}
+
+	/**
+	 * @inheritDoc BaseRecord::scopes()
+	 *
+	 * @return array
+	 */
+	public function scopes()
+	{
+		return array(
+			'ordered' => array('order' => 'name'),
+		);
+	}
+
+	// Protected Methods
+	// =========================================================================
+
+	/**
+	 * @inheritDoc BaseRecord::defineAttributes()
+	 *
 	 * @return array
 	 */
 	protected function defineAttributes()
@@ -37,18 +68,9 @@ class AssetTransformRecord extends BaseRecord
 			'position'            => array(AttributeType::Enum, 'values' => array('top-left', 'top-center', 'top-right', 'center-left', 'center-center', 'center-right', 'bottom-left', 'bottom-center', 'bottom-right'), 'required' => true, 'default' => 'center-center'),
 			'height'              => AttributeType::Number,
 			'width'               => AttributeType::Number,
+			'format'              => AttributeType::String,
+			'quality'             => array(AttributeType::Number, 'required' => false),
 			'dimensionChangeTime' => AttributeType::DateTime
-		);
-	}
-
-	/**
-	 * @return array
-	 */
-	public function defineIndexes()
-	{
-		return array(
-			array('columns' => array('name'), 'unique' => true),
-			array('columns' => array('handle'), 'unique' => true),
 		);
 	}
 }

@@ -2,9 +2,9 @@
 {% set title = "Update Craft"|t %}
 
 {% set content %}
-	<p>{{ "You need to be on at least Craft build {minBuild} before you can manually update to Craft {targetVersion} build {targetBuild}."|t({
-			minBuild:      minBuild,
+	<p>{{ "You need to be on at least Craft {url} before you can manually update to Craft {targetVersion} build {targetBuild}."|t({
+			url:           '<a href=\"'~minBuildURL~'\">build '~minBuild~'</a>',
 			targetVersion: targetVersion,
 			targetBuild:   targetBuild
-		}) }}</p>
+		})|raw }}</p>
 {% endset %}

@@ -1,9 +1,9 @@
-{% if sources is defined and sources is not empty %}
-	<div class="sidebar">
+<div class="content{% if showSidebar %} has-sidebar{% endif %}">
+	<div class="sidebar{% if not showSidebar %} hidden{% endif %}">
 		<nav>
 			{% include "_elements/sources" %}
 		</nav>
 	</div>
-{% endif %}
 
-{% include "_elements/indexcontainer" %}
+	{% include "_elements/indexcontainer" %}
+</div>

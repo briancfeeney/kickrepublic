@@ -2,70 +2,79 @@
 namespace Craft;
 
 /**
- * Craft by Pixel & Tonic
+ * Class TagsFieldType
  *
- * @package   Craft
- * @author    Pixel & Tonic, Inc.
- * @copyright Copyright (c) 2013, Pixel & Tonic, Inc.
+ * @author    Pixel & Tonic, Inc. <support@pixelandtonic.com>
+ * @copyright Copyright (c) 2014, Pixel & Tonic, Inc.
  * @license   http://buildwithcraft.com/license Craft License Agreement
- * @link      http://buildwithcraft.com
- */
-
-/**
- * Tags fieldtype
+ * @see       http://buildwithcraft.com
+ * @package   craft.app.fieldtypes
+ * @since     1.2
  */
 class TagsFieldType extends BaseElementFieldType
 {
-	private $_tagSetId;
+	// Properties
+	// =========================================================================
 
 	/**
-	 * @access protected
-	 * @var string $elementType The element type this field deals with.
+	 * The element type this field deals with.
+	 *
+	 * @var string $elementType
 	 */
 	protected $elementType = 'Tag';
 
 	/**
-	 * @access protected
-	 * @var bool $allowMultipleSources Whether the field settings should allow multiple sources to be selected.
+	 * Whether the field settings should allow multiple sources to be selected.
+	 *
+	 * @var bool $allowMultipleSources
 	 */
 	protected $allowMultipleSources = false;
 
 	/**
-	 * @access protected
-	 * @var bool $allowLimit Whether to allow the Limit setting.
+	 * Whether to allow the Limit setting.
+	 *
+	 * @var bool $allowLimit
 	 */
 	protected $allowLimit = false;
 
 	/**
-	 * Returns the field's input HTML.
+	 * @var
+	 */
+	private $_tagGroupId;
+
+	// Public Methods
+	// =========================================================================
+
+	/**
+	 * @inheritDoc IFieldType::getInputHtml()
 	 *
 	 * @param string $name
-	 * @param mixed  $elements
+	 * @param mixed  $criteria
+	 *
 	 * @return string
 	 */
-	public function getInputHtml($name, $elements)
+	public function getInputHtml($name, $criteria)
 	{
-		$id = rtrim(preg_replace('/[\[\]]+/', '-', $name), '-');
-
-		if (!($elements instanceof RelationFieldData))
+		if (!($criteria instanceof ElementCriteriaModel))
 		{
-			$elements = new RelationFieldData();
+			$criteria = craft()->elements->getCriteria($this->elementType);
+			$criteria->id = false;
 		}
 
 		$elementVariable = new ElementTypeVariable($this->getElementType());
 
-		$tagSet = $this->_getTagSet();
+		$tagGroup = $this->_getTagGroup();
 
-		if ($tagSet)
+		if ($tagGroup)
 		{
 			return craft()->templates->render('_components/fieldtypes/Tags/input', array(
-				'elementType' => $elementVariable,
-				'id'          => $id,
-				'name'        => $name,
-				'elements'    => $elements->all,
-				'tagSetId'    => $this->_getTagSetId(),
-				'elementId'   => (!empty($this->element->id) ? $this->element->id : null),
-				'hasFields'   => (bool) $tagSet->getFieldLayout()->getFields(),
+				'elementType'     => $elementVariable,
+				'id'              => craft()->templates->formatInputId($name),
+				'name'            => $name,
+				'elements'        => $criteria,
+				'tagGroupId'      => $this->_getTagGroupId(),
+				'sourceElementId' => (isset($this->element->id) ? $this->element->id : null),
+				'selectionLabel'  => Craft::t($this->getSettings()->selectionLabel),
 			));
 		}
 		else
@@ -75,95 +84,54 @@ class TagsFieldType extends BaseElementFieldType
 	}
 
 	/**
-	 * Performs any additional actions after the element has been saved.
+	 * @inheritDoc BaseElementFieldType::getAddButtonLabel()
+	 *
+	 * @return string
 	 */
-	public function onAfterElementSave()
+	protected function getAddButtonLabel()
 	{
-		$tagSetId = $this->_getTagSetId();
+		return Craft::t('Add a tag');
+	}
 
-		if ($tagSetId === false)
+	// Private Methods
+	// =========================================================================
+
+	/**
+	 * Returns the tag group associated with this field.
+	 *
+	 * @return TagGroupModel|null
+	 */
+	private function _getTagGroup()
+	{
+		$tagGroupId = $this->_getTagGroupId();
+
+		if ($tagGroupId)
 		{
-			return;
-		}
-
-		$rawValue = $this->element->getRawContent($this->model->handle);
-
-		if ($rawValue !== null)
-		{
-			$tagIds = is_array($rawValue) ? array_filter($rawValue) : array();
-
-			foreach ($tagIds as $i => $tagId)
-			{
-				if (strncmp($tagId, 'new:', 4) == 0)
-				{
-					$name = mb_substr($tagId, 4);
-
-					// Last-minute check
-					$criteria = craft()->elements->getCriteria(ElementType::Tag);
-					$criteria->setId = $tagSetId;
-					$criteria->search = 'name:'.$name;
-					$ids = $criteria->ids();
-
-					if ($ids)
-					{
-						$tagIds[$i] = $ids[0];
-					}
-					else
-					{
-						$tag = new TagModel();
-						$tag->setId = $tagSetId;
-						$tag->name = $name;
-
-						if (craft()->tags->saveTag($tag))
-						{
-							$tagIds[$i] = $tag->id;
-						}
-					}
-				}
-			}
-
-			craft()->relations->saveRelations($this->model->id, $this->element->id, $tagIds);
+			return craft()->tags->getTagGroupById($tagGroupId);
 		}
 	}
 
 	/**
-	 * Returns the tag set associated with this field.
+	 * Returns the tag group ID this field is associated with.
 	 *
-	 * @access private
-	 * @return TagSetModel|null
-	 */
-	private function _getTagSet()
-	{
-		$tagSetId = $this->_getTagSetId();
-
-		if ($tagSetId)
-		{
-			return craft()->tags->getTagSetById($tagSetId);
-		}
-	}
-
-	/**
-	 * Returns the tag set ID this field is associated with.
-	 *
-	 * @access private
 	 * @return int|false
 	 */
-	private function _getTagSetId()
+	private function _getTagGroupId()
 	{
-		if (!isset($this->_tagSetId))
+		if (!isset($this->_tagGroupId))
 		{
 			$source = $this->getSettings()->source;
 
-			if (strncmp($source, 'tagset:', 7) == 0)
+			if (strncmp($source, 'taggroup:', 9) == 0)
 			{
-				$this->_tagSetId = (int) mb_substr($source, 7);
+				$this->_tagGroupId = (int) mb_substr($source, 9);
 			}
 			else
 			{
-				$this->_tagSetId = false;
+				$this->_tagGroupId = false;
 			}
 		}
 
-		return $this->_tagSetId;
+		return $this->_tagGroupId;
 	}
 }

@@ -2,38 +2,35 @@
 namespace Craft;
 
 /**
- * Craft by Pixel & Tonic
+ * Class BaseOptionsFieldType
  *
- * @package   Craft
- * @author    Pixel & Tonic, Inc.
- * @copyright Copyright (c) 2013, Pixel & Tonic, Inc.
+ * @author    Pixel & Tonic, Inc. <support@pixelandtonic.com>
+ * @copyright Copyright (c) 2014, Pixel & Tonic, Inc.
  * @license   http://buildwithcraft.com/license Craft License Agreement
- * @link      http://buildwithcraft.com
- */
-
-/**
- *
+ * @see       http://buildwithcraft.com
+ * @package   craft.app.fieldtypes
+ * @since     1.0
  */
 abstract class BaseOptionsFieldType extends BaseFieldType
 {
+	// Properties
+	// =========================================================================
+
+	/**
+	 * @var bool
+	 */
 	protected $multi = false;
+
+	/**
+	 * @var
+	 */
 	private $_options;
 
-	/**
-	 * Defines the settings.
-	 *
-	 * @access protected
-	 * @return array
-	 */
-	protected function defineSettings()
-	{
-		return array(
-			'options' => array(AttributeType::Mixed, 'default' => array())
-		);
-	}
+	// Public Methods
+	// =========================================================================
 
 	/**
-	 * Returns the content attribute config.
+	 * @inheritDoc IFieldType::defineContentAttribute()
 	 *
 	 * @return mixed
 	 */
@@ -41,16 +38,42 @@ abstract class BaseOptionsFieldType extends BaseFieldType
 	{
 		if ($this->multi)
 		{
-			return AttributeType::Mixed;
+			$options = $this->getSettings()->options;
+
+			// See how much data we could possibly be saving if everything was selected.
+			$length = 0;
+
+			foreach ($options as $option)
+			{
+				if (!empty($option['value']))
+				{
+					// +3 because it will be json encoded. Includes the surrounding quotes and comma.
+					$length += strlen($option['value']) + 3;
+				}
+			}
+
+			if ($length)
+			{
+				// Add +2 for the outer brackets and -1 for the last comma.
+				$length += 1;
+
+				$columnType = DbHelper::getTextualColumnTypeByContentLength($length);
+			}
+			else
+			{
+				$columnType = ColumnType::Varchar;
+			}
+
+			return array(AttributeType::Mixed, 'column' => $columnType, 'default' => $this->getDefaultValue());
 		}
 		else
 		{
-			return AttributeType::String;
+			return array(AttributeType::String, 'column' => ColumnType::Varchar, 'maxLength' => 255, 'default' => $this->getDefaultValue());
 		}
 	}
 
 	/**
-	 * Returns the field's settings HTML.
+	 * @inheritDoc BaseElementFieldType::getSettingsHtml()
 	 *
 	 * @return string|null
 	 */
@@ -64,16 +87,12 @@ abstract class BaseOptionsFieldType extends BaseFieldType
 			$options = array(array('label' => '', 'value' => ''));
 		}
 
-		$class = $this->getClassHandle();
-
 		return craft()->templates->renderMacro('_includes/forms', 'editableTableField', array(
 			array(
 				'label'        => $this->getOptionsSettingsLabel(),
 				'instructions' => Craft::t('Define the available options.'),
 				'id'           => 'options',
 				'name'         => 'options',
-				'jsId'         => 'types-'.$class.'-options',
-				'jsName'       => 'types['.$class.'][options]',
 				'addRowLabel'  => Craft::t('Add an option'),
 				'cols'         => array(
 					'label' => array(
@@ -98,9 +117,10 @@ abstract class BaseOptionsFieldType extends BaseFieldType
 	}
 
 	/**
-	 * Preps the settings before they're saved to the database.
+	 * @inheritDoc ISavableComponentType::prepSettings()
 	 *
 	 * @param array $settings
+	 *
 	 * @return array
 	 */
 	public function prepSettings($settings)
@@ -115,9 +135,10 @@ abstract class BaseOptionsFieldType extends BaseFieldType
 	}
 
 	/**
-	 * Preps the field value for use.
+	 * @inheritDoc IFieldType::prepValue()
 	 *
 	 * @param mixed $value
+	 *
 	 * @return mixed
 	 */
 	public function prepValue($value)
@@ -149,30 +170,44 @@ abstract class BaseOptionsFieldType extends BaseFieldType
 			$value = new SingleOptionFieldData($label, $value, true);
 		}
 
-		$value->options = array();
+		$options = array();
 
 		foreach ($this->getOptions() as $option)
 		{
 			$selected = in_array($option['value'], $selectedValues);
-			$value->options[] = new OptionData($option['label'], $option['value'], $selected);
+			$options[] = new OptionData($option['label'], $option['value'], $selected);
 		}
+
+		$value->setOptions($options);
 
 		return $value;
 	}
 
+	// Protected Methods
+	// =========================================================================
+
 	/**
 	 * Returns the label for the Options setting.
 	 *
-	 * @abstract
-	 * @access protected
 	 * @return string
 	 */
 	abstract protected function getOptionsSettingsLabel();
 
 	/**
+	 * @inheritDoc BaseSavableComponentType::defineSettings()
+	 *
+	 * @return array
+	 */
+	protected function defineSettings()
+	{
+		return array(
+			'options' => array(AttributeType::Mixed, 'default' => array())
+		);
+	}
+
+	/**
 	 * Returns the field options, accounting for the old school way of saving them.
 	 *
-	 * @access protected
 	 * @return array
 	 */
 	protected function getOptions()
@@ -204,10 +239,27 @@ abstract class BaseOptionsFieldType extends BaseFieldType
 	}
 
 	/**
+	 * Returns the field options, with labels run through Craft::t().
+	 *
+	 * @return array
+	 */
+	protected function getTranslatedOptions()
+	{
+		$options = $this->getOptions();
+
+		foreach ($options as &$option)
+		{
+			$option['label'] = Craft::t($option['label']);
+		}
+
+		return $options;
+	}
+
+	/**
 	 * Returns an option's label by its value.
 	 *
-	 * @access protected
-	 * @param stirng $value
+	 * @param string $value
+	 *
 	 * @return string
 	 */
 	protected function getOptionLabel($value)
@@ -221,5 +273,38 @@ abstract class BaseOptionsFieldType extends BaseFieldType
 		}
 
 		return $value;
+	}
+
+	/**
+	 * Returns the default field value.
+	 *
+	 * @return array|string|null
+	 */
+	protected function getDefaultValue()
+	{
+		if ($this->multi)
+		{
+			$defaultValues = array();
+		}
+
+		foreach ($this->getOptions() as $option)
+		{
+			if (!empty($option['default']))
+			{
+				if ($this->multi)
+				{
+					$defaultValues[] = $option['value'];
+				}
+				else
+				{
+					return $option['value'];
+				}
+			}
+		}
+
+		if ($this->multi)
+		{
+			return $defaultValues;
+		}
 	}
 }

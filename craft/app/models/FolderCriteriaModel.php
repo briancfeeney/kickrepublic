@@ -2,28 +2,23 @@
 namespace Craft;
 
 /**
- * Craft by Pixel & Tonic
+ * Folders parameters.
  *
- * @package   Craft
- * @author    Pixel & Tonic, Inc.
- * @copyright Copyright (c) 2013, Pixel & Tonic, Inc.
+ * @author    Pixel & Tonic, Inc. <support@pixelandtonic.com>
+ * @copyright Copyright (c) 2014, Pixel & Tonic, Inc.
  * @license   http://buildwithcraft.com/license Craft License Agreement
- * @link      http://buildwithcraft.com
- */
-
-/**
- * Folders parameters
+ * @see       http://buildwithcraft.com
+ * @package   craft.app.models
+ * @since     1.0
  */
 class FolderCriteriaModel extends BaseModel
 {
+	// Protected Methods
+	// =========================================================================
 
 	/**
-	 * Has no parent folders.
-	 */
-	const AssetsNoParent = -1;
-
-	/**
-	 * @access protected
+	 * @inheritDoc BaseModel::defineAttributes()
+	 *
 	 * @return array
 	 */
 	protected function defineAttributes()
@@ -33,7 +28,7 @@ class FolderCriteriaModel extends BaseModel
 			'parentId' => array(AttributeType::Number, 'default' => false),
 			'sourceId' => AttributeType::Number,
 			'name'     => AttributeType::String,
-			'fullPath' => AttributeType::String,
+			'path'     => AttributeType::String,
 			'order'    => array(AttributeType::String, 'default' => 'name asc'),
 			'offset'   => AttributeType::Number,
 			'limit'    => AttributeType::Number,

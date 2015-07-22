@@ -2,51 +2,92 @@
 namespace Craft;
 
 /**
- * Craft by Pixel & Tonic
+ * Entry model class.
  *
- * @package   Craft
- * @author    Pixel & Tonic, Inc.
- * @copyright Copyright (c) 2013, Pixel & Tonic, Inc.
+ * @author    Pixel & Tonic, Inc. <support@pixelandtonic.com>
+ * @copyright Copyright (c) 2014, Pixel & Tonic, Inc.
  * @license   http://buildwithcraft.com/license Craft License Agreement
- * @link      http://buildwithcraft.com
- */
-
-/**
- * Entry model class
+ * @see       http://buildwithcraft.com
+ * @package   craft.app.models
+ * @since     1.0
  */
 class EntryModel extends BaseElementModel
 {
-	protected $elementType = ElementType::Entry;
-
-	private $_ancestors;
-	private $_descendants;
-	private $_parent;
+	// Constants
+	// =========================================================================
 
 	const LIVE     = 'live';
 	const PENDING  = 'pending';
 	const EXPIRED  = 'expired';
 
+	// Properties
+	// =========================================================================
+
 	/**
-	 * @access protected
+	 * @var string
+	 */
+	protected $elementType = ElementType::Entry;
+
+	// Public Methods
+	// =========================================================================
+
+	/**
+	 * @inheritDoc BaseElementModel::getFieldLayout()
+	 *
+	 * @return FieldLayoutModel|null
+	 */
+	public function getFieldLayout()
+	{
+		$entryType = $this->getType();
+
+		if ($entryType)
+		{
+			return $entryType->getFieldLayout();
+		}
+	}
+
+	/**
+	 * @inheritDoc BaseElementModel::getLocales()
+	 *
 	 * @return array
 	 */
-	protected function defineAttributes()
+	public function getLocales()
 	{
-		return array_merge(parent::defineAttributes(), array(
-			'sectionId'  => AttributeType::Number,
-			'typeId'     => AttributeType::Number,
-			'authorId'   => AttributeType::Number,
-			'root'       => AttributeType::Number,
-			'lft'        => AttributeType::Number,
-			'rgt'        => AttributeType::Number,
-			'depth'      => AttributeType::Number,
-			'slug'       => AttributeType::String,
-			'postDate'   => AttributeType::DateTime,
-			'expiryDate' => AttributeType::DateTime,
+		$locales = array();
 
-			// Just used for saving entries
-			'parentId'   => AttributeType::Number,
-		));
+		foreach ($this->getSection()->getLocales() as $locale)
+		{
+			$locales[$locale->locale] = array('enabledByDefault' => $locale->enabledByDefault);
+		}
+
+		return $locales;
+	}
+
+	/**
+	 * @inheritDoc BaseElementModel::getUrlFormat()
+	 *
+	 * @return string|null
+	 */
+	public function getUrlFormat()
+	{
+		$section = $this->getSection();
+
+		if ($section && $section->hasUrls)
+		{
+			$sectionLocales = $section->getLocales();
+
+			if (isset($sectionLocales[$this->locale]))
+			{
+				if ($this->level > 1)
+				{
+					return $sectionLocales[$this->locale]->nestedUrlFormat;
+				}
+				else
+				{
+					return $sectionLocales[$this->locale]->urlFormat;
+				}
+			}
+		}
 	}
 
 	/**
@@ -114,7 +155,7 @@ class EntryModel extends BaseElementModel
 	}
 
 	/**
-	 * Returns the element's status.
+	 * @inheritDoc BaseElementModel::getStatus()
 	 *
 	 * @return string|null
 	 */
@@ -146,330 +187,76 @@ class EntryModel extends BaseElementModel
 	}
 
 	/**
-	 * Returns the element's CP edit URL.
+	 * @inheritDoc BaseElementModel::isEditable()
+	 *
+	 * @return bool
+	 */
+	public function isEditable()
+	{
+		return (
+			craft()->userSession->checkPermission('publishEntries:'.$this->sectionId) && (
+				$this->authorId == craft()->userSession->getUser()->id ||
+				craft()->userSession->checkPermission('publishPeerEntries:'.$this->sectionId) ||
+				$this->getSection()->type == SectionType::Single
+			)
+		);
+	}
+
+	/**
+	 * @inheritDoc BaseElementModel::getCpEditUrl()
 	 *
 	 * @return string|false
 	 */
 	public function getCpEditUrl()
 	{
-		if ($this->getSection())
-		{
-			return UrlHelper::getCpUrl('entries/'.$this->getSection()->handle.'/'.$this->id);
-		}
-	}
+		$section = $this->getSection();
 
-	/**
-	 * Returns the entry's ancestors.
-	 *
-	 * @param int|null $dist
-	 * @return array
-	 */
-	public function getAncestors($dist = null)
-	{
-		if (!isset($this->_ancestors))
+		if ($section)
 		{
-			if ($this->id)
+			// The slug *might* not be set if this is a Draft and they've deleted it for whatever reason
+			$url = UrlHelper::getCpUrl('entries/'.$section->handle.'/'.$this->id.($this->slug ? '-'.$this->slug : ''));
+
+			if (craft()->isLocalized() && $this->locale != craft()->language)
 			{
-				$criteria = craft()->elements->getCriteria($this->elementType);
-				$criteria->ancestorOf = $this;
-				$criteria->locale = $this->locale;
-				$this->_ancestors = $criteria->find();
+				$url .= '/'.$this->locale;
 			}
-			else
-			{
-				$this->_ancestors = array();
-			}
-		}
 
-		if ($dist)
-		{
-			return array_slice($this->_ancestors, count($this->_ancestors) - $dist);
-		}
-		else
-		{
-			return $this->_ancestors;
+			return $url;
 		}
 	}
 
 	/**
-	 * Sets the entry's ancestors.
+	 * Returns the entry's level (formerly "depth").
 	 *
-	 * @param array $ancestors
+	 * @deprecated Deprecated in 2.0. Use 'level' instead.
+	 * @return int|null
 	 */
-	public function setAncestors($ancestors)
+	public function depth()
 	{
-		$this->_ancestors = $ancestors;
+		craft()->deprecator->log('EntryModel::depth', 'Entries’ ‘depth’ property has been deprecated. Use ‘level’ instead.');
+		return $this->level;
 	}
 
-	/**
-	 * Get the entry's parent.
-	 *
-	 * @return EntryModel|null
-	 */
-	public function getParent()
-	{
-		if (!isset($this->_parent))
-		{
-			$parent = $this->getAncestors(1);
-
-			if ($parent)
-			{
-				$this->_parent = $parent[0];
-			}
-			else
-			{
-				$this->_parent = false;
-			}
-		}
-
-		if ($this->_parent !== false)
-		{
-			return $this->_parent;
-		}
-	}
+	// Protected Methods
+	// =========================================================================
 
 	/**
-	 * Sets the entry's parent.
-	 *
-	 * @param EntryModel $parent
-	 */
-	public function setParent($parent)
-	{
-		$this->_parent = $parent;
-	}
-
-	/**
-	 * Overrides the (deprecated) BaseElementModel::getParents() so it only works for Channel sections, until it's removed altogether.
-	 *
-	 * @param mixed $field
-	 * @return null|ElementCriteriaModel
-	 */
-	public function getParents($field = null)
-	{
-		if ($this->getSection()->type == Sectiontype::Channel)
-		{
-			return parent::getParents($field);
-		}
-	}
-
-	/**
-	 * Returns all of the entry's siblings.
+	 * @inheritDoc BaseModel::defineAttributes()
 	 *
 	 * @return array
 	 */
-	public function getSiblings()
+	protected function defineAttributes()
 	{
-		if ($this->depth == 1)
-		{
-			$criteria = craft()->elements->getCriteria($this->elementType);
-			$criteria->depth(1);
-			$criteria->id = 'not '.$this->id;
-			$criteria->sectionId = $this->sectionId;
-			$criteria->locale = $this->locale;
-			return $criteria->find();
-		}
-		else
-		{
-			$parent = $this->getParent();
+		return array_merge(parent::defineAttributes(), array(
+			'sectionId'  => AttributeType::Number,
+			'typeId'     => AttributeType::Number,
+			'authorId'   => AttributeType::Number,
+			'postDate'   => AttributeType::DateTime,
+			'expiryDate' => AttributeType::DateTime,
 
-			if ($parent)
-			{
-				$criteria = craft()->elements->getCriteria($this->elementType);
-				$criteria->descendantOf($parent);
-				$criteria->descendantDist(1);
-				$criteria->id = 'not '.$this->id;
-				$criteria->locale = $this->locale;
-				return $criteria->find();
-			}
-			else
-			{
-				return array();
-			}
-		}
-	}
-
-	/**
-	 * Returns the entry's previous sibling.
-	 *
-	 * @return EntryModel|null
-	 */
-	public function getPrevSibling()
-	{
-		$criteria = craft()->elements->getCriteria($this->elementType);
-		$criteria->prevSiblingOf($this);
-		$criteria->locale = $this->locale;
-		return $criteria->first();
-	}
-
-	/**
-	 * Returns the entry's next sibling.
-	 *
-	 * @return EntryModel|null
-	 */
-	public function getNextSibling()
-	{
-		$criteria = craft()->elements->getCriteria($this->elementType);
-		$criteria->nextSiblingOf($this);
-		$criteria->locale = $this->locale;
-		return $criteria->first();
-	}
-
-	/**
-	 * Overrides the (deprecated) BaseElementModel::getChildren() so that it returns the actual children for entries within Structure sections.
-	 *
-	 * @param mixed $field
-	 * @return array|ElementCriteriaModel
-	 */
-	public function getChildren($field = null)
-	{
-		if ($this->getSection()->type == Sectiontype::Channel)
-		{
-			return parent::getChildren($field);
-		}
-		else
-		{
-			$criteria = craft()->elements->getCriteria($this->elementType);
-			$criteria->descendantOf($this);
-			$criteria->descendantDist(1);
-			$criteria->locale = $this->locale;
-			return $criteria->find();
-		}
-	}
-
-	/**
-	 * Returns the entry's descendants.
-	 *
-	 * @param int|null $dist
-	 * @return array
-	 */
-	public function getDescendants($dist = null)
-	{
-		if (!isset($this->_descendants))
-		{
-			if ($this->id)
-			{
-				$criteria = craft()->elements->getCriteria($this->elementType);
-				$criteria->descendantOf = $this;
-				$criteria->locale = $this->locale;
-				$this->_descendants = $criteria->find();
-			}
-			else
-			{
-				$this->_descendants = array();
-			}
-		}
-
-		if ($dist)
-		{
-			return array_slice($this->_descendants, 0, $dist);
-		}
-		else
-		{
-			return $this->_descendants;
-		}
-	}
-
-	/**
-	 * Sets the entry's descendants.
-	 *
-	 * @param array $descendants
-	 */
-	public function setDescendants($descendants)
-	{
-		$this->_descendants = $descendants;
-	}
-
-	/**
-	 * Returns whether this entry is an ancestor of another one.
-	 *
-	 * @param EntryModel $entry
-	 * @return bool
-	 */
-	public function isAncestorOf(EntryModel $entry)
-	{
-		return ($this->lft < $entry->lft && $this->rgt > $entry->rgt);
-	}
-
-	/**
-	 * Returns whether this entry is a descendant of another one.
-	 *
-	 * @param EntryModel $entry
-	 * @return bool
-	 */
-	public function isDescendantOf(EntryModel $entry)
-	{
-		return ($this->lft > $entry->lft && $this->rgt < $entry->rgt);
-	}
-
-	/**
-	 * Returns whether this entry is a direct parent of another one.
-	 *
-	 * @param EntryModel $entry
-	 * @return bool
-	 */
-	public function isParentOf(EntryModel $entry)
-	{
-		return ($this->depth == $entry->depth - 1 && $this->isAncestorOf($entry));
-	}
-
-	/**
-	 * Returns whether this entry is a direct child of another one.
-	 *
-	 * @param EntryModel $entry
-	 * @return bool
-	 */
-	public function isChildOf(EntryModel $entry)
-	{
-		return ($this->depth == $entry->depth + 1 && $this->isDescendantOf($entry));
-	}
-
-	/**
-	 * Returns whether this entry is a sibling of another one.
-	 *
-	 * @param EntryModel $entry
-	 * @return bool
-	 */
-	public function isSiblingOf(EntryModel $entry)
-	{
-		if ($this->depth && $this->depth == $entry->depth)
-		{
-			if ($this->depth == 1 || $this->isPrevSiblingOf($entry) || $this->isNextSiblingOf($entry))
-			{
-				return true;
-			}
-			else
-			{
-				$parent = $this->getParent();
-
-				if ($parent)
-				{
-					return $entry->isDescendantOf($parent);
-				}
-			}
-		}
-
-		return false;
-	}
-
-	/**
-	 * Returns whether this entry is the direct previous sibling of another one.
-	 *
-	 * @param EntryModel $entry
-	 * @return bool
-	 */
-	public function isPrevSiblingOf(EntryModel $entry)
-	{
-		return ($this->depth == $entry->depth && $this->rgt == $entry->lft - 1);
-	}
-
-	/**
-	 * Returns whether this entry is the direct next sibling of another one.
-	 *
-	 * @param EntryModel $entry
-	 * @return bool
-	 */
-	public function isNextSiblingOf(EntryModel $entry)
-	{
-		return ($this->depth == $entry->depth && $this->lft == $entry->rgt + 1);
+			// Just used for saving entries
+			'parentId'      => AttributeType::Number,
+			'revisionNotes' => AttributeType::String,
+		));
 	}
 }

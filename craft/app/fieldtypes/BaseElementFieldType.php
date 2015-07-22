@@ -2,46 +2,72 @@
 namespace Craft;
 
 /**
- * Craft by Pixel & Tonic
+ * Base element fieldtype class.
  *
- * @package   Craft
- * @author    Pixel & Tonic, Inc.
- * @copyright Copyright (c) 2013, Pixel & Tonic, Inc.
+ * @author    Pixel & Tonic, Inc. <support@pixelandtonic.com>
+ * @copyright Copyright (c) 2014, Pixel & Tonic, Inc.
  * @license   http://buildwithcraft.com/license Craft License Agreement
- * @link      http://buildwithcraft.com
- */
-
-/**
- * Base element fieldtype class
+ * @see       http://buildwithcraft.com
+ * @package   craft.app.fieldtypes
+ * @since     1.0
  */
 abstract class BaseElementFieldType extends BaseFieldType
 {
+	// Properties
+	// =========================================================================
+
 	/**
-	 * @access protected
-	 * @var string $elementType The element type this field deals with.
+	 * List of built-in component aliases to be imported.
+	 *
+	 * @var string $elementType
 	 */
 	protected $elementType;
 
 	/**
-	 * @access protected
-	 * @var string|null $inputJsClass The JS class that should be initialized for the input.
+	 * The JS class that should be initialized for the input.
+	 *
+	 * @var string|null $inputJsClass
 	 */
 	protected $inputJsClass;
 
 	/**
-	 * @access protected
-	 * @var bool $allowMultipleSources Whether to allow multiple source selection in the settings.
+	 * Whether to allow multiple source selection in the settings.
+	 *
+	 * @var bool $allowMultipleSources
 	 */
 	protected $allowMultipleSources = true;
 
 	/**
-	 * @access protected
-	 * @var bool $allowLimit Whether to allow the Limit setting.
+	 * Whether to allow the Limit setting.
+	 *
+	 * @var bool $allowLimit
 	 */
 	protected $allowLimit = true;
 
 	/**
-	 * Returns the type of field this is.
+	 * Template to use for field rendering.
+	 *
+	 * @var string
+	 */
+	protected $inputTemplate = '_includes/forms/elementSelect';
+
+	/**
+	 * Whether the elements have a custom sort order.
+	 *
+	 * @var bool $sortable
+	 */
+	protected $sortable = true;
+
+	/**
+	 * @var bool
+	 */
+	private $_makeExistingRelationsTranslatable = false;
+
+	// Public Methods
+	// =========================================================================
+
+	/**
+	 * @inheritDoc IComponentType::getName()
 	 *
 	 * @return string
 	 */
@@ -51,7 +77,7 @@ abstract class BaseElementFieldType extends BaseFieldType
 	}
 
 	/**
-	 * Returns the content attribute config.
+	 * @inheritDoc IFieldType::defineContentAttribute()
 	 *
 	 * @return mixed
 	 */
@@ -61,32 +87,7 @@ abstract class BaseElementFieldType extends BaseFieldType
 	}
 
 	/**
-	 * Defines the settings.
-	 *
-	 * @access protected
-	 * @return array
-	 */
-	protected function defineSettings()
-	{
-		if ($this->allowMultipleSources)
-		{
-			$settings['sources'] = AttributeType::Mixed;
-		}
-		else
-		{
-			$settings['source'] = AttributeType::String;
-		}
-
-		if ($this->allowLimit)
-		{
-			$settings['limit'] = array(AttributeType::Number, 'min' => 0);
-		}
-
-		return $settings;
-	}
-
-	/**
-	 * Returns the field's settings HTML.
+	 * @inheritDoc ISavableComponentType::getSettingsHtml()
 	 *
 	 * @return string|null
 	 */
@@ -106,105 +107,134 @@ abstract class BaseElementFieldType extends BaseFieldType
 			'allowMultipleSources' => $this->allowMultipleSources,
 			'allowLimit'           => $this->allowLimit,
 			'sources'              => $sources,
+			'targetLocaleField'    => $this->getTargetLocaleFieldHtml(),
 			'settings'             => $this->getSettings(),
 			'type'                 => $this->getName()
 		));
 	}
 
 	/**
-	 * Preps the field value for use.
+	 * @inheritDoc IFieldType::validate()
 	 *
-	 * @param mixed $value
-	 * @return mixed
+	 * @param array $value
+	 *
+	 * @return true|string|array
 	 */
-	public function prepValue($value)
+	public function validate($value)
 	{
-		// $value will be an array of element IDs if there was a validation error
-		// or we're loading a draft/version.
-		if (is_array($value))
+		$errors = array();
+
+		if ($this->allowLimit && ($limit = $this->getSettings()->limit) && is_array($value) && count($value) > $limit)
 		{
-			$elements = craft()->relations->getElementsById($this->elementType, array_filter($value));
+			if ($limit == 1)
+			{
+				$errors[] = Craft::t('There can’t be more than one selection.');
+			}
+			else
+			{
+				$errors[] = Craft::t('There can’t be more than {limit} selections.', array('limit' => $limit));
+			}
 		}
-		else if ($value === '')
+
+		if ($errors)
 		{
-			$elements = array();
-		}
-		else if (isset($this->element) && $this->element->id)
-		{
-			$elements = craft()->relations->getRelatedElements($this->element->id, $this->model->id, $this->elementType);
+			return $errors;
 		}
 		else
 		{
-			$elements = array();
+			return true;
+		}
+	}
+
+	/**
+	 * @inheritDoc IFieldType::prepValue()
+	 *
+	 * @param mixed $value
+	 *
+	 * @return ElementCriteriaModel
+	 */
+	public function prepValue($value)
+	{
+		$criteria = craft()->elements->getCriteria($this->elementType);
+		$criteria->locale = $this->getTargetLocale();
+
+		// $value will be an array of element IDs if there was a validation error or we're loading a draft/version.
+		if (is_array($value))
+		{
+			$criteria->id = array_values(array_filter($value));
+			$criteria->fixedOrder = true;
+		}
+		else if ($value === '')
+		{
+			$criteria->id = false;
+		}
+		else if (isset($this->element) && $this->element->id)
+		{
+			$criteria->relatedTo = array(
+				'sourceElement' => $this->element->id,
+				'sourceLocale'  => $this->element->locale,
+				'field'         => $this->model->id
+			);
+
+			if ($this->sortable)
+			{
+				$criteria->order = 'sortOrder';
+			}
+
+			if (!$this->allowMultipleSources && $this->getSettings()->source)
+			{
+				$source = $this->getElementType()->getSource($this->getSettings()->source);
+
+				// Does the source specify any criteria attributes?
+				if (!empty($source['criteria']))
+				{
+					$criteria->setAttributes($source['criteria']);
+				}
+			}
+		}
+		else
+		{
+			$criteria->id = false;
 		}
 
 		if ($this->allowLimit && $this->getSettings()->limit)
 		{
-			$elements = array_slice($elements, 0, $this->getSettings()->limit);
-		}
-
-		return new RelationFieldData($elements);
-	}
-
-	/**
-	 * Returns the field's input HTML.
-	 *
-	 * @param string $name
-	 * @param mixed  $elements
-	 * @return string
-	 */
-	public function getInputHtml($name, $elements)
-	{
-		$id = rtrim(preg_replace('/[\[\]]+/', '-', $name), '-').'-'.StringHelper::UUID();
-
-		if (!($elements instanceof RelationFieldData))
-		{
-			$elements = new RelationFieldData();
-		}
-
-		$criteria = array('status' => null);
-
-		if (!empty($this->element->id))
-		{
-			$criteria['id'] = 'not '.$this->element->id;
-		}
-
-		if ($this->allowMultipleSources)
-		{
-			$sources = $this->getSettings()->sources;
+			$criteria->limit = $this->getSettings()->limit;
 		}
 		else
 		{
-			$sources = array($this->getSettings()->source);
+			$criteria->limit = null;
 		}
 
-		return craft()->templates->render('_includes/forms/elementSelect', array(
-			'jsClass'        => $this->inputJsClass,
-			'elementType'    => new ElementTypeVariable($this->getElementType()),
-			'id'             => $id,
-			'storageKey'     => 'field.'.$this->model->id,
-			'name'           => $name,
-			'elements'       => $elements->all,
-			'sources'        => $sources,
-			'criteria'       => $criteria,
-			'limit'          => ($this->allowLimit ? $this->getSettings()->limit : null),
-			'addButtonLabel' => $this->getAddButtonLabel(),
-		));
+		return $criteria;
 	}
 
 	/**
-	 * Returns the search keywords that should be associated with this field,
-	 * based on the prepped post data.
+	 * @inheritDoc IFieldType::getInputHtml()
 	 *
-	 * @param mixed $value
+	 * @param string $name
+	 * @param mixed  $criteria
+	 *
 	 * @return string
 	 */
-	public function getSearchKeywords($value)
+	public function getInputHtml($name, $criteria)
 	{
-		$elements = $this->prepValue(null);
+		$variables = $this->getInputTemplateVariables($name, $criteria);
+		return craft()->templates->render($this->inputTemplate, $variables);
+	}
+
+	/**
+	 * @inheritDoc IFieldType::getSearchKeywords()
+	 *
+	 * @param ElementCriteriaModel $criteria
+	 *
+	 * @return string
+	 */
+	public function getSearchKeywords($criteria)
+	{
 		$titles = array();
 
-		foreach ($elements->all as $element)
+		foreach ($criteria->find() as $element)
 		{
 			$titles[] = (string) $element;
 		}
@@ -213,38 +243,104 @@ abstract class BaseElementFieldType extends BaseFieldType
 	}
 
 	/**
-	 * Performs any additional actions after the element has been saved.
+	 * @inheritDoc IFieldType::onAfterElementSave()
+	 *
+	 * @return null
 	 */
 	public function onAfterElementSave()
 	{
-		$rawValue = $this->element->getRawContent($this->model->handle);
+		$targetIds = $this->element->getContent()->getAttribute($this->model->handle);
 
-		if ($rawValue !== null)
+		if ($targetIds !== null)
 		{
-			$elementIds = is_array($rawValue) ? array_filter($rawValue) : array();
-			craft()->relations->saveRelations($this->model->id, $this->element->id, $elementIds);
+			craft()->relations->saveRelations($this->model, $this->element, $targetIds);
 		}
 	}
 
 	/**
+	 * @inheritDoc BaseFieldType::getStaticHtml()
+	 *
+	 * @param mixed $value
+	 *
+	 * @return string
+	 */
+	public function getStaticHtml($value)
+	{
+		if (count($value))
+		{
+			$html = '<div class="elementselect"><div class="elements">';
+
+			foreach ($value as $element)
+			{
+				$html .= craft()->templates->render('_elements/element', array(
+					'element' => $element
+				));
+			}
+
+			$html .= '</div></div>';
+			return $html;
+		}
+		else
+		{
+			return '<p class="light">'.Craft::t('Nothing selected.').'</p>';
+		}
+	}
+
+	/**
+	 * @inheritDoc IFieldType::onBeforeSave()
+	 *
+	 * @return null
+	 */
+	public function onBeforeSave()
+	{
+		$this->_makeExistingRelationsTranslatable = false;
+
+		if ($this->model->id && $this->model->translatable)
+		{
+			$existingField = craft()->fields->getFieldById($this->model->id);
+
+			if ($existingField && $existingField->translatable == 0)
+			{
+				$this->_makeExistingRelationsTranslatable = true;
+			}
+		}
+	}
+
+	/**
+	 * @inheritDoc IFieldType::onAfterSave()
+	 *
+	 * @return null
+	 */
+	public function onAfterSave()
+	{
+		if ($this->_makeExistingRelationsTranslatable)
+		{
+			craft()->tasks->createTask('LocalizeRelations', null, array(
+				'fieldId' => $this->model->id,
+			));
+		}
+	}
+
+	// Protected Methods
+	// =========================================================================
+
+	/**
 	 * Returns the label for the "Add" button.
 	 *
-	 * @access protected
 	 * @return string
 	 */
 	protected function getAddButtonLabel()
 	{
 		return Craft::t('Add {type}', array(
-			'type' => mb_strtolower($this->getElementType()->getClassHandle())
+			'type' => StringHelper::toLowerCase($this->getElementType()->getClassHandle())
 		));
 	}
 
 	/**
 	 * Returns the element type.
 	 *
-	 * @access protected
-	 * @return BaseElementType
 	 * @throws Exception
+	 * @return BaseElementType
 	 */
 	protected function getElementType()
 	{
@@ -256,5 +352,158 @@ abstract class BaseElementFieldType extends BaseFieldType
 		}
 
 		return $elementType;
+	}
+
+	/**
+	 * Returns an array of variables that should be passed to the input template.
+	 *
+	 * @param string $name
+	 * @param mixed  $criteria
+	 *
+	 * @return array
+	 */
+	protected function getInputTemplateVariables($name, $criteria)
+	{
+		$settings = $this->getSettings();
+
+		if (!($criteria instanceof ElementCriteriaModel))
+		{
+			$criteria = craft()->elements->getCriteria($this->elementType);
+			$criteria->id = false;
+		}
+
+		$criteria->status = null;
+		$criteria->localeEnabled = null;
+
+		$selectionCriteria = $this->getInputSelectionCriteria();
+		$selectionCriteria['localeEnabled'] = null;
+		$selectionCriteria['locale'] = $this->getTargetLocale();
+
+		return array(
+			'jsClass'            => $this->inputJsClass,
+			'elementType'        => new ElementTypeVariable($this->getElementType()),
+			'id'                 => craft()->templates->formatInputId($name),
+			'fieldId'            => $this->model->id,
+			'storageKey'         => 'field.'.$this->model->id,
+			'name'               => $name,
+			'elements'           => $criteria,
+			'sources'            => $this->getInputSources(),
+			'criteria'           => $selectionCriteria,
+			'sourceElementId'    => (isset($this->element->id) ? $this->element->id : null),
+			'limit'              => ($this->allowLimit ? $settings->limit : null),
+			'selectionLabel'     => Craft::t($this->getSettings()->selectionLabel),
+		);
+	}
+
+	/**
+	 * Returns an array of the source keys the field should be able to select elements from.
+	 *
+	 * @return array
+	 */
+	protected function getInputSources()
+	{
+		if ($this->allowMultipleSources)
+		{
+			$sources = $this->getSettings()->sources;
+		}
+		else
+		{
+			$sources = array($this->getSettings()->source);
+		}
+
+		return $sources;
+	}
+
+	/**
+	 * Returns any additional criteria parameters limiting which elements the field should be able to select.
+	 *
+	 * @return array
+	 */
+	protected function getInputSelectionCriteria()
+	{
+		return array();
+	}
+
+	/**
+	 * Returns the locale that target elements should have.
+	 *
+	 * @return string
+	 */
+	protected function getTargetLocale()
+	{
+		if (craft()->isLocalized())
+		{
+			$targetLocale = $this->getSettings()->targetLocale;
+
+			if ($targetLocale)
+			{
+				return $targetLocale;
+			}
+			else if (isset($this->element))
+			{
+				return $this->element->locale;
+			}
+		}
+
+		return craft()->getLanguage();
+	}
+
+	/**
+	 * Returns the HTML for the Target Locale setting.
+	 *
+	 * @return string|null
+	 */
+	protected function getTargetLocaleFieldHtml()
+	{
+		if (craft()->isLocalized() && $this->getElementType()->isLocalized())
+		{
+			$localeOptions = array(
+				array('label' => Craft::t('Same as source'), 'value' => null)
+			);
+
+			foreach (craft()->i18n->getSiteLocales() as $locale)
+			{
+				$localeOptions[] = array('label' => $locale->getName(), 'value' => $locale->getId());
+			}
+
+			return craft()->templates->renderMacro('_includes/forms', 'selectField', array(
+				array(
+					'label' => Craft::t('Target Locale'),
+					'instructions' => Craft::t('Which locale do you want to select {type} in?', array('type' => StringHelper::toLowerCase($this->getName()))),
+					'id' => 'targetLocale',
+					'name' => 'targetLocale',
+					'options' => $localeOptions,
+					'value' => $this->getSettings()->targetLocale
+				)
+			));
+		}
+	}
+
+	/**
+	 * @inheritDoc BaseSavableComponentType::defineSettings()
+	 *
+	 * @return array
+	 */
+	protected function defineSettings()
+	{
+		if ($this->allowMultipleSources)
+		{
+			$settings['sources'] = AttributeType::Mixed;
+		}
+		else
+		{
+			$settings['source'] = AttributeType::String;
+		}
+
+		$settings['targetLocale'] = AttributeType::String;
+
+		if ($this->allowLimit)
+		{
+			$settings['limit'] = array(AttributeType::Number, 'min' => 0);
+		}
+
+		$settings['selectionLabel'] = array(AttributeType::String, 'default' => $this->getAddButtonLabel());
+
+		return $settings;
 	}
 }

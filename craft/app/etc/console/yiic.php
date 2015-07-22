@@ -1,15 +1,5 @@
 <?php
 
-/**
- * Craft by Pixel & Tonic
- *
- * @package   Craft
- * @author    Pixel & Tonic, Inc.
- * @copyright Copyright (c) 2013, Pixel & Tonic, Inc.
- * @license   http://buildwithcraft.com/license Craft License Agreement
- * @link      http://buildwithcraft.com
- */
-
 $configPath = dirname(__FILE__).'/../config/console.php';
 
 $frontConfigPath = false;
@@ -31,6 +21,7 @@ if (isset($_SERVER['argv']))
 
 defined('CRAFT_BASE_PATH')         || define('CRAFT_BASE_PATH', str_replace('\\', '/', realpath(dirname(__FILE__).'/../../../')).'/');
 defined('CRAFT_APP_PATH')          || define('CRAFT_APP_PATH',          CRAFT_BASE_PATH.'app/');
+
 if ($frontConfigPath)
 {
 	defined('CRAFT_CONFIG_PATH')   || define('CRAFT_CONFIG_PATH',       $frontConfigPath);
@@ -53,16 +44,38 @@ defined('CRAFT_ENVIRONMENT')       || define('CRAFT_ENVIRONMENT',       'console
 // fix for fcgi
 defined('STDIN') or define('STDIN', fopen('php://stdin', 'r'));
 
+ini_set('log_errors', 1);
+ini_set('error_log', CRAFT_STORAGE_PATH.'runtime/logs/phperrors.log');
+
+error_reporting(E_ALL & ~E_STRICT);
+ini_set('display_errors', 1);
+defined('YII_DEBUG') || define('YII_DEBUG', true);
+defined('YII_TRACE_LEVEL') || define('YII_TRACE_LEVEL', 3);
+
 require_once dirname(__FILE__).'/../../framework/yii.php';
 require_once CRAFT_APP_PATH.'Craft.php';
 require_once CRAFT_APP_PATH.'Info.php';
 
+// Guzzle makes use of these PHP constants, but they aren't actually defined in some compilations of PHP.
+// See http://it.blog.adclick.pt/php/fixing-php-notice-use-of-undefined-constant-curlopt_timeout_ms-assumed-curlopt_timeout_ms/
+defined('CURLOPT_TIMEOUT_MS')        || define('CURLOPT_TIMEOUT_MS',        155);
+defined('CURLOPT_CONNECTTIMEOUT_MS') || define('CURLOPT_CONNECTTIMEOUT_MS', 156);
+
+// Load up Composer's files
+require CRAFT_APP_PATH.'vendor/autoload.php';
+
+// Disable the PHP include path
+Yii::$enableIncludePath = false;
+
 require_once(dirname(__FILE__).'/ConsoleApp.php');
+
+// Because CHttpRequest is one of those stupid Yii files that has multiple classes defined in it.
+require_once(CRAFT_APP_PATH.'framework/web/CHttpRequest.php');
 
 Yii::setPathOfAlias('app', CRAFT_APP_PATH);
 Yii::setPathOfAlias('plugins', CRAFT_PLUGINS_PATH);
 
 $app = Yii::createApplication('Craft\ConsoleApp', $configPath);
-$app->commandRunner->addCommands(Craft\Craft::getPathOfAlias('application.etc.console.commands.*'));
+$app->commandRunner->addCommands(Craft\Craft::getPathOfAlias('application.consolecommands.*'));
 
 $app->run();

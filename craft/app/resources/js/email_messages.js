@@ -1,18 +1,16 @@
 /**
- * Craft by Pixel & Tonic
- *
- * @package   Craft
- * @author    Pixel & Tonic, Inc.
- * @copyright Copyright (c) 2013, Pixel & Tonic, Inc.
+ * @author    Pixel & Tonic, Inc. <support@pixelandtonic.com>
+ * @copyright Copyright (c) 2014, Pixel & Tonic, Inc.
  * @license   http://buildwithcraft.com/license Craft License Agreement
- * @link      http://buildwithcraft.com
+ * @see       http://buildwithcraft.com
+ * @package   craft.app.resources
  */
 
 (function($) {
 
 
-var EmailMessages = Garnish.Base.extend({
-
+var EmailMessages = Garnish.Base.extend(
+{
 	messages: null,
 
 	init: function()
@@ -32,8 +30,8 @@ var EmailMessages = Garnish.Base.extend({
 });
 
 
-var Message = Garnish.Base.extend({
-
+var Message = Garnish.Base.extend(
+{
 	$container: null,
 	key: null,
 	$subject: null,
@@ -74,8 +72,8 @@ var Message = Garnish.Base.extend({
 });
 
 
-var MessageSettingsModal = Garnish.Modal.extend({
-
+var MessageSettingsModal = Garnish.Modal.extend(
+{
 	message: null,
 
 	$localeSelect: null,
@@ -91,7 +89,10 @@ var MessageSettingsModal = Garnish.Modal.extend({
 	{
 		this.message = message;
 
-		this.base();
+		this.base(null, {
+			resizable: true
+		});
+
 		this.loadContainer();
 	},
 
@@ -102,13 +103,20 @@ var MessageSettingsModal = Garnish.Modal.extend({
 			locale: locale
 		};
 
+		// If CSRF protection isn't enabled, these won't be defined.
+		if (typeof Craft.csrfTokenName !== 'undefined' && typeof Craft.csrfTokenValue !== 'undefined')
+		{
+			// Add the CSRF token
+			data[Craft.csrfTokenName] = Craft.csrfTokenValue;
+		}
+
 		$.post(Craft.getUrl('settings/email/_message_modal'), data, $.proxy(function(response, textStatus, jqXHR)
 		{
 			if (textStatus == 'success')
 			{
 				if (!this.$container)
 				{
-					var $container = $('<form class="modal message-settings" accept-charset="UTF-8">'+response+'</form>').appendTo(Garnish.$bod);
+					var $container = $('<form class="modal fitted message-settings" accept-charset="UTF-8">'+response+'</form>').appendTo(Garnish.$bod);
 					this.setContainer($container);
 					this.show();
 				}
@@ -153,7 +161,7 @@ var MessageSettingsModal = Garnish.Modal.extend({
 
 		var data = {
 			key:     this.message.key,
-			locale:  (this.$localeSelect.length ? this.$localeSelect.val() : Craft.language),
+			locale:  (this.$localeSelect.length ? this.$localeSelect.val() : Craft.locale),
 			subject: this.$subjectInput.val(),
 			body:    this.$bodyInput.val()
 		};
@@ -177,8 +185,8 @@ var MessageSettingsModal = Garnish.Modal.extend({
 		this.$saveBtn.addClass('active');
 		this.$spinner.show();
 
-		Craft.postActionRequest('emailMessages/saveMessage', data, $.proxy(function(response, textStatus) {
-
+		Craft.postActionRequest('emailMessages/saveMessage', data, $.proxy(function(response, textStatus)
+		{
 			this.$saveBtn.removeClass('active');
 			this.$spinner.hide();
 			this.loading = false;
@@ -188,7 +196,7 @@ var MessageSettingsModal = Garnish.Modal.extend({
 				if (response.success)
 				{
 					// Only update the page if we're editing the app target locale
-					if (data.locale == Craft.language)
+					if (data.locale == Craft.locale)
 					{
 						this.message.updateHtmlFromModal();
 					}

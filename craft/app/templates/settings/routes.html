@@ -1,3 +1,5 @@
+{% requireAdmin %}
+
 {% extends "_layouts/cp" %}
 {% set title = "Routes"|t %}
 {% includeCssResource "css/routes.css" %}
@@ -8,6 +10,7 @@
 ] %}
 
 {% includeTranslations
+	"Global",
 	"New route order saved.",
 	"Couldn’t save new route order.",
 	"If the URI looks like this",
@@ -24,7 +27,7 @@
 {% set docsUrl = 'http://buildwithcraft.com/docs/routing' %}
 
 
-{% set routes = craft.routes.getAllRoutes() %}
+{% set routes = craft.routes.getDbRoutes() %}
 
 
 {% set content %}
@@ -34,13 +37,16 @@
 
 	<div id="routes">
 		{% for route in routes %}
-			<div class="pane route" data-id="{{ route.id }}">
-				<div class="url">
-					{%- autoescape false -%}
-						{{ route.urlDisplayHtml }}
-					{%- endautoescape -%}
+			<div class="route" data-id="{{ route.id }}"{% if route.locale %} data-locale="{{ route.locale }}"{% endif %}>
+				<div class="url-container">
+					{%- spaceless %}
+						{% if craft.isLocalized() %}
+							<span class="locale">{{ route.locale ?: "Global"|t }}</span>
+						{% endif %}
+						<span class="url" dir="ltr">{{ route.urlDisplayHtml|raw }}</span>
+					{% endspaceless -%}
 				</div>
-				<div class="template">{{ route.template }}</div>
+				<div class="template" dir="ltr">{{ route.template }}</div>
 			</div>
 		{% endfor %}
 	</div>
@@ -55,8 +61,12 @@
 	Craft.routes.tokens = {
 		{% for name, pattern in tokens %}
 			{% if not loop.first %},{% endif %}
-			"{{ name|t(null, null, craft.app.locale)|e('js') }}": "{{ pattern|e('js') }}"
+			"{{ name|e('js') }}": "{{ pattern|e('js') }}"
 		{% endfor %}
 	};
+
+	{% if craft.isLocalized() %}
+		Craft.routes.locales = {{ craft.i18n.getSiteLocaleIds()|json_encode|raw }};
+	{% endif %}
 {% endset %}
 {% includeJs js %}

@@ -2,22 +2,23 @@
 namespace Craft;
 
 /**
- * Craft by Pixel & Tonic
- *
- * @package   Craft
- * @author    Pixel & Tonic, Inc.
- * @copyright Copyright (c) 2013, Pixel & Tonic, Inc.
- * @license   http://buildwithcraft.com/license Craft License Agreement
- * @link      http://buildwithcraft.com
- */
-
-/**
  * Stores the info for a Craft release.
+ *
+ * @author    Pixel & Tonic, Inc. <support@pixelandtonic.com>
+ * @copyright Copyright (c) 2014, Pixel & Tonic, Inc.
+ * @license   http://buildwithcraft.com/license Craft License Agreement
+ * @see       http://buildwithcraft.com
+ * @package   craft.app.models
+ * @since     1.0
  */
 class AppNewReleaseModel extends BaseModel
 {
+	// Protected Methods
+	// =========================================================================
+
 	/**
-	 * @access protected
+	 * @inheritDoc BaseModel::defineAttributes()
+	 *
 	 * @return array
 	 */
 	protected function defineAttributes()
@@ -25,6 +26,7 @@ class AppNewReleaseModel extends BaseModel
 		$attributes['version']       = AttributeType::String;
 		$attributes['build']         = AttributeType::String;
 		$attributes['date']          = AttributeType::DateTime;
+		$attributes['localizedDate'] = AttributeType::String;
 		$attributes['notes']         = AttributeType::String;
 		$attributes['type']          = AttributeType::String;
 		$attributes['critical']      = AttributeType::Bool;

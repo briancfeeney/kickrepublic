@@ -2,28 +2,63 @@
 namespace Craft;
 
 /**
- * Craft by Pixel & Tonic
+ * Widget base class.
  *
- * @package   Craft
- * @author    Pixel & Tonic, Inc.
- * @copyright Copyright (c) 2013, Pixel & Tonic, Inc.
+ * @author    Pixel & Tonic, Inc. <support@pixelandtonic.com>
+ * @copyright Copyright (c) 2014, Pixel & Tonic, Inc.
  * @license   http://buildwithcraft.com/license Craft License Agreement
- * @link      http://buildwithcraft.com
- */
-
-/**
- * Widget base class
+ * @see       http://buildwithcraft.com
+ * @package   craft.app.widgets
+ * @since     1.0
  */
 abstract class BaseWidget extends BaseSavableComponentType implements IWidget
 {
+	// Properties
+	// =========================================================================
+
 	/**
-	 * @access protected
-	 * @var string The type of component this is
+	 * The type of component, e.g. "Plugin", "Widget", "FieldType", etc. Defined by the component type's base class.
+	 *
+	 * @var string
 	 */
 	protected $componentType = 'Widget';
 
 	/**
-	 * Gets the widget's title.
+	 * Whether users should be able to select more than one of this widget type.
+	 *
+	 * @var bool
+	 */
+	protected $multi = true;
+
+	/**
+	 * How many columns the widget should span, if there's enough room.
+	 *
+	 * @var bool
+	 */
+	protected $colspan = 1;
+
+	// Public Methods
+	// =========================================================================
+
+	/**
+	 * @inheritDoc IComponentType::isSelectable()
+	 *
+	 * @return bool
+	 */
+	public function isSelectable()
+	{
+		if ($this->multi || !craft()->dashboard->doesUserHaveWidget($this->getClassHandle()))
+		{
+			return true;
+		}
+		else
+		{
+			return false;
+		}
+	}
+
+	/**
+	 * @inheritDoc IWidget::getTitle()
 	 *
 	 * @return string
 	 */
@@ -34,7 +69,17 @@ abstract class BaseWidget extends BaseSavableComponentType implements IWidget
 	}
 
 	/**
-	 * Returns the widget's body HTML.
+	 * @inheritDoc IWidget::getColspan()
+	 *
+	 * @return int
+	 */
+	public function getColspan()
+	{
+		return $this->colspan;
+	}
+
+	/**
+	 * @inheritDoc IWidget::getBodyHtml()
 	 *
 	 * @return string|false
 	 */

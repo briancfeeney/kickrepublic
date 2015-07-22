@@ -2,30 +2,40 @@
 namespace Craft;
 
 /**
- * Craft by Pixel & Tonic
+ * Class MigrationsService
  *
- * @package   Craft
- * @author    Pixel & Tonic, Inc.
- * @copyright Copyright (c) 2013, Pixel & Tonic, Inc.
+ * @author    Pixel & Tonic, Inc. <support@pixelandtonic.com>
+ * @copyright Copyright (c) 2014, Pixel & Tonic, Inc.
  * @license   http://buildwithcraft.com/license Craft License Agreement
- * @link      http://buildwithcraft.com
- */
-
-/**
- *
+ * @see       http://buildwithcraft.com
+ * @package   craft.app.services
+ * @since     1.0
  */
 class MigrationsService extends BaseApplicationComponent
 {
+	// Properties
+	// =========================================================================
+
 	/**
-	 * @var string the default command action. It defaults to 'up'.
+	 * The default command action. It defaults to 'up'.
+	 *
+	 * @var string
 	 */
 	public $defaultAction = 'up';
 
+	/**
+	 * @var
+	 */
 	private $_migrationTable;
 
+	// Public Methods
+	// =========================================================================
+
 	/**
+	 * Initializes the application component.
+	 *
 	 * @throws Exception
-	 * @return bool|void
+	 * @return bool|null
 	 */
 	public function init()
 	{
@@ -34,11 +44,15 @@ class MigrationsService extends BaseApplicationComponent
 	}
 
 	/**
-	 * @param null $plugin
+	 * @param BasePlugin|null $plugin
+	 *
 	 * @return mixed
 	 */
 	public function runToTop($plugin = null)
 	{
+		// This might take a while
+		craft()->config->maxPowerCaptain();
+
 		if (($migrations = $this->getNewMigrations($plugin)) === array())
 		{
 			if ($plugin)
@@ -74,9 +88,6 @@ class MigrationsService extends BaseApplicationComponent
 			// Refresh the DB cache
 			craft()->db->getSchema()->refresh();
 
-			// Set a new 2 minute time limit
-			craft()->config->maxPowerCaptain();
-
 			if ($this->migrateUp($migration, $plugin) === false)
 			{
 				if ($plugin)
@@ -87,6 +98,9 @@ class MigrationsService extends BaseApplicationComponent
 				{
 					Craft::log('Migration failed for Craft. All later Craft migrations are canceled.', LogLevel::Error);
 				}
+
+				// Refresh the DB cache
+				craft()->db->getSchema()->refresh();
 
 				return false;
 			}
@@ -101,12 +115,16 @@ class MigrationsService extends BaseApplicationComponent
 			Craft::log('Craft migrated up successfully.', LogLevel::Info, true);
 		}
 
+		// Refresh the DB cache
+		craft()->db->getSchema()->refresh();
+
 		return true;
 	}
 
 	/**
 	 * @param      $class
 	 * @param null $plugin
+	 *
 	 * @return bool|null
 	 */
 	public function migrateUp($class, $plugin = null)
@@ -163,6 +181,7 @@ class MigrationsService extends BaseApplicationComponent
 	/**
 	 * @param       $class
 	 * @param  null $plugin
+	 *
 	 * @throws Exception
 	 * @return mixed
 	 */
@@ -188,35 +207,12 @@ class MigrationsService extends BaseApplicationComponent
 	/**
 	 * @param null $plugin
 	 * @param null $limit
+	 *
 	 * @return mixed
 	 */
 	public function getMigrationHistory($plugin = null, $limit = null)
 	{
-		if ($plugin === 'all')
-		{
-			$query = craft()->db->createCommand()
-				->select('version, applyTime')
-				->from($this->_migrationTable)
-				->order('version DESC');
-		}
-		else if ($plugin)
-		{
-			$pluginInfo = craft()->plugins->getPluginInfo($plugin);
-
-			$query = craft()->db->createCommand()
-				->select('version, applyTime')
-				->from($this->_migrationTable)
-				->where('pluginId = :pluginId', array(':pluginId' => $pluginInfo['id']))
-				->order('version DESC');
-		}
-		else
-		{
-			$query = craft()->db->createCommand()
-				->select('version, applyTime')
-				->from($this->_migrationTable)
-				->where('pluginId IS NULL')
-				->order('version DESC');
-		}
+		$query = $this->_createMigrationQuery($plugin);
 
 		if ($limit !== null)
 		{
@@ -233,6 +229,21 @@ class MigrationsService extends BaseApplicationComponent
 		}
 
 		return $migrations;
+	}
+
+	/**
+	 * Returns whether a given migration has been run.
+	 *
+	 * @param string      $version
+	 * @param string|null $plugin
+	 *
+	 * @return bool
+	 */
+	public function hasRun($version, $plugin = null)
+	{
+		return (bool) $this->_createMigrationQuery($plugin)
+			->andWhere('version = :version', array(':version' => $version))
+			->count('id');
 	}
 
 	/**
@@ -258,16 +269,6 @@ class MigrationsService extends BaseApplicationComponent
 
 			$handle = opendir($migrationPath);
 
-			if ($plugin)
-			{
-				$pluginInfo = craft()->plugins->getPluginInfo($plugin);
-				$storedDate = $pluginInfo['installDate']->getTimestamp();
-			}
-			else
-			{
-				$storedDate = craft()->getReleaseDate()->getTimestamp();
-			}
-
 			while (($file = readdir($handle)) !== false)
 			{
 				if ($file[0] === '.')
@@ -286,13 +287,7 @@ class MigrationsService extends BaseApplicationComponent
 
 				if (preg_match('/^m(\d\d)(\d\d)(\d\d)_(\d\d)(\d\d)(\d\d)_\w+\.php$/', $file, $matches))
 				{
-					// Check the migration timestamp against the Craft release date
-					$time = strtotime('20'.$matches[1].'-'.$matches[2].'-'.$matches[3].' '.$matches[4].':'.$matches[5].':'.$matches[6]);
-
-					if ($time > $storedDate)
-					{
-						$migrations[] = $class;
-					}
+					$migrations[] = $class;
 				}
 			}
 
@@ -315,8 +310,9 @@ class MigrationsService extends BaseApplicationComponent
 
 	/**
 	 * @param null $plugin
-	 * @return string
+	 *
 	 * @throws Exception
+	 * @return string
 	 */
 	public function getMigrationPath($plugin = null)
 	{
@@ -338,5 +334,38 @@ class MigrationsService extends BaseApplicationComponent
 	public function getTemplate()
 	{
 		return file_get_contents(Craft::getPathOfAlias('app.etc.updates.migrationtemplate').'.php');
+	}
+
+	// Private Methods
+	// =========================================================================
+
+	/**
+	 * Returns a DbCommand object prepped for retrieving migrations.
+	 *
+	 * @param string|null $plugin
+	 *
+	 * @return DbCommand
+	 */
+	private function _createMigrationQuery($plugin = null)
+	{
+		$query = craft()->db->createCommand()
+			->select('version, applyTime')
+			->from($this->_migrationTable)
+			->order('version desc');
+
+		if ($plugin)
+		{
+			if ($plugin != 'all')
+			{
+				$pluginInfo = craft()->plugins->getPluginInfo($plugin);
+				$query->where('pluginId = :pluginId', array(':pluginId' => $pluginInfo['id']));
+			}
+		}
+		else
+		{
+			$query->where('pluginId is null');
+		}
+
+		return $query;
 	}
 }

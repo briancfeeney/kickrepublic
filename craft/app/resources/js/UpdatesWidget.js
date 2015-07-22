@@ -1,17 +1,15 @@
 /**
- * Craft by Pixel & Tonic
- *
- * @package   Craft
- * @author    Pixel & Tonic, Inc.
- * @copyright Copyright (c) 2013, Pixel & Tonic, Inc.
+ * @author    Pixel & Tonic, Inc. <support@pixelandtonic.com>
+ * @copyright Copyright (c) 2014, Pixel & Tonic, Inc.
  * @license   http://buildwithcraft.com/license Craft License Agreement
- * @link      http://buildwithcraft.com
+ * @see       http://buildwithcraft.com
+ * @package   craft.app.resources
  */
 
 (function($) {
 
-Craft.UpdatesWidget = Garnish.Base.extend({
-
+Craft.UpdatesWidget = Garnish.Base.extend(
+{
 	$widget: null,
 	$body: null,
 	$btn: null,
@@ -86,7 +84,7 @@ Craft.UpdatesWidget = Garnish.Base.extend({
 			this.$body.html(
 				'<p class="centeralign">' +
 					updateText +
-					' <a class="go" href="'+Craft.getUrl('updates')+'">'+Craft.t('Go to Updates')+'</a>' +
+					' <a class="go nowrap" href="'+Craft.getUrl('updates')+'">'+Craft.t('Go to Updates')+'</a>' +
 				'</p>'
 			);
 		}
@@ -99,6 +97,9 @@ Craft.UpdatesWidget = Garnish.Base.extend({
 
 			this.initBtn();
 		}
+
+		// Update the CP header badge
+		Craft.cp.displayUpdateInfo(info);
 	}
 });
 

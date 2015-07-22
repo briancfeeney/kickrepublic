@@ -16,7 +16,7 @@
 	<div class="col-sm-9">
 		<section id="news">
 			
-			{% paginate craft.entries.section('news').limit(3) as entries %}
+			{% paginate craft.entries.section('news').type('news', 'usmnt').limit(3) as entries %}
 			
 			{% for entry in entries %}
 				<article class="news">

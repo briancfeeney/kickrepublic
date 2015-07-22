@@ -2,20 +2,30 @@
 namespace Craft;
 
 /**
- * Craft by Pixel & Tonic
+ * Element type template variable.
  *
- * @package   Craft
- * @author    Pixel & Tonic, Inc.
- * @copyright Copyright (c) 2013, Pixel & Tonic, Inc.
+ * @author    Pixel & Tonic, Inc. <support@pixelandtonic.com>
+ * @copyright Copyright (c) 2014, Pixel & Tonic, Inc.
  * @license   http://buildwithcraft.com/license Craft License Agreement
- * @link      http://buildwithcraft.com
- */
-
-/**
- * Element type template variable
+ * @see       http://buildwithcraft.com
+ * @package   craft.app.variables
+ * @since     1.0
  */
 class ElementTypeVariable extends BaseComponentTypeVariable
 {
+	// Public Methods
+	// =========================================================================
+
+	/**
+	 * Returns whether this element type stores data on a per-locale basis.
+	 *
+	 * @return bool
+	 */
+	public function isLocalized()
+	{
+		return $this->component->isLocalized();
+	}
+
 	/**
 	 * Returns whether this element type can have statuses.
 	 *
@@ -27,9 +37,20 @@ class ElementTypeVariable extends BaseComponentTypeVariable
 	}
 
 	/**
+	 * Returns all of the possible statuses that elements of this type may have.
+	 *
+	 * @return array|null
+	 */
+	public function getStatuses()
+	{
+		return $this->component->getStatuses();
+	}
+
+	/**
 	 * Return a key/label list of the element type's sources.
 	 *
 	 * @param string|null $context
+	 *
 	 * @return array|false
 	 */
 	public function getSources($context = null)
@@ -47,4 +68,26 @@ class ElementTypeVariable extends BaseComponentTypeVariable
 		return $this->component->hasTitles();
 	}
 
+	/**
+	 * Returns the attributes that elements can be sorted by.
+	 *
+	 * @retrun array
+	 */
+	public function defineSortableAttributes()
+	{
+		return $this->component->defineSortableAttributes();
+	}
+
+	/**
+	 * Returns the table view HTML for a given attribute.
+	 *
+	 * @param BaseElementModel $element
+	 * @param string           $attribute
+	 *
+	 * @return string
+	 */
+	public function getTableAttributeHtml(BaseElementModel $element, $attribute)
+	{
+		return $this->component->getTableAttributeHtml($element, $attribute);
+	}
 }

@@ -1,15 +1,13 @@
 /**
- * Craft by Pixel & Tonic
- *
- * @package   Craft
- * @author    Pixel & Tonic, Inc.
- * @copyright Copyright (c) 2013, Pixel & Tonic, Inc.
+ * @author    Pixel & Tonic, Inc. <support@pixelandtonic.com>
+ * @copyright Copyright (c) 2014, Pixel & Tonic, Inc.
  * @license   http://buildwithcraft.com/license Craft License Agreement
- * @link      http://buildwithcraft.com
+ * @see       http://buildwithcraft.com
+ * @package   craft.app.resources
  */
 
-Craft.FeedWidget = Garnish.Base.extend({
-
+Craft.FeedWidget = Garnish.Base.extend(
+{
 	$widget: null,
 
 	init: function(widgetId, url, limit)
@@ -22,8 +20,8 @@ Craft.FeedWidget = Garnish.Base.extend({
 			limit: limit
 		};
 
-		Craft.postActionRequest('dashboard/getFeedItems', data, $.proxy(function(response, textStatus) {
-
+		Craft.postActionRequest('dashboard/getFeedItems', data, $.proxy(function(response, textStatus)
+		{
 			this.$widget.removeClass('loading');
 
 			if (textStatus == 'success')

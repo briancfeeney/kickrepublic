@@ -1,32 +1,32 @@
 <?php
 namespace Craft;
 
+craft()->requireEdition(Craft::Client);
+
 /**
- * Craft by Pixel & Tonic
+ * Class EntryRevisionsVariable
  *
- * @package   Craft
- * @author    Pixel & Tonic, Inc.
- * @copyright Copyright (c) 2013, Pixel & Tonic, Inc.
+ * @author    Pixel & Tonic, Inc. <support@pixelandtonic.com>
+ * @copyright Copyright (c) 2014, Pixel & Tonic, Inc.
  * @license   http://buildwithcraft.com/license Craft License Agreement
- * @link      http://buildwithcraft.com
- */
-
-craft()->requirePackage(CraftPackage::PublishPro);
-
-/**
- *
+ * @see       http://buildwithcraft.com
+ * @package   craft.app.variables
+ * @since     1.0
  */
 class EntryRevisionsVariable
 {
-	// -------------------------------------------
-	//  Drafts
-	// -------------------------------------------
+	// Public Methods
+	// =========================================================================
+
+	// Drafts
+	// -------------------------------------------------------------------------
 
 	/**
 	 * Returns entry drafts by an entry ID.
 	 *
-	 * @param int $entryId
+	 * @param int    $entryId
 	 * @param string $localeId
+	 *
 	 * @return array
 	 */
 	public function getDraftsByEntryId($entryId, $localeId = null)
@@ -37,8 +37,9 @@ class EntryRevisionsVariable
 	/**
 	 * Returns the drafts of a given entry that are editable by the current user.
 	 *
-	 * @param int $entryId
+	 * @param int    $entryId
 	 * @param string $localeId
+	 *
 	 * @return array
 	 */
 	public function getEditableDraftsByEntryId($entryId, $localeId = null)
@@ -49,7 +50,8 @@ class EntryRevisionsVariable
 	/**
 	 * Returns an entry draft by its offset.
 	 *
-	 * @param $draftId
+	 * @param int $draftId
+	 *
 	 * @return EntryDraftModel|null
 	 */
 	public function getDraftById($draftId)
@@ -62,6 +64,7 @@ class EntryRevisionsVariable
 	 *
 	 * @param int $entryId
 	 * @param int $offset
+	 *
 	 * @return EntryDraftModel|null
 	 */
 	public function getDraftByOffset($entryId, $offset = 0)
@@ -69,26 +72,27 @@ class EntryRevisionsVariable
 		return craft()->entryRevisions->getDraftByOffset($entryId, $offset);
 	}
 
-	// -------------------------------------------
-	//  Versions
-	// -------------------------------------------
+	// Versions
+	// -------------------------------------------------------------------------
 
 	/**
 	 * Returns entry versions by an entry ID.
 	 *
-	 * @param int $entryId
+	 * @param int    $entryId
 	 * @param string $localeId
+	 *
 	 * @return array
 	 */
 	public function getVersionsByEntryId($entryId, $localeId)
 	{
-		return craft()->entryRevisions->getVersionsByEntryId($entryId, $localeId);
+		return craft()->entryRevisions->getVersionsByEntryId($entryId, $localeId, 10);
 	}
 
 	/**
 	 * Returns an entry version by its ID.
 	 *
-	 * @param $versionId
+	 * @param int $versionId
+	 *
 	 * @return EntryVersionModel|null
 	 */
 	public function getVersionById($versionId)
@@ -101,6 +105,7 @@ class EntryRevisionsVariable
 	 *
 	 * @param int $entryId
 	 * @param int $offset
+	 *
 	 * @return EntryVersionModel|null
 	 */
 	public function getVersionByOffset($entryId, $offset = 0)

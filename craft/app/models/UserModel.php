@@ -2,58 +2,50 @@
 namespace Craft;
 
 /**
- * Craft by Pixel & Tonic
+ * User model class.
  *
- * @package   Craft
- * @author    Pixel & Tonic, Inc.
- * @copyright Copyright (c) 2013, Pixel & Tonic, Inc.
+ * @author    Pixel & Tonic, Inc. <support@pixelandtonic.com>
+ * @copyright Copyright (c) 2014, Pixel & Tonic, Inc.
  * @license   http://buildwithcraft.com/license Craft License Agreement
- * @link      http://buildwithcraft.com
- */
-
-/**
- * User model class
+ * @see       http://buildwithcraft.com
+ * @package   craft.app.models
+ * @since     1.0
  */
 class UserModel extends BaseElementModel
 {
+	// Properties
+	// =========================================================================
+
+	/**
+	 * @var string
+	 */
 	protected $elementType = ElementType::User;
+
+	/**
+	 * The cached list of groups the user belongs to. Set by {@link getGroups()}.
+	 *
+	 * @var array
+	 */
+	private $_groups;
+
+	// Public Methods
+	// =========================================================================
 
 	/**
 	 * Use the full name or username as the string representation.
 	 *
 	 * @return string
 	 */
-	function __toString()
+	public function __toString()
 	{
-		return $this->getName();
-	}
-
-	/**
-	 * @access protected
-	 * @return array
-	 */
-	protected function defineAttributes()
-	{
-		return array_merge(parent::defineAttributes(), array(
-			'username'               => array(AttributeType::String, 'maxLength' => 100, 'required' => true),
-			'photo'                  => AttributeType::String,
-			'firstName'              => AttributeType::String,
-			'lastName'               => AttributeType::String,
-			'email'                  => AttributeType::Email,
-			'password'               => AttributeType::String,
-			'preferredLocale'        => AttributeType::Locale,
-			'admin'                  => AttributeType::Bool,
-			'status'                 => AttributeType::Enum,
-			'lastLoginDate'          => AttributeType::DateTime,
-			'invalidLoginCount'      => AttributeType::Number,
-			'lastInvalidLoginDate'   => AttributeType::DateTime,
-			'lockoutDate'            => AttributeType::DateTime,
-			'passwordResetRequired'  => AttributeType::Bool,
-			'lastPasswordChangeDate' => AttributeType::DateTime,
-			'verificationRequired'   => AttributeType::Bool,
-			'newPassword'            => AttributeType::String,
-			'currentPassword'        => AttributeType::String,
-		));
+		if (craft()->config->get('useEmailAsUsername'))
+		{
+			return $this->email;
+		}
+		else
+		{
+			return $this->username;
+		}
 	}
 
 	/**
@@ -70,29 +62,50 @@ class UserModel extends BaseElementModel
 	 * Returns the user's groups.
 	 *
 	 * @param string|null $indexBy
+	 *
 	 * @return array
 	 */
 	public function getGroups($indexBy = null)
 	{
-		if (craft()->hasPackage(CraftPackage::Users))
+		if (!isset($this->_groups))
 		{
-			return craft()->userGroups->getGroupsByUserId($this->id, $indexBy);
+			if (craft()->getEdition() == Craft::Pro)
+			{
+				$this->_groups = craft()->userGroups->getGroupsByUserId($this->id);
+			}
+			else
+			{
+				$this->_groups = array();
+			}
+		}
+
+		if (!$indexBy)
+		{
+			$groups = $this->_groups;
 		}
 		else
 		{
-			return array();
+			$groups = array();
+
+			foreach ($this->_groups as $group)
+			{
+				$groups[$group->$indexBy] = $group;
+			}
 		}
+
+		return $groups;
 	}
 
 	/**
 	 * Returns whether the user is in a specific group.
 	 *
 	 * @param mixed $group The user group model, its handle, or ID.
+	 *
 	 * @return bool
 	 */
 	public function isInGroup($group)
 	{
-		if (craft()->hasPackage(CraftPackage::Users))
+		if (craft()->getEdition() == Craft::Pro)
 		{
 			if (is_object($group) && $group instanceof UserGroupModel)
 			{
@@ -124,7 +137,10 @@ class UserModel extends BaseElementModel
 	 */
 	public function getFullName()
 	{
-		return $this->firstName . ($this->firstName && $this->lastName ? ' ' : '') . $this->lastName;
+		$firstName = trim($this->firstName);
+		$lastName = trim($this->lastName);
+
+		return $firstName.($firstName && $lastName ? ' ' : '').$lastName;
 	}
 
 	/**
@@ -153,9 +169,9 @@ class UserModel extends BaseElementModel
 	 */
 	public function getFriendlyName()
 	{
-		if ($this->firstName)
+		if ($firstName = trim($this->firstName))
 		{
-			return $this->firstName;
+			return $firstName;
 		}
 		else
 		{
@@ -164,33 +180,65 @@ class UserModel extends BaseElementModel
 	}
 
 	/**
-	 * Returns the element's status.
+	 * @inheritDoc BaseElementModel::getStatus()
 	 *
 	 * @return string|null
 	 */
 	public function getStatus()
 	{
-		return $this->getAttribute('status');
+		if ($this->locked)
+		{
+			return UserStatus::Locked;
+		}
+
+		if ($this->suspended)
+		{
+			return UserStatus::Suspended;
+		}
+
+		if ($this->archived)
+		{
+			return UserStatus::Archived;
+		}
+
+		if ($this->pending)
+		{
+			return UserStatus::Pending;
+		}
+
+		return UserStatus::Active;
+	}
+
+	/**
+	 * Sets a user's status to active.
+	 */
+	public function setActive()
+	{
+		$this->pending = false;
+		$this->archived = false;
 	}
 
 	/**
 	 * Returns the URL to the user's photo.
 	 *
 	 * @param int $size
+	 *
 	 * @return string|null
 	 */
 	public function getPhotoUrl($size = 100)
 	{
 		if ($this->photo)
 		{
-			return UrlHelper::getResourceUrl('userphotos/'.$this->username.'/'.$size.'/'.$this->photo);
+			$username = AssetsHelper::cleanAssetName($this->username, false);
+			return UrlHelper::getResourceUrl('userphotos/'.$username.'/'.$size.'/'.$this->photo);
 		}
 	}
 
 	/**
-	 * Returns the URL to the thumbnail for this user for a given size.
+	 * @inheritDoc BaseElementModel::getThumbUrl()
 	 *
 	 * @param int $size
+	 *
 	 * @return false|null|string
 	 */
 	public function getThumbUrl($size = 100)
@@ -202,6 +250,16 @@ class UserModel extends BaseElementModel
 		}
 
 		return $url;
+	}
+
+	/**
+	 * @inheritDoc BaseElementModel::isEditable()
+	 *
+	 * @return bool
+	 */
+	public function isEditable()
+	{
+		return craft()->userSession->checkPermission('editUsers');
 	}
 
 	/**
@@ -228,13 +286,14 @@ class UserModel extends BaseElementModel
 	 * Returns whether the user has permission to perform a given action.
 	 *
 	 * @param string $permission
+	 *
 	 * @return bool
 	 */
 	public function can($permission)
 	{
-		if (craft()->hasPackage(CraftPackage::Users))
+		if (craft()->getEdition() == Craft::Pro)
 		{
-			if ($this->admin)
+			if ($this->admin || $this->client)
 			{
 				return true;
 			}
@@ -257,6 +316,7 @@ class UserModel extends BaseElementModel
 	 * Returns whether the user has shunned a given message.
 	 *
 	 * @param string $message
+	 *
 	 * @return bool
 	 */
 	public function hasShunned($message)
@@ -280,10 +340,16 @@ class UserModel extends BaseElementModel
 	{
 		if ($this->status == UserStatus::Locked)
 		{
-			$cooldownEnd = clone $this->lockoutDate;
-			$cooldownEnd->add(new DateInterval(craft()->config->get('cooldownDuration')));
+			// There was an old bug that where a user's lockoutDate could be null if they've
+			// passed their cooldownDuration already, but there account status is still locked.
+			// If that's the case, just let it return null as if they are past the cooldownDuration.
+			if ($this->lockoutDate)
+			{
+				$cooldownEnd = clone $this->lockoutDate;
+				$cooldownEnd->add(new DateInterval(craft()->config->get('cooldownDuration')));
 
-			return $cooldownEnd;
+				return $cooldownEnd;
+			}
 		}
 	}
 
@@ -307,13 +373,21 @@ class UserModel extends BaseElementModel
 	}
 
 	/**
-	 * Returns the element's CP edit URL.
+	 * @inheritDoc BaseElementModel::getCpEditUrl()
 	 *
 	 * @return string|false
 	 */
 	public function getCpEditUrl()
 	{
-		if (craft()->hasPackage(CraftPackage::Users))
+		if ($this->isCurrent())
+		{
+			return UrlHelper::getCpUrl('myaccount');
+		}
+		else if (craft()->getEdition() == Craft::Client && $this->client)
+		{
+			return UrlHelper::getCpUrl('clientaccount');
+		}
+		else if (craft()->getEdition() == Craft::Pro)
 		{
 			return UrlHelper::getCpUrl('users/'.$this->id);
 		}
@@ -324,10 +398,10 @@ class UserModel extends BaseElementModel
 	}
 
 	/**
-	 * Populates a new user instance with a given set of attributes.
+	 * @inheritDoc BaseModel::populateModel()
 	 *
-	 * @static
 	 * @param mixed $attributes
+	 *
 	 * @return UserModel
 	 */
 	public static function populateModel($attributes)
@@ -343,11 +417,73 @@ class UserModel extends BaseElementModel
 			{
 				if (!$user->getRemainingCooldownTime())
 				{
-					craft()->users->activateUser($user);
+					craft()->users->unlockUser($user);
 				}
 			}
 		}
 
 		return $user;
+	}
+
+	/**
+	 * Validates all of the attributes for the current Model. Any attributes that fail validation will additionally get
+	 * logged to the `craft/storage/runtime/logs` folder with a level of LogLevel::Warning.
+	 *
+	 * In addition, we check that the username does not have any whitespace in it.
+	 *
+	 * @param null $attributes
+	 * @param bool $clearErrors
+	 *
+	 * @return bool|null
+	 */
+	public function validate($attributes = null, $clearErrors = true)
+	{
+		// Don't allow whitespace in the username.
+		if (preg_match('/\s+/', $this->username))
+		{
+			$this->addError('username', Craft::t('Spaces are not allowed in the username.'));
+		}
+
+		return parent::validate($attributes, false);
+	}
+
+	// Protected Methods
+	// =========================================================================
+
+	/**
+	 * @inheritDoc BaseModel::defineAttributes()
+	 *
+	 * @return array
+	 */
+	protected function defineAttributes()
+	{
+		$requireUsername = !craft()->config->get('useEmailAsUsername');
+
+		return array_merge(parent::defineAttributes(), array(
+			'username'                   => array(AttributeType::String, 'maxLength' => 100, 'required' => $requireUsername),
+			'photo'                      => array(AttributeType::String, 'maxLength' => 100),
+			'firstName'                  => AttributeType::String,
+			'lastName'                   => AttributeType::String,
+			'email'                      => array(AttributeType::Email, 'required' => !$requireUsername),
+			'password'                   => AttributeType::String,
+			'preferredLocale'            => AttributeType::Locale,
+			'weekStartDay'               => array(AttributeType::Number, 'default' => 0),
+			'admin'                      => AttributeType::Bool,
+			'client'                     => AttributeType::Bool,
+			'locked'                     => AttributeType::Bool,
+			'suspended'                  => AttributeType::Bool,
+			'pending'                    => AttributeType::Bool,
+			'archived'                   => AttributeType::Bool,
+			'lastLoginDate'              => AttributeType::DateTime,
+			'invalidLoginCount'          => AttributeType::Number,
+			'lastInvalidLoginDate'       => AttributeType::DateTime,
+			'lockoutDate'                => AttributeType::DateTime,
+			'passwordResetRequired'      => AttributeType::Bool,
+			'lastPasswordChangeDate'     => AttributeType::DateTime,
+			'unverifiedEmail'            => AttributeType::Email,
+			'newPassword'                => AttributeType::String,
+			'currentPassword'            => AttributeType::String,
+			'verificationCodeIssuedDate' => AttributeType::DateTime,
+		));
 	}
 }

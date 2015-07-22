@@ -2,38 +2,69 @@
 namespace Craft;
 
 /**
- * Craft by Pixel & Tonic
+ * Field layout field model class.
  *
- * @package   Craft
- * @author    Pixel & Tonic, Inc.
- * @copyright Copyright (c) 2013, Pixel & Tonic, Inc.
+ * @author    Pixel & Tonic, Inc. <support@pixelandtonic.com>
+ * @copyright Copyright (c) 2014, Pixel & Tonic, Inc.
  * @license   http://buildwithcraft.com/license Craft License Agreement
- * @link      http://buildwithcraft.com
- */
-
-/**
- * Field layout field model class
+ * @see       http://buildwithcraft.com
+ * @package   craft.app.models
+ * @since     1.0
  */
 class FieldLayoutFieldModel extends BaseModel
 {
+	// Properties
+	// =========================================================================
+
 	/**
-	 * @access protected
-	 * @return array
+	 * @var
 	 */
-	protected function defineAttributes()
+	private $_layout;
+
+	// Public Methods
+	// =========================================================================
+
+	/**
+	 * Returns the field’s layout.
+	 *
+	 * @return FieldLayoutModel|null The field’s layout.
+	 */
+	public function getLayout()
 	{
-		return array(
-			'id'        => AttributeType::Number,
-			'fieldId'   => AttributeType::Name,
-			'required'  => AttributeType::Bool,
-			'sortOrder' => AttributeType::SortOrder,
-		);
+		if (!isset($this->_layout))
+		{
+			if ($this->layoutId)
+			{
+				$this->_layout = craft()->fields->getLayoutById($this->layoutId);
+			}
+			else
+			{
+				$this->_layout = false;
+			}
+		}
+
+		if ($this->_layout)
+		{
+			return $this->_layout;
+		}
 	}
 
 	/**
-	 * Returns the actual field model.
+	 * Sets the field’s layout.
 	 *
-	 * @return FieldModel|null
+	 * @param FieldLayoutModel $layout The field’s layout.
+	 *
+	 * @return null
+	 */
+	public function setLayout(FieldLayoutModel $layout)
+	{
+		$this->_layout = $layout;
+	}
+
+	/**
+	 * Returns the associated field.
+	 *
+	 * @return FieldModel|null The associated field.
 	 */
 	public function getField()
 	{
@@ -41,5 +72,25 @@ class FieldLayoutFieldModel extends BaseModel
 		{
 			return craft()->fields->getFieldById($this->fieldId);
 		}
+	}
+
+	// Protected Methods
+	// =========================================================================
+
+	/**
+	 * @inheritDoc BaseModel::defineAttributes()
+	 *
+	 * @return array
+	 */
+	protected function defineAttributes()
+	{
+		return array(
+			'id'        => AttributeType::Number,
+			'layoutId'  => AttributeType::Number,
+			'tabId'     => AttributeType::Number,
+			'fieldId'   => AttributeType::Name,
+			'required'  => AttributeType::Bool,
+			'sortOrder' => AttributeType::SortOrder,
+		);
 	}
 }

@@ -1,20 +1,19 @@
 /**
- * Craft by Pixel & Tonic
- *
- * @package   Craft
- * @author    Pixel & Tonic, Inc.
- * @copyright Copyright (c) 2013, Pixel & Tonic, Inc.
+ * @author    Pixel & Tonic, Inc. <support@pixelandtonic.com>
+ * @copyright Copyright (c) 2014, Pixel & Tonic, Inc.
  * @license   http://buildwithcraft.com/license Craft License Agreement
- * @link      http://buildwithcraft.com
+ * @see       http://buildwithcraft.com
+ * @package   craft.app.resources
  */
 
 (function($) {
 
 
-Craft.Updater = Garnish.Base.extend({
-
+Craft.Updater = Garnish.Base.extend(
+{
 	$graphic: null,
 	$status: null,
+	$errorDetails: null,
 	data: null,
 
 	init: function(handle, manualUpdate)
@@ -53,15 +52,15 @@ Craft.Updater = Garnish.Base.extend({
 			data: this.data
 		};
 
-		Craft.postActionRequest(action, data, $.proxy(function(response, textStatus) {
-
-			if (textStatus == 'success' && response.success)
+		Craft.postActionRequest(action, data, $.proxy(function(response, textStatus, jqXHR)
+		{
+			if (textStatus == 'success' && response.alive)
 			{
 				this.onSuccessResponse(response);
 			}
 			else
 			{
-				this.onErrorResponse();
+				this.onErrorResponse(jqXHR);
 			}
 
 		}, this), {
@@ -76,6 +75,11 @@ Craft.Updater = Garnish.Base.extend({
 			this.data = response.data;
 		}
 
+		if (response.errorDetails)
+		{
+			this.$errorDetails = response.errorDetails;
+		}
+
 		if (response.nextStatus)
 		{
 			this.updateStatus(response.nextStatus);
@@ -86,37 +90,77 @@ Craft.Updater = Garnish.Base.extend({
 			this.postActionRequest(response.nextAction);
 		}
 
-		if (response.error)
+		if (response.finished)
+		{
+			var rollBack = false;
+
+			if (response.rollBack)
+			{
+				rollBack = true;
+			}
+
+			this.onFinish(response.returnUrl, rollBack);
+		}
+	},
+
+	onErrorResponse: function(jqXHR)
+	{
+		this.$graphic.addClass('error');
+		var errorText =
+			'<p>'+Craft.t('A fatal error has occurred:')+'</p>' +
+			'<div id="error" class="code">' +
+				'<p><strong class="code">'+Craft.t('Status:')+'</strong> '+Craft.escapeHtml(jqXHR.statusText)+'</p>' +
+				'<p><strong class="code">'+Craft.t('Response:')+'</strong> '+Craft.escapeHtml(jqXHR.responseText)+'</p>' +
+			'</div>' +
+			'<a class="btn submit big" href="mailto:support@buildwithcraft.com' +
+				'?subject='+encodeURIComponent('Craft update failure') +
+				'&body='+encodeURIComponent(
+					'Describe what happened here.\n\n' +
+					'-----------------------------------------------------------\n\n' +
+					'Status: '+jqXHR.statusText+'\n\n' +
+					'Response: '+jqXHR.responseText
+				) +
+			'">' +
+				Craft.t('Send for help') +
+			'</a>'
+
+		this.updateStatus(errorText);
+	},
+
+	onFinish: function(returnUrl, rollBack)
+	{
+		if (this.$errorDetails)
 		{
 			this.$graphic.addClass('error');
-			this.updateStatus(response.error);
+			var errorText = Craft.t('Craft was unable to install this update :(') + '<br /><p>';
+
+			if (rollBack)
+			{
+				errorText += Craft.t('The site has been restored to the state it was in before the attempted update.') + '</p><br /><p>';
+			}
+			else
+			{
+				errorText += Craft.t('No files have been updated and the database has not been touched.') + '</p><br /><p>';
+			}
+
+			errorText += this.$errorDetails + '</p>';
+			this.updateStatus(errorText);
 		}
-		else if (response.finished)
+		else
 		{
-			this.onFinish(response.returnUrl);
+			this.updateStatus(Craft.t('All done!'));
+			this.$graphic.addClass('success');
+
+			// Redirect to the Dashboard in half a second
+			setTimeout(function() {
+				if (returnUrl) {
+					window.location = Craft.getUrl(returnUrl);
+				}
+				else {
+					window.location = Craft.getUrl('dashboard');
+				}
+			}, 500);
 		}
-	},
-
-	onErrorResponse: function()
-	{
-		this.showError(Craft.t('An unknown error occurred. Rolling back…'));
-		this.postActionRequest('update/rollback');
-	},
-
-	onFinish: function(returnUrl)
-	{
-		this.updateStatus(Craft.t('All done!'));
-		this.$graphic.addClass('success');
-
-		// Redirect to the Dashboard in half a second
-		setTimeout(function() {
-			if (returnUrl) {
-				window.location = Craft.getUrl(returnUrl);
-			}
-			else {
-				window.location = Craft.getUrl('dashboard');
-			}
-		}, 500);
 	}
 });
 

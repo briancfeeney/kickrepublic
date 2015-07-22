@@ -59,7 +59,9 @@
  */
 class CNumberFormatter extends CComponent
 {
-	private $_locale;
+	/* CORE HACK */
+	protected $_locale;
+
 	private $_formats=array();
 
 	/**

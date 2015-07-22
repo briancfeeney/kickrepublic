@@ -2,30 +2,50 @@
 namespace Craft;
 
 /**
- * Craft by Pixel & Tonic
+ * Class GetHelpModel
  *
- * @package   Craft
- * @author    Pixel & Tonic, Inc.
- * @copyright Copyright (c) 2013, Pixel & Tonic, Inc.
+ * @author    Pixel & Tonic, Inc. <support@pixelandtonic.com>
+ * @copyright Copyright (c) 2014, Pixel & Tonic, Inc.
  * @license   http://buildwithcraft.com/license Craft License Agreement
- * @link      http://buildwithcraft.com
- */
-
-/**
- *
+ * @see       http://buildwithcraft.com
+ * @package   craft.app.models
+ * @since     1.0
  */
 class GetHelpModel extends BaseModel
 {
+	// Public Methods
+	// =========================================================================
+
 	/**
-	 * @access protected
+	 * @inheritDoc BaseModel::rules()
+	 *
+	 * @return array
+	 */
+	public function rules()
+	{
+		// maxSize is 3MB
+		return array_merge(parent::rules(), array(
+			array('attachment', 'file', 'maxSize' => 3145728, 'allowEmpty' => true),
+		));
+	}
+
+	// Protected Methods
+	// =========================================================================
+
+	/**
+	 * @inheritDoc BaseModel::defineAttributes()
+	 *
 	 * @return array
 	 */
 	protected function defineAttributes()
 	{
 		return array(
-			'fromEmail'        => array(AttributeType::Email, 'required' => true),
+			'fromEmail'        => array(AttributeType::Email, 'required' => true, 'label' => 'Your Email'),
 			'message'          => array(AttributeType::String, 'required' => true),
-			'attachDebugFiles' => array(AttributeType::Bool)
+			'attachLogs'       => AttributeType::Bool,
+			'attachDbBackup'   => AttributeType::Bool,
+			'attachTemplates'  => AttributeType::Bool,
+			'attachment'       => AttributeType::Mixed,
 		);
 	}
 }

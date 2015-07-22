@@ -2,27 +2,43 @@
 namespace Craft;
 
 /**
- * Craft by Pixel & Tonic
+ * Class HandleValidator
  *
- * @package   Craft
- * @author    Pixel & Tonic, Inc.
- * @copyright Copyright (c) 2013, Pixel & Tonic, Inc.
+ * @author    Pixel & Tonic, Inc. <support@pixelandtonic.com>
+ * @copyright Copyright (c) 2014, Pixel & Tonic, Inc.
  * @license   http://buildwithcraft.com/license Craft License Agreement
- * @link      http://buildwithcraft.com
- */
-
-/**
- *
+ * @see       http://buildwithcraft.com
+ * @package   craft.app.validators
+ * @since     1.0
  */
 class HandleValidator extends \CValidator
 {
+	// Properties
+	// =========================================================================
+
+	/**
+	 * @var string
+	 */
+	public static $handlePattern = '[a-zA-Z][a-zA-Z0-9_]*';
+
+	/**
+	 * @var array
+	 */
 	public $reservedWords = array();
 
-	protected static $baseReservedWords = array('id', 'dateCreated', 'dateUpdated', 'uid', 'this', 'true', 'false', 'y', 'n', 'yes', 'no', 'classHandle', 'handle', 'name', 'attributeNames', 'attributes', 'attribute', 'rules', 'attributeLabels', 'fields', 'content', 'rawContent');
+	/**
+	 * @var array
+	 */
+	protected static $baseReservedWords = array('id', 'dateCreated', 'dateUpdated', 'uid', 'this', 'true', 'false', 'y', 'n', 'yes', 'no', 'classHandle', 'handle', 'name', 'attributeNames', 'attributes', 'attribute', 'rules', 'attributeLabels', 'fields', 'content', 'rawContent', 'section');
+
+	// Protected Methods
+	// =========================================================================
 
 	/**
 	 * @param $object
 	 * @param $attribute
+	 *
+	 * @return null
 	 */
 	protected function validateAttribute($object, $attribute)
 	{
@@ -32,8 +48,8 @@ class HandleValidator extends \CValidator
 		if ($handle)
 		{
 			$reservedWords = array_merge($this->reservedWords, static::$baseReservedWords);
-			$reservedWords = array_map('mb_strtolower', $reservedWords);
-			$lcHandle = mb_strtolower($handle);
+			$reservedWords = array_map(array('Craft\StringHelper', 'toLowerCase'), $reservedWords);
+			$lcHandle = StringHelper::toLowerCase($handle);
 
 			if (in_array($lcHandle, $reservedWords))
 			{
@@ -42,7 +58,7 @@ class HandleValidator extends \CValidator
 			}
 			else
 			{
-				if (!preg_match('/^[a-zA-Z][a-zA-Z0-9_]*$/', $handle))
+				if (!preg_match('/^'.static::$handlePattern.'$/', $handle))
 				{
 					$altMessage = Craft::t('“{handle}” isn’t a valid handle.', array('handle' => $handle));
 					$message = $this->message !== null ? $this->message : $altMessage;

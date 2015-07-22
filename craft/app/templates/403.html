@@ -1,7 +1,12 @@
 {% extends "_layouts/message" %}
 {% set title = "Unauthorized"|t %}
 
-{% set content %}
+{% block message %}
 	<h2>{{ title }}</h2>
-	<p>{{ "You don’t have the proper credentials to access this page."|t }}</p>
-{% endset %}
+
+	{% if message %}
+		{% filter md %}{{ message }}{% endfilter %}
+	{% else %}
+		<p>{{ "You don’t have the proper credentials to access this page."|t }}</p>
+	{% endif %}
+{% endblock %}

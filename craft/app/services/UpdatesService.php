@@ -2,24 +2,31 @@
 namespace Craft;
 
 /**
- * Craft by Pixel & Tonic
+ * Class UpdatesService
  *
- * @package   Craft
- * @author    Pixel & Tonic, Inc.
- * @copyright Copyright (c) 2013, Pixel & Tonic, Inc.
+ * @author    Pixel & Tonic, Inc. <support@pixelandtonic.com>
+ * @copyright Copyright (c) 2014, Pixel & Tonic, Inc.
  * @license   http://buildwithcraft.com/license Craft License Agreement
- * @link      http://buildwithcraft.com
- */
-
-/**
- *
+ * @see       http://buildwithcraft.com
+ * @package   craft.app.services
+ * @since     1.0
  */
 class UpdatesService extends BaseApplicationComponent
 {
+	// Properties
+	// =========================================================================
+
+	/**
+	 * @var UpdateModel
+	 */
 	private $_updateModel;
+
+	// Public Methods
+	// =========================================================================
 
 	/**
 	 * @param $craftReleases
+	 *
 	 * @return bool
 	 */
 	public function criticalCraftUpdateAvailable($craftReleases)
@@ -37,6 +44,7 @@ class UpdatesService extends BaseApplicationComponent
 
 	/**
 	 * @param $plugins
+	 *
 	 * @return bool
 	 */
 	public function criticalPluginUpdateAvailable($plugins)
@@ -63,7 +71,7 @@ class UpdatesService extends BaseApplicationComponent
 	 */
 	public function isUpdateInfoCached()
 	{
-		return (isset($this->_updateModel) || craft()->fileCache->get('updateinfo') !== false);
+		return (isset($this->_updateModel) || craft()->cache->get('updateinfo') !== false);
 	}
 
 	/**
@@ -115,12 +123,7 @@ class UpdatesService extends BaseApplicationComponent
 	 */
 	public function isCriticalUpdateAvailable()
 	{
-		if ((isset($this->_updateModel) && $this->_updateModel->app->criticalUpdateAvailable))
-		{
-			return true;
-		}
-
-		return false;
+		return (!empty($this->_updateModel->app->criticalUpdateAvailable));
 	}
 
 	/**
@@ -128,16 +131,12 @@ class UpdatesService extends BaseApplicationComponent
 	 */
 	public function isManualUpdateRequired()
 	{
-		if ((isset($this->_updateModel) && $this->_updateModel->app->manualUpdateRequired))
-		{
-			return true;
-		}
-
-		return false;
+		return (!empty($this->_updateModel->app->manualUpdateRequired));
 	}
 
 	/**
 	 * @param bool $forceRefresh
+	 *
 	 * @return UpdateModel|false
 	 */
 	public function getUpdates($forceRefresh = false)
@@ -149,7 +148,7 @@ class UpdatesService extends BaseApplicationComponent
 			if (!$forceRefresh)
 			{
 				// get the update info from the cache if it's there
-				$updateModel = craft()->fileCache->get('updateinfo');
+				$updateModel = craft()->cache->get('updateinfo');
 			}
 
 			// fetch it if it wasn't cached, or if we're forcing a refresh
@@ -168,7 +167,7 @@ class UpdatesService extends BaseApplicationComponent
 					$updateModel = $etModel->data;
 
 					// cache it and set it to expire according to config
-					craft()->fileCache->set('updateinfo', $updateModel);
+					craft()->cache->set('updateinfo', $updateModel);
 				}
 			}
 
@@ -185,7 +184,7 @@ class UpdatesService extends BaseApplicationComponent
 	{
 		Craft::log('Flushing update info from cache.', LogLevel::Info, true);
 
-		if (IOHelper::clearFolder(craft()->path->getCompiledTemplatesPath(), true) && IOHelper::clearFolder(craft()->path->getCachePath(), true))
+		if (IOHelper::clearFolder(craft()->path->getCompiledTemplatesPath(), true) && craft()->cache->flush())
 		{
 			return true;
 		}
@@ -194,24 +193,8 @@ class UpdatesService extends BaseApplicationComponent
 	}
 
 	/**
-	 * @param $version
-	 * @param $build
-	 * @param $releaseDate
-	 * @return bool
-	 */
-	public function setNewCraftInfo($version, $build, $releaseDate)
-	{
-		$info = craft()->getInfo();
-
-		$info->version     = $version;
-		$info->build       = $build;
-		$info->releaseDate = $releaseDate;
-
-		return craft()->saveInfo($info);
-	}
-
-	/**
 	 * @param BasePlugin $plugin
+	 *
 	 * @return bool
 	 */
 	public function setNewPluginInfo(BasePlugin $plugin)
@@ -257,7 +240,8 @@ class UpdatesService extends BaseApplicationComponent
 	}
 
 	/**
-	 * Checks to see if Craft can write to a defined set of folders/files that are needed for auto-update to work.
+	 * Checks to see if Craft can write to a defined set of folders/files that are
+	 * needed for auto-update to work.
 	 *
 	 * @return array|null
 	 */
@@ -284,28 +268,28 @@ class UpdatesService extends BaseApplicationComponent
 	/**
 	 * @param $manual
 	 * @param $handle
+	 *
 	 * @return array
 	 */
 	public function prepareUpdate($manual, $handle)
 	{
 		Craft::log('Preparing to update '.$handle.'.', LogLevel::Info, true);
 
-		// Fire an 'onBeginUpdate' event and pass in the type
-		$this->onBeginUpdate(new Event($this, array(
-			'type' => $manual ? 'manual' : 'auto'
-		)));
-
 		try
 		{
+			// Fire an 'onBeginUpdate' event and pass in the type
+			$this->onBeginUpdate(new Event($this, array(
+				'type' => $manual ? 'manual' : 'auto'
+			)));
+
 			$updater = new Updater();
 
-			// Make sure we still meet the requirements.
+			// Make sure we still meet the existing requirements.
 			$updater->checkRequirements();
 
 			// No need to get the latest update info if this is a manual update.
 			if (!$manual)
 			{
-				$updater->getLatestUpdateInfo();
 				$updateModel = $this->getUpdates();
 				Craft::log('Updating from '.$updateModel->app->localVersion.'.'.$updateModel->app->localBuild.' to '.$updateModel->app->latestVersion.'.'.$updateModel->app->latestBuild.'.', LogLevel::Info, true);
 				$result = $updater->getUpdateFileInfo();
@@ -324,7 +308,8 @@ class UpdatesService extends BaseApplicationComponent
 	}
 
 	/**
-	 * @param $md5
+	 * @param string $md5
+	 *
 	 * @return array
 	 */
 	public function processUpdateDownload($md5)
@@ -347,7 +332,8 @@ class UpdatesService extends BaseApplicationComponent
 	}
 
 	/**
-	 * @param $uid
+	 * @param string $uid
+	 *
 	 * @return array
 	 */
 	public function backupFiles($uid)
@@ -369,7 +355,8 @@ class UpdatesService extends BaseApplicationComponent
 	}
 
 	/**
-	 * @param $uid
+	 * @param string $uid
+	 *
 	 * @return array
 	 */
 	public function updateFiles($uid)
@@ -391,17 +378,16 @@ class UpdatesService extends BaseApplicationComponent
 	}
 
 	/**
-	 * @param $uid
 	 * @return array
 	 */
-	public function backupDatabase($uid)
+	public function backupDatabase()
 	{
 		Craft::log('Starting to backup database.', LogLevel::Info, true);
 
 		try
 		{
 			$updater = new Updater();
-			$result = $updater->backupDatabase($uid);
+			$result = $updater->backupDatabase();
 
 			if (!$result)
 			{
@@ -421,14 +407,12 @@ class UpdatesService extends BaseApplicationComponent
 	}
 
 	/**
-	 * @param      $uid
-	 * @param      $handle
-	 * @param bool $dbBackupPath
+	 * @param string $handle
 	 *
 	 * @throws Exception
 	 * @return array
 	 */
-	public function updateDatabase($uid, $handle, $dbBackupPath = false)
+	public function updateDatabase($handle)
 	{
 		Craft::log('Starting to update the database.', LogLevel::Info, true);
 
@@ -439,7 +423,7 @@ class UpdatesService extends BaseApplicationComponent
 			if ($handle == 'craft')
 			{
 				Craft::log('Craft wants to update the database.', LogLevel::Info, true);
-				$updater->updateDatabase($uid, $dbBackupPath);
+				$updater->updateDatabase();
 				Craft::log('Craft is done updating the database.', LogLevel::Info, true);
 			}
 			else
@@ -448,7 +432,7 @@ class UpdatesService extends BaseApplicationComponent
 				if ($plugin)
 				{
 					Craft::log('The plugin, '.$plugin->getName().' wants to update the database.', LogLevel::Info, true);
-					$updater->updateDatabase($uid, $dbBackupPath, $plugin);
+					$updater->updateDatabase($plugin);
 					Craft::log('The plugin, '.$plugin->getName().' is done updating the database.', LogLevel::Info, true);
 				}
 				else
@@ -467,8 +451,9 @@ class UpdatesService extends BaseApplicationComponent
 	}
 
 	/**
-	 * @param $uid
-	 * @param $handle
+	 * @param string $uid
+	 * @param string $handle
+	 *
 	 * @return array
 	 */
 	public function updateCleanUp($uid, $handle)
@@ -486,18 +471,22 @@ class UpdatesService extends BaseApplicationComponent
 			$this->onEndUpdate(new Event($this, array(
 				'success' => true
 			)));
-
-			return array('success' => true);
 		}
 		catch (\Exception $e)
 		{
-			return array('success' => false, 'message' => $e->getMessage());
+			Craft::log('There was an error during cleanup, but we don\'t really care: '.$e->getMessage());
+
+			// Fire an 'onEndUpdate' event and pass in that it was a successful update.
+			$this->onEndUpdate(new Event($this, array(
+				'success' => true
+			)));
 		}
 	}
 
 	/**
-	 * @param      $uid
-	 * @param bool $dbBackupPath
+	 * @param string $uid
+	 * @param bool   $dbBackupPath
+	 *
 	 * @return array
 	 */
 	public function rollbackUpdate($uid, $dbBackupPath = false)
@@ -533,6 +522,10 @@ class UpdatesService extends BaseApplicationComponent
 			}
 
 			Craft::log('Finished rolling back changes.', LogLevel::Info, true);
+
+			Craft::log('Taking the site out of maintenance mode.', LogLevel::Info, true);
+			craft()->disableMaintenanceMode();
+
 			return array('success' => true);
 		}
 		catch (\Exception $e)
@@ -562,49 +555,61 @@ class UpdatesService extends BaseApplicationComponent
 	}
 
 	/**
-	 * Returns if Craft needs to run a database update or not.
+	 * Returns whether a different Craft build has been uploaded.
 	 *
-	 * @access private
 	 * @return bool
 	 */
-	public function isCraftDbUpdateNeeded()
+	public function hasCraftBuildChanged()
 	{
-		return (CRAFT_BUILD > craft()->getBuild());
+		return (CRAFT_BUILD != craft()->getBuild());
 	}
 
 	/**
-	 * Returns true is the build stored in craft_info is less than the minimum required build on the file system.
-	 * This effectively makes sure that a user cannot manually update past a manual breakpoint.
+	 * Returns true is the build stored in craft_info is less than the minimum required build on the file system. This
+	 * effectively makes sure that a user cannot manually update past a manual breakpoint.
 	 *
 	 * @return bool
 	 */
 	public function isBreakpointUpdateNeeded()
 	{
-		// Only Craft has the concept of a breakpoint, not plugins.
-		if ($this->isCraftDbUpdateNeeded())
-		{
-			return (craft()->getBuild() < CRAFT_MIN_BUILD_REQUIRED);
-		}
-		else
-		{
-			return false;
-		}
+		return (CRAFT_MIN_BUILD_REQUIRED > craft()->getBuild());
 	}
 
 	/**
-	 * Returns true if the track on the file system matches the track in the database, false otherwise.
-	 * This effectively makes sure that a user cannot change tracks while manually updating.
+	 * Returns whether the uploaded DB schema is equal to or greater than the installed schema
 	 *
 	 * @return bool
 	 */
-	public function isTrackValid()
+	public function isSchemaVersionCompatible()
 	{
-		if (($track = craft()->getTrack()) && $track != CRAFT_TRACK)
-		{
-			return false;
-		}
+		return version_compare(CRAFT_SCHEMA_VERSION, craft()->getSchemaVersion(), '>=');
+	}
 
-		return true;
+	/**
+	 * Returns whether Craft needs to run any database migrations.
+	 *
+	 * @return bool
+	 */
+	public function isCraftDbMigrationNeeded()
+	{
+		return version_compare(CRAFT_SCHEMA_VERSION, craft()->getSchemaVersion(), '>');
+	}
+
+	/**
+	 * Updates the Craft version info in the craft_info table.
+	 *
+	 * @return bool
+	 */
+	public function updateCraftVersionInfo()
+	{
+		$info = craft()->getInfo();
+		$info->version = CRAFT_VERSION;
+		$info->build = CRAFT_BUILD;
+		$info->schemaVersion = CRAFT_SCHEMA_VERSION;
+		$info->track = CRAFT_TRACK;
+		$info->releaseDate = CRAFT_RELEASE_DATE;
+
+		return craft()->saveInfo($info);
 	}
 
 	/**
@@ -633,6 +638,8 @@ class UpdatesService extends BaseApplicationComponent
 	 * Fires an 'onBeginUpdate' event.
 	 *
 	 * @param Event $event
+	 *
+	 * @return null
 	 */
 	public function onBeginUpdate(Event $event)
 	{
@@ -643,6 +650,8 @@ class UpdatesService extends BaseApplicationComponent
 	 * Fires an 'onEndUpdate' event.
 	 *
 	 * @param Event $event
+	 *
+	 * @return null
 	 */
 	public function onEndUpdate(Event $event)
 	{

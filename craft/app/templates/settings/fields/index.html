@@ -1,3 +1,5 @@
+{% requireAdmin %}
+
 {% extends "_layouts/cp" %}
 {% set title = "Fields"|t %}
 
@@ -38,7 +40,7 @@
 		<ul id="groups">
 			<li><a href="{{ url('settings/fields') }}"{% if groupId is not defined %} class="sel"{% endif %}>{{ "All Fields"|t }}</a></li>
 			{% for group in groups %}
-				<li><a href="{{ url('settings/fields/'~group.id) }}"{% if groupId is defined and group.id == groupId %} class="sel"{% endif %} data-id="{{ group.id }}">{{ group.name }}</a></li>
+				<li><a href="{{ url('settings/fields/'~group.id) }}"{% if groupId is defined and group.id == groupId %} class="sel"{% endif %} data-id="{{ group.id }}">{{ group.name|t }}</a></li>
 			{% endfor %}
 		</ul>
 	</nav>
@@ -70,7 +72,7 @@
 	</p>
 
 	{% if fields %}
-		<table id="fields" class="data collapsible">
+		<table id="fields" class="data fullwidth collapsible">
 			<thead>
 				<th scope="col">{{ "Name"|t }}</th>
 				<th scope="col">{{ "Handle"|t }}</th>
@@ -86,14 +88,14 @@
 						</th>
 						<td data-title="{{ 'Handle'|t }}"><code>{{ field.handle }}</code></td>
 						<td data-title="{{ 'Type'|t }}">
-							{% set fieldType = craft.fields.populateFieldType(field) %}
+							{% set fieldType = field.getFieldType() %}
 							{% if fieldType %}
 								{{ fieldType.name }}
 							{% else %}
 								<span class="error">{{ field.type }}</span>
 							{% endif %}
 						</td>
-						{% if groupId is not defined %}<td data-title="{{ 'Group'|t }}">{{ field.group.name }}</td>{% endif %}
+						{% if groupId is not defined %}<td data-title="{{ 'Group'|t }}">{{ field.group.name|t }}</td>{% endif %}
 						<td class="thin"><a class="delete icon" title="{{ 'Delete'|t }}" role="button"></a></td>
 					</tr>
 				{% endfor %}

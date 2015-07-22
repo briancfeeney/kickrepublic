@@ -2,30 +2,36 @@
 namespace Craft;
 
 /**
- * Craft by Pixel & Tonic
- *
- * @package   Craft
- * @author    Pixel & Tonic, Inc.
- * @copyright Copyright (c) 2013, Pixel & Tonic, Inc.
- * @license   http://buildwithcraft.com/license Craft License Agreement
- * @link      http://buildwithcraft.com
- */
-
-/**
  * Component template variable class
  *
- * @abstract
+ * @author    Pixel & Tonic, Inc. <support@pixelandtonic.com>
+ * @copyright Copyright (c) 2014, Pixel & Tonic, Inc.
+ * @license   http://buildwithcraft.com/license Craft License Agreement
+ * @see       http://buildwithcraft.com
+ * @package   craft.app.variables
+ * @since     1.0
  */
 abstract class BaseComponentTypeVariable
 {
+	// Properties
+	// =========================================================================
+
+	/**
+	 * @var BaseComponentType
+	 */
 	protected $component;
+
+	// Public Methods
+	// =========================================================================
 
 	/**
 	 * Constructor
 	 *
 	 * @param BaseComponentType $component
+	 *
+	 * @return BaseComponentTypeVariable
 	 */
-	function __construct($component)
+	public function __construct($component)
 	{
 		$this->component = $component;
 	}
@@ -41,6 +47,18 @@ abstract class BaseComponentTypeVariable
 	}
 
 	/**
+	 * Mass-populates instances of this class with a given set of models.
+	 *
+	 * @param array $models
+	 *
+	 * @return array
+	 */
+	public static function populateVariables($models)
+	{
+		return VariableHelper::populateVariables($models, get_called_class());
+	}
+
+	/**
 	 * Returns the component's class handle.
 	 *
 	 * @return string
@@ -48,6 +66,16 @@ abstract class BaseComponentTypeVariable
 	public function getClassHandle()
 	{
 		return $this->component->getClassHandle();
+	}
+
+	/**
+	 * Returns whether this component should be selectable when choosing a component of this type.
+	 *
+	 * @return bool
+	 */
+	public function isSelectable()
+	{
+		return $this->component->isSelectable();
 	}
 
 	/**
@@ -68,17 +96,5 @@ abstract class BaseComponentTypeVariable
 	public function getSettingsHtml()
 	{
 		return $this->component->getSettingsHtml();
-	}
-
-	/**
-	 * Mass-populates instances of this class with a given set of models.
-	 *
-	 * @static
-	 * @param array $models
-	 * @return array
-	 */
-	public static function populateVariables($models)
-	{
-		return VariableHelper::populateVariables($models, get_called_class());
 	}
 }

@@ -1,13 +1,14 @@
-{% if not craft.hasPackage('Users') %}
+{% if CraftEdition != CraftPro %}
 	{% exit 404 %}
 {% endif %}
+
+{% requirePermission 'editUsers' %}
 
 {% extends "_layouts/elementindex" %}
 {% set title = "Users"|t %}
 {% set elementType = 'User' %}
 
 {% set docsUrl = 'http://buildwithcraft.com/docs/users' %}
-
 
 {% block sidebar %}
 	{% if currentUser.can('registerUsers') %}

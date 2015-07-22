@@ -2,22 +2,22 @@
 namespace Craft;
 
 /**
- * Craft by Pixel & Tonic
+ * Asset Index tool.
  *
- * @package   Craft
- * @author    Pixel & Tonic, Inc.
- * @copyright Copyright (c) 2013, Pixel & Tonic, Inc.
+ * @author    Pixel & Tonic, Inc. <support@pixelandtonic.com>
+ * @copyright Copyright (c) 2014, Pixel & Tonic, Inc.
  * @license   http://buildwithcraft.com/license Craft License Agreement
- * @link      http://buildwithcraft.com
- */
-
-/**
- * Asset Index tool
+ * @see       http://buildwithcraft.com
+ * @package   craft.app.tools
+ * @since     1.0
  */
 class AssetIndexTool extends BaseTool
 {
+	// Public Methods
+	// =========================================================================
+
 	/**
-	 * Returns the tool name.
+	 * @inheritDoc IComponentType::getName()
 	 *
 	 * @return string
 	 */
@@ -27,7 +27,7 @@ class AssetIndexTool extends BaseTool
 	}
 
 	/**
-	 * Returns the tool's icon value.
+	 * @inheritDoc ITool::getIconValue()
 	 *
 	 * @return string
 	 */
@@ -37,7 +37,7 @@ class AssetIndexTool extends BaseTool
 	}
 
 	/**
-	 * Returns the tool's options HTML.
+	 * @inheritDoc ITool::getOptionsHtml()
 	 *
 	 * @return string
 	 */
@@ -61,10 +61,11 @@ class AssetIndexTool extends BaseTool
 	}
 
 	/**
-	 * Perform the tool's action.
+	 * @inheritDoc ITool::performAction()
 	 *
 	 * @param array $params
-	 * @return array|void
+	 *
+	 * @return array|null
 	 */
 	public function performAction($params = array())
 	{
@@ -85,13 +86,17 @@ class AssetIndexTool extends BaseTool
 			}
 
 			$missingFolders = array();
+
+			$grandTotal = 0;
+
 			foreach ($sourceIds as $sourceId)
 			{
 				// Get the indexing list
 				$indexList = craft()->assetIndexing->getIndexListForSource($sessionId, $sourceId);
+
 				if (!empty($indexList['error']))
 				{
-					continue;
+					return $indexList;
 				}
 
 				if (isset($indexList['missingFolders']))
@@ -99,18 +104,22 @@ class AssetIndexTool extends BaseTool
 					$missingFolders += $indexList['missingFolders'];
 				}
 
-				// Add the initial request
-				$batches[] = array(
-						array(
-							'params' => array(
-								'sessionId' => $sessionId,
-								'sourceId' => $sourceId,
-								'total' => $indexList['total'],
-								'offset' => 0,
-								'process' => 1
-							)
-						)
-					);
+				$batch = array();
+
+				for ($i = 0; $i < $indexList['total']; $i++)
+				{
+					$batch[] = array(
+									'params' => array(
+										'sessionId' => $sessionId,
+										'sourceId' => $sourceId,
+										'total' => $indexList['total'],
+										'offset' => $i,
+										'process' => 1
+									)
+								);
+				}
+
+				$batches[] = $batch;
 			}
 
 			craft()->httpSession->add('assetsSourcesBeingIndexed', $sourceIds);
@@ -119,7 +128,8 @@ class AssetIndexTool extends BaseTool
 			craft()->httpSession->add('assetsTotalSourcesIndexed', 0);
 
 			return array(
-				'batches' => $batches
+				'batches' => $batches,
+				'total'   => $grandTotal
 			);
 		}
 		else if (!empty($params['process']))
@@ -131,33 +141,17 @@ class AssetIndexTool extends BaseTool
 			if (++$params['offset'] < $params['total'])
 			{
 				return array(
-					'batches' => array(
-						array(
-							array(
-								'params' => array (
-									'sessionId' => $params['sessionId'],
-									'sourceId' => $params['sourceId'],
-									'total' => $params['total'],
-									'offset' => $params['offset'],
-									'process' => 1
-								)
-							)
-						)
-					)
+					'success' => true
 				);
 			}
 			else
 			{
-				// This was the last file.
-				craft()->assetTransforms->cleanUpTransformsForSource($params['sourceId']);
-
 				// Increment the amount of sources indexed
 				craft()->httpSession->add('assetsTotalSourcesIndexed', craft()->httpSession->get('assetsTotalSourcesIndexed', 0) + 1);
 
 				// Is this the last source to finish up?
 				if (craft()->httpSession->get('assetsTotalSourcesToIndex', 0) <= craft()->httpSession->get('assetsTotalSourcesIndexed', 0))
 				{
-
 					$sourceIds = craft()->httpSession->get('assetsSourcesBeingIndexed', array());
 					$missingFiles = craft()->assetIndexing->getMissingFiles($sourceIds, $params['sessionId']);
 					$missingFolders = craft()->httpSession->get('assetsMissingFolders', array());
@@ -169,6 +163,23 @@ class AssetIndexTool extends BaseTool
 						$responseArray['confirm'] = craft()->templates->render('assets/_missing_items', array('missingFiles' => $missingFiles, 'missingFolders' => $missingFolders));
 						$responseArray['params'] = array('finish' => 1);
 					}
+					// Clean up stale indexing data (all sessions that have all recordIds set)
+					$sessionsInProgress = craft()->db->createCommand()
+											->select('sessionId')
+											->from('assetindexdata')
+											->where('recordId IS NULL')
+											->group('sessionId')
+											->queryScalar();
+
+					if (empty($sessionsInProgress))
+					{
+						craft()->db->createCommand()->delete('assetindexdata');
+					}
+					else
+					{
+						craft()->db->createCommand()->delete('assetindexdata', array('not in', 'sessionId', $sessionsInProgress));
+					}
+
 
 					// Generate the HTML for missing files and folders
 					return array(
@@ -183,7 +194,6 @@ class AssetIndexTool extends BaseTool
 		}
 		else if (!empty($params['finish']))
 		{
-
 			if (!empty($params['deleteFile']) && is_array($params['deleteFile']))
 			{
 				craft()->assetIndexing->removeObsoleteFileRecords($params['deleteFile']);

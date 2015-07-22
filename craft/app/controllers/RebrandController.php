@@ -1,25 +1,30 @@
 <?php
 namespace Craft;
 
+craft()->requireEdition(Craft::Client);
+
 /**
- * Craft by Pixel & Tonic
+ * The RebrandController class is a controller that handles various control panel re-branding tasks such as uploading,
+ * cropping and delete custom logos for displaying on the login page.
  *
- * @package   Craft
- * @author    Pixel & Tonic, Inc.
- * @copyright Copyright (c) 2013, Pixel & Tonic, Inc.
+ * Note that all actions in the controller require an authenticated Craft session via {@link BaseController::allowAnonymous}.
+ *
+ * @author    Pixel & Tonic, Inc. <support@pixelandtonic.com>
+ * @copyright Copyright (c) 2014, Pixel & Tonic, Inc.
  * @license   http://buildwithcraft.com/license Craft License Agreement
- * @link      http://buildwithcraft.com
- */
-
-craft()->requirePackage(CraftPackage::Rebrand);
-
-/**
- * Handles rebranding tasks
+ * @see       http://buildwithcraft.com
+ * @package   craft.app.controllers
+ * @since     1.0
  */
 class RebrandController extends BaseController
 {
+	// Public Methods
+	// =========================================================================
+
 	/**
 	 * Upload a logo for the admin panel.
+	 *
+	 * @return null
 	 */
 	public function actionUploadLogo()
 	{
@@ -27,32 +32,48 @@ class RebrandController extends BaseController
 		$this->requireAdmin();
 
 		// Upload the file and drop it in the temporary folder
-		$uploader = new \qqFileUploader();
+		$file = $_FILES['image-upload'];
 
 		try
 		{
 			// Make sure a file was uploaded
-			if ($uploader->file && $uploader->file->getSize())
+			if (!empty($file['name']) && !empty($file['size'])  )
 			{
 				$folderPath = craft()->path->getTempUploadsPath();
 				IOHelper::ensureFolderExists($folderPath);
 				IOHelper::clearFolder($folderPath, true);
 
-				$fileName = IOHelper::cleanFilename($uploader->file->getName());
+				$fileName = AssetsHelper::cleanAssetName($file['name']);
 
-				$uploader->file->save($folderPath.$fileName);
+				move_uploaded_file($file['tmp_name'], $folderPath.$fileName);
 
 				// Test if we will be able to perform image actions on this image
-				if (!craft()->images->setMemoryForImage($folderPath.$fileName))
+				if (!craft()->images->checkMemoryForImage($folderPath.$fileName))
 				{
 					IOHelper::deleteFile($folderPath.$fileName);
 					$this->returnErrorJson(Craft::t('The uploaded image is too large'));
 				}
 
-				craft()->images->cleanImage($folderPath.$fileName);
+                list ($width, $height) = ImageHelper::getImageSize($folderPath.$fileName);
+
+                if (IOHelper::getExtension($fileName) != 'svg')
+                {
+                    craft()->images->cleanImage($folderPath.$fileName);
+                }
+                else
+                {
+                    // Resave svg files as png
+                    $newFilename = preg_replace('/\.svg$/i', '.png', $fileName);
+
+                    craft()->images->
+                        loadImage($folderPath.$fileName, $width, $height)->
+                        saveAs($folderPath.$newFilename);
+
+                    IOHelper::deleteFile($folderPath.$fileName);
+                    $fileName = $newFilename;
+                }
 
 				$constraint = 500;
-				list ($width, $height) = getimagesize($folderPath.$fileName);
 
 				// If the file is in the format badscript.php.gif perhaps.
 				if ($width && $height)
@@ -65,7 +86,9 @@ class RebrandController extends BaseController
 							'imageUrl' => UrlHelper::getResourceUrl('tempuploads/'.$fileName),
 							'width' => round($width * $factor),
 							'height' => round($height * $factor),
-							'factor' => $factor
+							'factor' => $factor,
+							'constraint' => $constraint,
+                            'fileName' => $fileName
 						)
 					);
 
@@ -83,6 +106,8 @@ class RebrandController extends BaseController
 
 	/**
 	 * Crop user photo.
+	 *
+	 * @return null
 	 */
 	public function actionCropLogo()
 	{
@@ -98,22 +123,19 @@ class RebrandController extends BaseController
 			$source = craft()->request->getRequiredPost('source');
 
 			// Strip off any querystring info, if any.
-			if (($qIndex = mb_strpos($source, '?')) !== false)
-			{
-				$source = mb_substr($source, 0, mb_strpos($source, '?'));
-			}
+			$source = UrlHelper::stripQueryString($source);
 
 			$imagePath = craft()->path->getTempUploadsPath().$source;
 
-			if (IOHelper::fileExists($imagePath) && craft()->images->setMemoryForImage($imagePath))
+			if (IOHelper::fileExists($imagePath) && craft()->images->checkMemoryForImage($imagePath))
 			{
 				$targetPath = craft()->path->getStoragePath().'logo/';
 
 				IOHelper::ensureFolderExists($targetPath);
+                IOHelper::clearFolder($targetPath);
 
-					IOHelper::clearFolder($targetPath);
-					craft()->images
-						->loadImage($imagePath)
+                craft()->images
+						->loadImage($imagePath, 300, 300)
 						->crop($x1, $x2, $y1, $y2)
 						->scaleToFit(300, 300, false)
 						->saveAs($targetPath.$source);
@@ -123,6 +145,7 @@ class RebrandController extends BaseController
 				$html = craft()->templates->render('settings/general/_logo');
 				$this->returnJson(array('html' => $html));
 			}
+
 			IOHelper::deleteFile($imagePath);
 		}
 		catch (Exception $exception)
@@ -135,6 +158,8 @@ class RebrandController extends BaseController
 
 	/**
 	 * Delete logo.
+	 *
+	 * @return null
 	 */
 	public function actionDeleteLogo()
 	{

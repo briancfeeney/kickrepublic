@@ -14,7 +14,7 @@
 <div class="row">
 	<div class="col-sm-9">
 		<section id="news">
-			{% for entry in craft.entries.section('news').find()|slice(0, 1) %}
+			{% for entry in craft.entries.section('news').type('news', 'usmnt').find()|slice(0, 1) %}
 				<article class="top-news">
 				    {% for image in entry.news_image %}
 						<div class="featured-image" style="background-image: url({{ image.url }});"></div>
@@ -28,7 +28,7 @@
 				</article>
 			{% endfor %}
 			
-			{% for entry in craft.entries.section('news').find()|slice(1, 4) %}
+			{% for entry in craft.entries.section('news').type('news', 'usmnt').find()|slice(1, 4) %}
 				<article>
 					<div class="row">
 						<div class="col-sm-4">

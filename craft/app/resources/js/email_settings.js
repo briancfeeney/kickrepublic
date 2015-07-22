@@ -1,18 +1,16 @@
 /**
- * Craft by Pixel & Tonic
- *
- * @package   Craft
- * @author    Pixel & Tonic, Inc.
- * @copyright Copyright (c) 2013, Pixel & Tonic, Inc.
+ * @author    Pixel & Tonic, Inc. <support@pixelandtonic.com>
+ * @copyright Copyright (c) 2014, Pixel & Tonic, Inc.
  * @license   http://buildwithcraft.com/license Craft License Agreement
- * @link      http://buildwithcraft.com
+ * @see       http://buildwithcraft.com
+ * @package   craft.app.resources
  */
 
 (function($) {
 
 
-var EmailSettingsForm = Garnish.Base.extend({
-
+var EmailSettingsForm = Garnish.Base.extend(
+{
 	$form: null,
 	$protocolField: null,
 	$protocolSelect: null,
@@ -79,8 +77,8 @@ var EmailSettingsForm = Garnish.Base.extend({
 		var data = Garnish.getPostData(this.$form);
 		delete data.action;
 
-		Craft.postActionRequest('systemSettings/testEmailSettings', data, $.proxy(function(response, textStatus) {
-
+		Craft.postActionRequest('systemSettings/testEmailSettings', data, $.proxy(function(response, textStatus)
+		{
 			this.$testBtn.removeClass('sel');
 			this.$testSpinner.addClass('hidden');
 

@@ -1,18 +1,16 @@
 /**
- * Craft by Pixel & Tonic
- *
- * @package   Craft
- * @author    Pixel & Tonic, Inc.
- * @copyright Copyright (c) 2013, Pixel & Tonic, Inc.
+ * @author    Pixel & Tonic, Inc. <support@pixelandtonic.com>
+ * @copyright Copyright (c) 2014, Pixel & Tonic, Inc.
  * @license   http://buildwithcraft.com/license Craft License Agreement
- * @link      http://buildwithcraft.com
+ * @see       http://buildwithcraft.com
+ * @package   craft.app.resources
  */
 
 (function($) {
 
 
-Craft.RecentEntriesWidget = Garnish.Base.extend({
-
+Craft.RecentEntriesWidget = Garnish.Base.extend(
+{
 	params: null,
 	$widget: null,
 	$body: null,
@@ -25,7 +23,7 @@ Craft.RecentEntriesWidget = Garnish.Base.extend({
 		this.params = params;
 		this.$widget = $('#widget'+widgetId);
 		this.$body = this.$widget.find('.body:first');
-		this.$container = this.$widget.find('.container:first');
+		this.$container = this.$widget.find('.recententries-container:first');
 		this.$tbody = this.$container.find('tbody:first');
 		this.hasEntries = !!this.$tbody.length;
 
@@ -41,7 +39,7 @@ Craft.RecentEntriesWidget = Garnish.Base.extend({
 		if (!this.hasEntries)
 		{
 			// Create the table first
-			var $table = $('<table class="data"/>').prependTo(this.$container);
+			var $table = $('<table class="data fullwidth"/>').prependTo(this.$container);
 			this.$tbody = $('<tbody/>').appendTo($table);
 		}
 
@@ -51,7 +49,7 @@ Craft.RecentEntriesWidget = Garnish.Base.extend({
 					'<a href="'+entry.url+'">'+entry.title+'</a> ' +
 					'<span class="light">' +
 						entry.postDate +
-						(Craft.hasPackage('Users') ? ' '+Craft.t('by {author}', { author: entry.username }) : '') +
+						(Craft.edition >= Craft.Client ? ', '+entry.username : '') +
 					'</span>' +
 				'</td>' +
 			'</tr>'
@@ -71,7 +69,7 @@ Craft.RecentEntriesWidget = Garnish.Base.extend({
 			this.hasEntries = true;
 		}
 
-		this.$container.animate(props);
+		this.$container.velocity(props);
 	}
 }, {
 	instances: []

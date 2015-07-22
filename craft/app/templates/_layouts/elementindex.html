@@ -2,6 +2,7 @@
 
 {% set elementTypeClass = elementType %}
 {% set elementType = craft.elements.getElementType(elementTypeClass) %}
+{% set context = 'index' %}
 
 {% if not elementType %}
 	{% exit 404 %}
@@ -19,18 +20,20 @@
 {% endblock %}
 
 
-{% block content %}
+{% set content %}
 	<div class="elementindex">
 		{% include "_elements/indexcontainer" %}
 	</div>
-{% endblock %}
+{% endset %}
 
 
 {% block initJs %}
-	Craft.createElementIndex('{{ elementTypeClass }}', $('#main'), {
-		context:    'index',
-		storageKey: 'elementindex.{{ elementTypeClass }}',
-		criteria:   { status: null }
+	Craft.elementIndex = Craft.createElementIndex('{{ elementTypeClass }}', $('#main'), {
+		context:        '{{ context }}',
+		showStatusMenu: {{ showStatusMenu is defined ? showStatusMenu|json_encode|raw : "'auto'" }},
+		showLocaleMenu: {{ showLocaleMenu is defined ? showLocaleMenu|json_encode|raw : "'auto'" }},
+		storageKey:     'elementindex.{{ elementTypeClass }}',
+		criteria:       { localeEnabled: null }
 	});
 {% endblock %}
 

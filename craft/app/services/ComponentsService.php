@@ -2,35 +2,42 @@
 namespace Craft;
 
 /**
- * Craft by Pixel & Tonic
+ * Class ComponentsService
  *
- * @package   Craft
- * @author    Pixel & Tonic, Inc.
- * @copyright Copyright (c) 2013, Pixel & Tonic, Inc.
+ * @author    Pixel & Tonic, Inc. <support@pixelandtonic.com>
+ * @copyright Copyright (c) 2014, Pixel & Tonic, Inc.
  * @license   http://buildwithcraft.com/license Craft License Agreement
- * @link      http://buildwithcraft.com
- */
-
-/**
- *
+ * @see       http://buildwithcraft.com
+ * @package   craft.app.services
+ * @since     1.0
  */
 class ComponentsService extends BaseApplicationComponent
 {
+	// Properties
+	// =========================================================================
+
 	/**
-	 * @var array The types of components supported by Craft.
+	 * The types of components supported by Craft.
+	 *
+	 * @var array
 	 */
 	public $types;
 
 	/**
-	 * @access private
-	 * @var array The internal list of components
+	 * The internal list of components.
+	 *
+	 * @var array
 	 */
 	private $_components;
+
+	// Public Methods
+	// =========================================================================
 
 	/**
 	 * Returns instances of a component type, indexed by their class handles.
 	 *
 	 * @param string $type
+	 *
 	 * @return array
 	 */
 	public function getComponentsByType($type)
@@ -48,6 +55,7 @@ class ComponentsService extends BaseApplicationComponent
 	 *
 	 * @param string $type
 	 * @param string $class
+	 *
 	 * @return BaseComponentType|null
 	 */
 	public function getComponentByTypeAndClass($type, $class)
@@ -59,16 +67,45 @@ class ComponentsService extends BaseApplicationComponent
 		}
 
 		// Add the class suffix, initialize, and return
-		$class = $class.$this->types[$type]['suffix'];
-		$instanceOf = $this->types[$type]['instanceof'];
-		return $this->initializeComponent($class, $instanceOf);
+		$fullClass = $class.$this->types[$type]['suffix'];
+		$nsClass = __NAMESPACE__.'\\'.$fullClass;
+
+		if (!class_exists($nsClass))
+		{
+			// Maybe it's a plugin component?
+			if ($this->types[$type]['enableForPlugins'])
+			{
+				if (($pos = strrpos($class, '_')) !== false)
+				{
+					$pluginHandle = substr($class, 0, $pos);
+				}
+				else
+				{
+					$pluginHandle = $class;
+				}
+
+				$plugin = craft()->plugins->getPlugin($pluginHandle);
+
+				if (!$plugin || !craft()->plugins->doesPluginClassExist($plugin, $this->types[$type]['subfolder'], $fullClass))
+				{
+					return null;
+				}
+			}
+			else
+			{
+				return null;
+			}
+		}
+
+		return $this->initializeComponent($fullClass, $this->types[$type]['instanceof']);
 	}
 
 	/**
 	 * Populates a new component instance by its type and model.
 	 *
-	 * @param string $type
+	 * @param string             $type
 	 * @param BaseComponentModel $model
+	 *
 	 * @return BaseComponentType|null
 	 */
 	public function populateComponentByTypeAndModel($type, BaseComponentModel $model)
@@ -97,6 +134,7 @@ class ComponentsService extends BaseApplicationComponent
 	 * Making sure a class exists and it's not abstract or an interface.
 	 *
 	 * @param string $class
+	 *
 	 * @return bool
 	 */
 	public function validateClass($class)
@@ -126,6 +164,7 @@ class ComponentsService extends BaseApplicationComponent
 	 *
 	 * @param string $class
 	 * @param string $instanceOf
+	 *
 	 * @return mixed
 	 */
 	public function initializeComponent($class, $instanceOf = null)
@@ -157,10 +196,14 @@ class ComponentsService extends BaseApplicationComponent
 		return $component;
 	}
 
+	// Private Methods
+	// =========================================================================
+
 	/**
 	 * Finds all of the components by a given type.
 	 *
 	 * @param string $type
+	 *
 	 * @return array
 	 */
 	private function _findComponentsByType($type)
@@ -170,8 +213,7 @@ class ComponentsService extends BaseApplicationComponent
 			$this->_noComponentTypeExists($type);
 		}
 
-		$components = array();
-		$names = array();
+		$componentClasses = array();
 
 		// Find all of the built-in components
 		$filter = $this->types[$type]['suffix'].'\.php$';
@@ -181,31 +223,54 @@ class ComponentsService extends BaseApplicationComponent
 		{
 			foreach ($files as $file)
 			{
-				// Get the class name and initialize it
-				$class = IOHelper::getFileName($file, false);
-				$component = $this->initializeComponent($class, $this->types[$type]['instanceof']);
+				$componentClasses[] = IOHelper::getFileName($file, false);
+			}
+		}
 
-				if ($component)
+		// Now load any plugin-supplied components
+		if ($this->types[$type]['enableForPlugins'])
+		{
+			foreach (craft()->plugins->getPlugins() as $plugin)
+			{
+				$pluginClasses = craft()->plugins->getPluginClasses($plugin, $this->types[$type]['subfolder'], $this->types[$type]['suffix']);
+				$componentClasses = array_merge($componentClasses, $pluginClasses);
+			}
+		}
+
+		// Initialize, verify, and save them
+		$components = array();
+		$names = array();
+
+		foreach ($componentClasses as $class)
+		{
+			$component = $this->initializeComponent($class, $this->types[$type]['instanceof']);
+
+			if ($component && $component->isSelectable())
+			{
+				$classHandle = $component->getClassHandle();
+
+				// Make sure we don't have another component with the exact same class name
+				if (!isset($components[$classHandle]))
 				{
 					// Save it
-					$classHandle = $component->getClassHandle();
 					$components[$classHandle] = $component;
 					$names[] = $component->getName();
 				}
 			}
 		}
 
-		// Now load any plugin-supplied components
-		$pluginComponents = craft()->plugins->getAllComponentsByType($type);
-
-		foreach ($pluginComponents as $component)
-		{
-			$components[$component->getClassHandle()] = $component;
-			$names[] = $component->getName();
-		}
-
 		// Now sort all the components by their name
-		array_multisort($names, $components);
+		// TODO: Remove this check for Craft 3.
+		if (PHP_VERSION_ID < 50400)
+		{
+			// Sort plugins by name
+			array_multisort($names, $components);
+		}
+		else
+		{
+			// Sort plugins by name
+			array_multisort($names, SORT_NATURAL | SORT_FLAG_CASE, $components);
+		}
 
 		return $components;
 	}
@@ -213,8 +278,8 @@ class ComponentsService extends BaseApplicationComponent
 	/**
 	 * Throws a "no component type exists" exception.
 	 *
-	 * @access private
 	 * @param string $type
+	 *
 	 * @throws Exception
 	 */
 	private function _noComponentTypeExists($type)

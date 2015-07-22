@@ -2,20 +2,20 @@
 namespace Craft;
 
 /**
- * Craft by Pixel & Tonic
+ * Localization functions.
  *
- * @package   Craft
- * @author    Pixel & Tonic, Inc.
- * @copyright Copyright (c) 2013, Pixel & Tonic, Inc.
+ * @author    Pixel & Tonic, Inc. <support@pixelandtonic.com>
+ * @copyright Copyright (c) 2014, Pixel & Tonic, Inc.
  * @license   http://buildwithcraft.com/license Craft License Agreement
- * @link      http://buildwithcraft.com
- */
-
-/**
- * Localization functions
+ * @see       http://buildwithcraft.com
+ * @package   craft.app.variables
+ * @since     1.0
  */
 class LocalizationVariable
 {
+	// Public Methods
+	// =========================================================================
+
 	/**
 	 * Gets all known languages.
 	 *
@@ -37,9 +37,20 @@ class LocalizationVariable
 	}
 
 	/**
+	 * Returns the current locale.
+	 *
+	 * @return LocaleModel
+	 */
+	public function getCurrentLocale()
+	{
+		return craft()->i18n->getLocaleById(craft()->language);
+	}
+
+	/**
 	 * Returns a locale by its ID.
 	 *
 	 * @param string $localeId
+	 *
 	 * @return LocaleModel
 	 */
 	public function getLocaleById($localeId)
@@ -100,8 +111,9 @@ class LocalizationVariable
 	/**
 	 * Returns the localization data for a given locale.
 	 *
-	 * @param $localeId
-	 * @return \CLocale|null
+	 * @param string|null $localeId
+	 *
+	 * @return LocaleData|null
 	 */
 	public function getLocaleData($localeId = null)
 	{

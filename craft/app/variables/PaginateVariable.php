@@ -2,28 +2,52 @@
 namespace Craft;
 
 /**
- * Craft by Pixel & Tonic
+ * Paginate variable class.
  *
- * @package   Craft
- * @author    Pixel & Tonic, Inc.
- * @copyright Copyright (c) 2013, Pixel & Tonic, Inc.
+ * @author    Pixel & Tonic, Inc. <support@pixelandtonic.com>
+ * @copyright Copyright (c) 2014, Pixel & Tonic, Inc.
  * @license   http://buildwithcraft.com/license Craft License Agreement
- * @link      http://buildwithcraft.com
- */
-
-/**
- * Paginate variable class
+ * @see       http://buildwithcraft.com
+ * @package   craft.app.variables
+ * @since     1.0
  */
 class PaginateVariable
 {
+	// Properties
+	// =========================================================================
+
+	/**
+	 * @var
+	 */
 	public $first;
+
+	/**
+	 * @var
+	 */
 	public $last;
-	public $total;
+
+	/**
+	 * @var
+	 */
+	public $total = 0;
+
+	/**
+	 * @var
+	 */
 	public $currentPage;
-	public $totalPages;
+
+	/**
+	 * @var
+	 */
+	public $totalPages = 0;
+
+	// Public Methods
+	// =========================================================================
 
 	/**
 	 * Returns the URL to a specific page
+	 *
+	 * @param int $page
 	 *
 	 * @return string|null
 	 */
@@ -32,15 +56,42 @@ class PaginateVariable
 		if ($page >= 1 && $page <= $this->totalPages)
 		{
 			$path = craft()->request->getPath();
+			$params = array();
 
-			if ($path)
+			if ($page != 1)
 			{
-				$path .= '/';
+				$pageTrigger = craft()->config->get('pageTrigger');
+
+				if (!is_string($pageTrigger) || !strlen($pageTrigger))
+				{
+					$pageTrigger = 'p';
+				}
+
+				// Is this query string-based pagination?
+				if ($pageTrigger[0] === '?')
+				{
+					$pageTrigger = trim($pageTrigger, '?=');
+
+					if ($pageTrigger === 'p')
+					{
+						// Avoid conflict with the main 'p' param
+						$pageTrigger = 'pg';
+					}
+
+					$params = array($pageTrigger => $page);
+				}
+				else
+				{
+					if ($path)
+					{
+						$path .= '/';
+					}
+
+					$path .= $pageTrigger.$page;
+				}
 			}
 
-			$path .= craft()->config->get('pageTrigger').$page;
-
-			return UrlHelper::getUrl($path);
+			return UrlHelper::getUrl($path, $params);
 		}
 	}
 
@@ -88,6 +139,7 @@ class PaginateVariable
 	 * Returns previous page URLs up to a certain distance from the current page.
 	 *
 	 * @param int $dist
+	 *
 	 * @return array
 	 */
 	public function getPrevUrls($dist = null)
@@ -108,6 +160,7 @@ class PaginateVariable
 	 * Returns next page URLs up to a certain distance from the current page.
 	 *
 	 * @param int $dist
+	 *
 	 * @return array
 	 */
 	public function getNextUrls($dist = null)
@@ -129,6 +182,7 @@ class PaginateVariable
 	 *
 	 * @param int $start
 	 * @param int $end
+	 *
 	 * @return array
 	 */
 	public function getRangeUrls($start, $end)

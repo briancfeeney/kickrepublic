@@ -2,82 +2,137 @@
 namespace Craft;
 
 /**
- * Craft by Pixel & Tonic
+ * Field layout tab model class.
  *
- * @package   Craft
- * @author    Pixel & Tonic, Inc.
- * @copyright Copyright (c) 2013, Pixel & Tonic, Inc.
+ * @author    Pixel & Tonic, Inc. <support@pixelandtonic.com>
+ * @copyright Copyright (c) 2014, Pixel & Tonic, Inc.
  * @license   http://buildwithcraft.com/license Craft License Agreement
- * @link      http://buildwithcraft.com
- */
-
-/**
- * Field layout tab model class
+ * @see       http://buildwithcraft.com
+ * @package   craft.app.models
+ * @since     1.0
  */
 class FieldLayoutTabModel extends BaseModel
 {
-	private $_fields;
+	// Properties
+	// =========================================================================
 
 	/**
-	 * @access protected
-	 * @return array
+	 * @var
 	 */
-	protected function defineAttributes()
+	private $_layout;
+
+	/**
+	 * @var
+	 */
+	private $_fields;
+
+	// Public Methods
+	// =========================================================================
+
+	/**
+	 * Returns the tab’s layout.
+	 *
+	 * @return FieldLayoutModel|null The tab’s layout.
+	 */
+	public function getLayout()
 	{
-		return array(
-			'id'        => AttributeType::Number,
-			'name'      => AttributeType::Name,
-			'sortOrder' => AttributeType::SortOrder,
-		);
+		if (!isset($this->_layout))
+		{
+			if ($this->layoutId)
+			{
+				$this->_layout = craft()->fields->getLayoutById($this->layoutId);
+			}
+			else
+			{
+				$this->_layout = false;
+			}
+		}
+
+		if ($this->_layout)
+		{
+			return $this->_layout;
+		}
 	}
 
 	/**
-	 * Returns the tab's fields.
+	 * Sets the tab’s layout.
 	 *
-	 * @return array
+	 * @param FieldLayoutModel $layout The tab’s layout.
+	 *
+	 * @return null
+	 */
+	public function setLayout(FieldLayoutModel $layout)
+	{
+		$this->_layout = $layout;
+	}
+
+	/**
+	 * Returns the tab’s fields.
+	 *
+	 * @return array The tab’s fields.
 	 */
 	public function getFields()
 	{
 		if (!isset($this->_fields))
 		{
-			return array();
+			$this->_fields = array();
+
+			$layout = $this->getLayout();
+
+			if ($layout)
+			{
+				$fields = $layout->getFields();
+
+				foreach ($fields as $field)
+				{
+					if ($field->tabId == $this->id)
+					{
+						$this->_fields[] = $field;
+					}
+				}
+			}
 		}
 
 		return $this->_fields;
 	}
 
 	/**
-	 * Sets the tab's fields.
+	 * Sets the tab’s fields.
 	 *
-	 * @param array $fields
+	 * @param array $fields The tab’s fields.
+	 *
+	 * @return null
 	 */
 	public function setFields($fields)
 	{
-		$this->_fields = FieldLayoutFieldModel::populateModels($fields, 'fieldId');
+		$this->_fields = array();
+
+		foreach ($fields as $field)
+		{
+			if (is_array($field))
+			{
+				$field = new FieldLayoutFieldModel($field);
+			}
+
+			$this->_fields[] = $field;
+		}
 	}
 
+	// Protected Methods
+	// =========================================================================
+
 	/**
-	 * Populates a new model instance with a given set of attributes.
+	 * @inheritDoc BaseModel::defineAttributes()
 	 *
-	 * @static
-	 * @param mixed $values
-	 * @return BaseModel
+	 * @return array
 	 */
-	public static function populateModel($values)
+	protected function defineAttributes()
 	{
-		if (isset($values['fields']))
-		{
-			$fields = $values['fields'];
-			unset($values['fields']);
-		}
-
-		$model = parent::populateModel($values);
-
-		if (isset($fields))
-		{
-			$model->setFields($fields);
-		}
-
-		return $model;
+		return array(
+			'id'        => AttributeType::Number,
+			'layoutId'  => AttributeType::Number,
+			'name'      => AttributeType::Name,
+			'sortOrder' => AttributeType::SortOrder,
+		);
 	}
 }

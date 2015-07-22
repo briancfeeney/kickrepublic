@@ -2,31 +2,29 @@
 namespace Craft;
 
 /**
- * Craft by Pixel & Tonic
+ * Class ModelHelper
  *
- * @package   Craft
- * @author    Pixel & Tonic, Inc.
- * @copyright Copyright (c) 2013, Pixel & Tonic, Inc.
+ * @author    Pixel & Tonic, Inc. <support@pixelandtonic.com>
+ * @copyright Copyright (c) 2014, Pixel & Tonic, Inc.
  * @license   http://buildwithcraft.com/license Craft License Agreement
- * @link      http://buildwithcraft.com
- */
-
-/**
- *
+ * @see       http://buildwithcraft.com
+ * @package   craft.app.helpers
+ * @since     1.0
  */
 class ModelHelper
 {
+	// Properties
+	// =========================================================================
+
 	/**
-	 * Default attribute configs
+	 * The default attribute configs.
 	 *
-	 * @static
 	 * @var array
 	 */
 	public static $attributeTypeDefaults = array(
 		AttributeType::Mixed      => array('model' => null, 'column' => ColumnType::Text),
 		AttributeType::Bool       => array('maxLength' => 1, 'default' => false, 'required' => true, 'column' => ColumnType::TinyInt, 'unsigned' => true),
-		AttributeType::Build      => array('column' => ColumnType::Int, 'unsigned' => true),
-		AttributeType::ClassName  => array('maxLength' => 150, 'column' => ColumnType::Char),
+		AttributeType::ClassName  => array('maxLength' => 150, 'column' => ColumnType::Varchar),
 		AttributeType::DateTime   => array('column' => ColumnType::DateTime),
 		AttributeType::Email      => array('minLength' => 5, 'column' => ColumnType::Varchar),
 		AttributeType::Enum       => array('values' => array(), 'column' => ColumnType::Enum),
@@ -37,8 +35,23 @@ class ModelHelper
 		AttributeType::SortOrder  => array('column' => ColumnType::TinyInt),
 		AttributeType::Template   => array('maxLength' => 500, 'column' => ColumnType::Varchar),
 		AttributeType::Url        => array('maxLength' => 255, 'column' => ColumnType::Varchar),
-		AttributeType::Version    => array('maxLength' => 15, 'column' => ColumnType::Char),
 	);
+
+	/**
+	 * Integer column sizes.
+	 *
+	 * @var array
+	 */
+	private static $_intColumnSizes = array(
+		ColumnType::TinyInt   => 128,
+		ColumnType::SmallInt  => 32768,
+		ColumnType::MediumInt => 8388608,
+		ColumnType::Int       => 2147483648,
+		ColumnType::BigInt    => 9223372036854775808
+	);
+
+	// Public Methods
+	// =========================================================================
 
 	/**
 	 * Normalizes an attribute's config.
@@ -49,10 +62,11 @@ class ModelHelper
 	 * 2. array(AttributeType::TypeName [, 'other' => 'settings' ... ] )
 	 * 3. array('type' => AttributeType::TypeName [, 'other' => 'settings' ... ] )
 	 *
-	 * This function normalizes on the 3rd, and merges in the default config settings for the attribute type,
-	 * merges in the default column settings if 'column' is set, and sets the 'unsigned', 'min', and 'max' values for integers.
+	 * This function normalizes on the 3rd, and merges in the default config settings for the attribute type, merges in
+	 * the default column settings if 'column' is set, and sets the 'unsigned', 'min', and 'max' values for integers.
 	 *
 	 * @param string|array $config
+	 *
 	 * @return array
 	 */
 	public static function normalizeAttributeConfig($config)
@@ -125,10 +139,10 @@ class ModelHelper
 	/**
 	 * Returns a number attribute config, taking the min, max, and number of decimal points into account.
 	 *
-	 * @static
-	 * @param number $min
-	 * @param number $max
+	 * @param int $min
+	 * @param int $max
 	 * @param int $decimals
+	 *
 	 * @return array
 	 */
 	public static function getNumberAttributeConfig($min = null, $max = null, $decimals = null)
@@ -181,25 +195,11 @@ class ModelHelper
 	}
 
 	/**
-	 * Integer column sizes
-	 *
-	 * @static
-	 * @access private
-	 * @var array
-	 */
-	private static $_intColumnSizes = array(
-		ColumnType::TinyInt   => 128,
-		ColumnType::SmallInt  => 32768,
-		ColumnType::MediumInt => 8388608,
-		ColumnType::Int       => 2147483648,
-		ColumnType::BigInt    => 9223372036854775808
-	);
-
-	/**
 	 * Populates any default values that are defined for a model.
 	 *
-	 * @static
 	 * @param \CModel $model
+	 *
+	 * @return null
 	 */
 	public static function populateAttributeDefaults(\CModel $model)
 	{
@@ -215,8 +215,8 @@ class ModelHelper
 	/**
 	 * Returns the rules array used by CModel.
 	 *
-	 * @static
 	 * @param \CModel $model
+	 *
 	 * @return array
 	 */
 	public static function getRules(\CModel $model)
@@ -228,6 +228,7 @@ class ModelHelper
 		$requiredAttributes = array();
 		$emailAttributes = array();
 		$urlAttributes = array();
+		$urlFormatAttributes = array();
 		$uriAttributes = array();
 		$strictLengthAttributes = array();
 		$minLengthAttributes = array();
@@ -251,7 +252,7 @@ class ModelHelper
 					break;
 				}
 
-				case Attributetype::Enum:
+				case AttributeType::Enum:
 				{
 					$rules[] = array($name, 'in', 'range' => ArrayHelper::stringToArray($config['values']));
 					break;
@@ -271,7 +272,7 @@ class ModelHelper
 
 				case AttributeType::Number:
 				{
-					$rule = array($name, 'Craft\LocaleNumberValidator');
+					$rule = array($name, 'numerical');
 
 					if ($config['min'] !== null)
 					{
@@ -295,6 +296,12 @@ class ModelHelper
 				case AttributeType::Url:
 				{
 					$urlAttributes[] = $name;
+					break;
+				}
+
+				case AttributeType::UrlFormat:
+				{
+					$urlFormatAttributes[] = $name;
 					break;
 				}
 
@@ -325,7 +332,7 @@ class ModelHelper
 			}
 
 			// Lengths
-			if ($config['type'] != AttributeType::Number)
+			if ($config['type'] != AttributeType::Number && $config['type'] != AttributeType::Mixed)
 			{
 				if (isset($config['length']) && is_numeric($config['length']))
 				{
@@ -366,8 +373,8 @@ class ModelHelper
 			}
 		}
 
-		// If this is a BaseRecord instance, catch any unique/required indexes
-		//  - We don't validate required BELONGS_TO relations because they might not get set until after validation.
+		// If this is a BaseRecord instance, catch any unique/required indexes. We don't validate required BELONGS_TO
+		// relations because they mightnot get set until after validation.
 		if ($model instanceof BaseRecord)
 		{
 			foreach ($model->defineIndexes() as $config)
@@ -432,6 +439,11 @@ class ModelHelper
 			$rules[] = array(implode(',', $urlAttributes), 'Craft\UrlValidator', 'defaultScheme' => 'http');
 		}
 
+		if ($urlFormatAttributes)
+		{
+			$rules[] = array(implode(',', $urlFormatAttributes), 'Craft\UrlFormatValidator');
+		}
+
 		if ($uriAttributes)
 		{
 			$rules[] = array(implode(',', $uriAttributes), 'Craft\UriValidator');
@@ -469,8 +481,8 @@ class ModelHelper
 	/**
 	 * Returns the attribute labels.
 	 *
-	 * @static
 	 * @param \CModel $model
+	 *
 	 * @return array
 	 */
 	public static function getAttributeLabels(\CModel $model)
@@ -481,25 +493,20 @@ class ModelHelper
 		{
 			if (isset($config['label']))
 			{
-				$label = $config['label'];
+				$labels[$name] = Craft::t($config['label']);
 			}
-			else
-			{
-				$label = $model->generateAttributeLabel($name);
-			}
-
-			$labels[$name] = Craft::t($label);
 		}
 
 		return $labels;
 	}
 
 	/**
-	 * Takes an attribute's config and value and "normalizes" them either for saving to db or sending across a web service.
+	 * Takes an attribute's config and value and "normalizes" them either for saving to db or sending across a web
+	 * service.
 	 *
-	 * @param      $value
-	 * @param bool $jsonEncodeArrays
-	 * @internal param $storedValue
+	 * @param mixed $value
+	 * @param bool  $jsonEncodeArrays
+	 *
 	 * @return int|mixed|null|string
 	 */
 	public static function packageAttributeValue($value, $jsonEncodeArrays = false)
@@ -509,9 +516,20 @@ class ModelHelper
 			return DateTimeHelper::formatTimeForDb($value->getTimestamp());
 		}
 
-		if ($value instanceof \CModel)
+		if ($value instanceof BaseModel)
 		{
-			$value = $value->getAttributes();
+			$attributes = $value->getAttributes(null, true);
+
+			if ($value instanceof ElementCriteriaModel)
+			{
+				$attributes['__criteria__'] = $value->getElementType()->getClassHandle();
+			}
+			else
+			{
+				$attributes['__model__'] = get_class($value);
+			}
+
+			$value = $attributes;
 		}
 
 		if (is_array($value))
@@ -541,9 +559,35 @@ class ModelHelper
 	}
 
 	/**
-	 * @static
-	 * @access private
-	 * @var array
+	 * Searches an array for any flattened models, and expands them back to models.
+	 *
+	 * @param array $arr
+	 *
+	 * @return array|BaseModel
 	 */
-	private static $_comparisonOperators = array('==|=|!=|>=|>|<=|<');
+	public static function expandModelsInArray($arr)
+	{
+		foreach ($arr as $key => $val)
+		{
+			if (is_array($val))
+			{
+				$arr[$key] = static::expandModelsInArray($val);
+			}
+		}
+
+		if (isset($arr['__criteria__']))
+		{
+			return craft()->elements->getCriteria($arr['__criteria__'], $arr);
+		}
+
+		if (isset($arr['__model__']))
+		{
+			$class = $arr['__model__'];
+			$model = new $class();
+			$model->setAttributes($arr);
+			return $model;
+		}
+
+		return $arr;
+	}
 }

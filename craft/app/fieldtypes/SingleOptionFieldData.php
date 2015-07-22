@@ -2,19 +2,47 @@
 namespace Craft;
 
 /**
- * Craft by Pixel & Tonic
+ * Single-select option field data class.
  *
- * @package   Craft
- * @author    Pixel & Tonic, Inc.
- * @copyright Copyright (c) 2013, Pixel & Tonic, Inc.
+ * @author    Pixel & Tonic, Inc. <support@pixelandtonic.com>
+ * @copyright Copyright (c) 2014, Pixel & Tonic, Inc.
  * @license   http://buildwithcraft.com/license Craft License Agreement
- * @link      http://buildwithcraft.com
- */
-
-/**
- * Single-select option field data class
+ * @see       http://buildwithcraft.com
+ * @package   craft.app.fieldtypes
+ * @since     1.0
  */
 class SingleOptionFieldData extends OptionData
 {
-	public $options;
+	// Properties
+	// =========================================================================
+
+	/**
+	 * @var
+	 */
+	private $_options;
+
+	// Public Methods
+	// =========================================================================
+
+	/**
+	 * Returns the options.
+	 *
+	 * @return array|null
+	 */
+	public function getOptions()
+	{
+		return $this->_options;
+	}
+
+	/**
+	 * Sets the options.
+	 *
+	 * @param array $options
+	 *
+	 * @return null
+	 */
+	public function setOptions($options)
+	{
+		$this->_options = $options;
+	}
 }
