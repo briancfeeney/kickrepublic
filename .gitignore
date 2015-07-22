@@ -1,0 +1,7 @@
+
+/public/images/*
+
+craft/app/*
+craft/storage/*
+public/content/*
+craft/config/license.key
